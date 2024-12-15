@@ -340,72 +340,87 @@ class _MyHomePageState extends State<MyHomePage> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // Kalorien-Fortschrittsbalken
-                CircularPercentIndicator(
-                  radius: 80.0,
-                  lineWidth: 12.0,
-                  percent: _calorieProgress(state).clamp(0.0, 1.0),
-                  center: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                // Änderung beginnt hier
+                Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min, // Nimmt nur den benötigten Platz ein
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '${(state.dailyCalorieGoal - state.consumedCalories).toStringAsFixed(0)} kcal',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
+                      // Runde Anzeige nach links verschoben
+                      CircularPercentIndicator(
+                        radius: 80.0,
+                        lineWidth: 12.0,
+                        percent: _calorieProgress(state).clamp(0.0, 1.0),
+                        center: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '${(state.dailyCalorieGoal - state.consumedCalories).toStringAsFixed(0)} kcal',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'Verbleibend',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
+                        circularStrokeCap: CircularStrokeCap.round,
+                        backgroundColor: Colors.grey[300]!,
+                        progressColor: Colors.lightBlueAccent,
+                        animation: true,
+                        animateFromLastPercent: true,
                       ),
-                      Text(
-                        'Verbleibend',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      SizedBox(width: 24), // Abstand zwischen Kreis und Text
+                      // Grundziel und bereits gegessene Kalorien rechts neben der Anzeige
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Grundziel
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '\nGrundziel:',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '${state.dailyCalorieGoal.toStringAsFixed(0)} kcal',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 16), // Abstand zwischen den beiden Abschnitten
+                          // Bereits gegessen
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Gegessen:',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '${state.consumedCalories.toStringAsFixed(0)} kcal',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  circularStrokeCap: CircularStrokeCap.round,
-                  backgroundColor: Colors.grey[300]!,
-                  progressColor: Colors.lightBlueAccent,
-                  animation: true,
-                  animateFromLastPercent: true,
                 ),
-                const SizedBox(height: 16),
-
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text(
-                          'Grundziel:',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${state.dailyCalorieGoal.toStringAsFixed(0)} kcal',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Text(
-                          'Bereits gegessen:',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${state.consumedCalories.toStringAsFixed(0)} kcal',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                // Änderung endet hier
+                const SizedBox(height: 24), // Erhöht den Abstand nach der Row
 
                 // Makronährstoffe-Fortschrittsbalken als lineare Balken
                 Column(
@@ -561,7 +576,6 @@ class _MyHomePageState extends State<MyHomePage> {
             child: const Icon(Icons.settings),
           ),
         );
-      },
-    );
-  }
+      });
+    }
 }
