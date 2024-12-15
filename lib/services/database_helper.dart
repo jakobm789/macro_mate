@@ -6,6 +6,7 @@ import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
 import 'dart:io';
 import 'package:intl/intl.dart';
+import 'dart:convert';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -13,7 +14,7 @@ class DatabaseHelper {
   factory DatabaseHelper() => _instance;
 
   DatabaseHelper._internal();
-  
+
   static Database? _database;
 
   Future<Database> get database async {
@@ -111,12 +112,7 @@ class DatabaseHelper {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    try {
-      if (oldVersion < 12) {
-      }
-    } catch (e) {
-      throw Exception("Fehler beim Upgrade der Datenbank: $e");
-    }
+    // Hier könnten zukünftige Upgrades stattfinden
   }
 
   Future<void> resetDatabase() async {
@@ -233,6 +229,7 @@ class DatabaseHelper {
         );
 
         if (existing.isNotEmpty) {
+          // Barcode existiert bereits bei einem anderen Item, entferne dort den Barcode
           FoodItem existingFood = FoodItem.fromMap(existing.first);
           FoodItem updatedExistingFood = existingFood.copyWith(barcode: null);
           await updateFoodItem(updatedExistingFood);
@@ -416,5 +413,80 @@ class DatabaseHelper {
       return result.first['dark_mode'] == 1;
     }
     return false;
+  }
+
+  Future<Map<String, dynamic>> exportData() async {
+    final db = await database;
+
+    final foodItems = await db.query('FoodItems');
+    final consumedFoods = await db.query('ConsumedFoods');
+    final goals = await db.query('Goals');
+    final settings = await db.query('Settings');
+
+    return {
+      'food_items': foodItems,
+      'consumed_foods': consumedFoods,
+      'goals': goals,
+      'settings': settings,
+    };
+  }
+
+  // Neue Merge-Funktion: bestehende Daten bleiben unangetastet, neue werden ergänzt
+  Future<void> mergeData(String jsonData) async {
+    final db = await database;
+    Map<String, dynamic> data = jsonDecode(jsonData);
+
+    // Merge FoodItems:
+    if (data['food_items'] is List) {
+      for (var f in data['food_items']) {
+        // Prüfe, ob bereits ein FoodItem mit gleichem Namen und Marke existiert
+        List<Map<String, dynamic>> existing = await db.query(
+          'FoodItems',
+          where: 'LOWER(name) = ? AND LOWER(brand) = ?',
+          whereArgs: [f['name'].toString().toLowerCase(), f['brand'].toString().toLowerCase()],
+        );
+        if (existing.isEmpty) {
+          // Einfügen, falls nicht vorhanden
+          await db.insert('FoodItems', f, conflictAlgorithm: ConflictAlgorithm.ignore);
+        }
+      }
+    }
+
+    // Merge ConsumedFoods:
+    if (data['consumed_foods'] is List) {
+      for (var c in data['consumed_foods']) {
+        // Prüfe, ob diese Kombination bereits existiert: Gleicher Tag, gleiche Mahlzeit, gleicher food_id
+        List<Map<String, dynamic>> existingConsumed = await db.query(
+          'ConsumedFoods',
+          where: 'date = ? AND meal_name = ? AND food_id = ?',
+          whereArgs: [c['date'], c['meal_name'], c['food_id']],
+        );
+        if (existingConsumed.isEmpty) {
+          // Einfügen, falls nicht vorhanden
+          await db.insert('ConsumedFoods', c, conflictAlgorithm: ConflictAlgorithm.ignore);
+        }
+      }
+    }
+
+    // Merge Goals:
+    // Falls bereits Goals existieren, nichts tun. Nur wenn noch keine Goals da sind, übernehmen.
+    final existingGoals = await db.query('Goals');
+    if (existingGoals.isEmpty && data['goals'] is List && data['goals'].isNotEmpty) {
+      await db.delete('Goals');
+      for (var g in data['goals']) {
+        // Einfügen
+        await db.insert('Goals', g, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+    }
+
+    // Merge Settings:
+    // Falls bereits Settings existieren, nichts tun. Nur wenn noch keine Settings da sind, übernehmen.
+    final existingSettings = await db.query('Settings');
+    if (existingSettings.isEmpty && data['settings'] is List && data['settings'].isNotEmpty) {
+      await db.delete('Settings');
+      for (var s in data['settings']) {
+        await db.insert('Settings', s, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+    }
   }
 }

@@ -1,6 +1,11 @@
 // lib/pages/settings_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/app_state.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -134,7 +139,7 @@ class _SettingsPageState extends State<SettingsPage> {
       },
     );
 
-    if (confirm != null && confirm) {
+    if (confirm == true) {
       try {
         await appState.resetDatabase();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -153,6 +158,81 @@ class _SettingsPageState extends State<SettingsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(value ? 'Dark Mode aktiviert.' : 'Dark Mode deaktiviert.')),
     );
+  }
+
+  Future<void> _exportDatabase(AppState appState) async {
+    try {
+      // Exportiere die Datenbank als JSON-String
+      String jsonData = await appState.exportDatabase();
+
+      // Erstelle temporäre Datei
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/macro_mate_export.json');
+      await tempFile.writeAsString(jsonData);
+
+      // Erstelle ein XFile-Objekt aus der Datei
+      final xFile = XFile(tempFile.path);
+
+      // Teile die Datei
+      await Share.shareXFiles(
+        [xFile],
+        text: 'Hier sind meine MacroMate Daten.',
+      );
+    } catch (e) {
+      // Zeige Fehlermeldung an
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Exportieren: $e')),
+      );
+    }
+  }
+
+  // Import aus Datei: JSON-Datei auswählen und dann importieren (Mergen)
+  Future<void> _importDatabase(AppState appState) async {
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Datenbank importieren'),
+          content: Text('Möchtest du eine JSON-Datei laden und deine Daten damit ergänzen? Bestehende Einträge bleiben bestehen.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('Abbrechen'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text('Datei wählen'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        String filePath = result.files.single.path!;
+        try {
+          String fileContent = await File(filePath).readAsString();
+          await appState.importDatabase(fileContent);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Datenbank erfolgreich importiert und gemergt.')),
+          );
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Fehler beim Import: $e')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Keine Datei ausgewählt.')),
+        );
+      }
+    }
   }
 
   @override
@@ -379,6 +459,30 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       trailing: Icon(Icons.arrow_forward),
                       onTap: () => _resetDatabase(appState),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // Daten teilen (Export/Import) mit Datei
+                ExpansionTile(
+                  title: const Text(
+                    'Daten teilen',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  children: [
+                    ListTile(
+                      leading: Icon(Icons.file_upload, color: Colors.blue),
+                      title: Text('Datenbank exportieren und teilen'),
+                      subtitle: Text('Exportiert deine Daten als JSON-Datei zum Teilen.'),
+                      onTap: () => _exportDatabase(appState),
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.file_download, color: Colors.green),
+                      title: Text('Datenbank aus Datei importieren'),
+                      subtitle: Text('Wähle eine JSON-Datei und merge sie mit deinen Daten.'),
+                      onTap: () => _importDatabase(appState),
                     ),
                   ],
                 ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
+import 'dart:convert';
 
 class AppState extends ChangeNotifier {
   List<ConsumedFoodItem> breakfast = [];
@@ -311,7 +312,7 @@ class AppState extends ChangeNotifier {
       throw e;
     }
   }
-  
+
   void previousDay() {
     currentDate = currentDate.subtract(Duration(days: 1));
     loadConsumedFoods();
@@ -322,5 +323,29 @@ class AppState extends ChangeNotifier {
     currentDate = currentDate.add(Duration(days: 1));
     loadConsumedFoods();
     notifyListeners();
+  }
+
+  // Exportiert die gesamte Datenbank als JSON-String
+  Future<String> exportDatabase() async {
+    try {
+      Map<String, dynamic> data = await DatabaseHelper().exportData();
+      return jsonEncode(data);
+    } catch (e) {
+      print('Fehler beim Exportieren der Datenbank: $e');
+      throw e;
+    }
+  }
+
+  // Import/Merge: Es werden nur neue Datensätze hinzugefügt, bestehende bleiben erhalten
+  Future<void> importDatabase(String jsonData) async {
+    try {
+      await DatabaseHelper().mergeData(jsonData);
+      // Nach dem Mergen neu laden
+      await _initialize();
+      notifyListeners();
+    } catch (e) {
+      print('Fehler beim Importieren der Datenbank (Merge): $e');
+      throw e;
+    }
   }
 }

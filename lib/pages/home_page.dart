@@ -349,9 +349,18 @@ class _MyHomePageState extends State<MyHomePage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        '${state.consumedCalories.toStringAsFixed(0)} / ${state.dailyCalorieGoal} kcal',
+                        '${(state.dailyCalorieGoal - state.consumedCalories).toStringAsFixed(0)} kcal',
+                        textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Verbleibend',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -364,6 +373,39 @@ class _MyHomePageState extends State<MyHomePage> {
                   animateFromLastPercent: true,
                 ),
                 const SizedBox(height: 16),
+
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Grundziel:',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${state.dailyCalorieGoal.toStringAsFixed(0)} kcal',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Text(
+                          'Bereits gegessen:',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${state.consumedCalories.toStringAsFixed(0)} kcal',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
 
                 // Makronährstoffe-Fortschrittsbalken als lineare Balken
                 Column(
@@ -385,11 +427,11 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                     SizedBox(height: 4),
                     LinearPercentIndicator(
-                      lineHeight: 14.0,
+                      lineHeight: 7.0,
                       percent: _carbProgress(state).clamp(0.0, 1.0),
                       progressColor: carbProgressColor,
                       backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(7),
+                      barRadius: Radius.circular(3.5),
                       animation: true,
                     ),
                     SizedBox(height: 16),
@@ -410,11 +452,11 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                     SizedBox(height: 4),
                     LinearPercentIndicator(
-                      lineHeight: 14.0,
+                      lineHeight: 7.0,
                       percent: _sugarProgress(state).clamp(0.0, 1.0),
                       progressColor: sugarProgressColor,
                       backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(7),
+                      barRadius: Radius.circular(3.5),
                       animation: true,
                     ),
                     SizedBox(height: 16),
@@ -435,11 +477,11 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                     SizedBox(height: 4),
                     LinearPercentIndicator(
-                      lineHeight: 14.0,
+                      lineHeight: 7.0,
                       percent: _proteinProgress(state).clamp(0.0, 1.0),
                       progressColor: proteinProgressColor,
                       backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(7),
+                      barRadius: Radius.circular(3.5),
                       animation: true,
                     ),
                     SizedBox(height: 16),
@@ -460,11 +502,11 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                     SizedBox(height: 4),
                     LinearPercentIndicator(
-                      lineHeight: 14.0,
+                      lineHeight: 7.0,
                       percent: _fatProgress(state).clamp(0.0, 1.0),
                       progressColor: fatProgressColor,
                       backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(7),
+                      barRadius: Radius.circular(3.5),
                       animation: true,
                     ),
                     SizedBox(height: 24),

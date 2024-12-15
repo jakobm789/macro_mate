@@ -5,7 +5,7 @@ import 'package:macro_mate/main.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(initialFilePath: '',));
 
     expect(find.text('0'), findsOneWidget);
     expect(find.text('1'), findsNothing);
