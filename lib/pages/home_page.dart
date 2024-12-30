@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+
 import '../models/app_state.dart';
 import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
 import '../widgets/add_food_sheet.dart';
 import '../widgets/meal_section.dart';
-import '../services/database_helper.dart';
-import 'package:intl/intl.dart';
 
 class MyHomePage extends StatefulWidget {
   final String title;
@@ -24,6 +24,16 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  // ENTFERNT: erneuter Aufruf von loadConsumedFoods() im initState,
+  // weil AppState bereits alles lädt.
+  //
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   final state = Provider.of<AppState>(context, listen: false);
+  //   state.loadConsumedFoods();
+  // }
+
   double _calorieProgress(AppState state) =>
       state.consumedCalories / state.dailyCalorieGoal;
   double _carbProgress(AppState state) =>
@@ -33,41 +43,38 @@ class _MyHomePageState extends State<MyHomePage> {
   double _fatProgress(AppState state) =>
       state.consumedFat / state.dailyFatGoal;
   double _sugarProgress(AppState state) =>
-      state.consumedSugar / state.dailySugarGoalGrams; // Aktualisiert auf sugarGoalGrams
+      state.consumedSugar / state.dailySugarGoalGrams;
 
+  // Barcode-Scan:
   void _scanBarcode(BuildContext parentContext, AppState state, String mealName) async {
     try {
-      print('Barcode-Scan gestartet...');
       var result = await BarcodeScanner.scan();
-      print('Barcode-Scan abgeschlossen. Ergebnis: $result');
-
       if (!mounted) return;
 
       if (result.type == ResultType.Barcode) {
         String barcode = result.rawContent.trim().toLowerCase();
-        print('Gescanntes Barcode: $barcode');
         if (barcode.isEmpty) {
           ScaffoldMessenger.of(parentContext).showSnackBar(
-            SnackBar(content: Text('Kein Barcode gefunden.')),
+            const SnackBar(content: Text('Kein Barcode gefunden.')),
           );
           return;
         }
 
-        FoodItem? food = await DatabaseHelper().getFoodItemByBarcode(barcode);
-        print('FoodItem gefunden: ${food != null ? food.name : 'Nicht gefunden'}');
-
+        FoodItem? food = await state.loadFoodItemByBarcode(barcode);
         if (!mounted) return;
 
         if (food != null) {
+          // Existiert bereits remote => Menge abfragen
           await showDialog<int>(
             context: parentContext,
             builder: (context) {
-              final TextEditingController _gramController = TextEditingController(text: '100');
+              final TextEditingController _gramController =
+                  TextEditingController(text: '100');
               return AlertDialog(
                 title: Text('Menge für ${food.name} eingeben'),
                 content: TextField(
                   controller: _gramController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Menge in Gramm',
                     hintText: 'z.B. 150',
                   ),
@@ -76,7 +83,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: Text('Abbrechen'),
+                    child: const Text('Abbrechen'),
                   ),
                   TextButton(
                     onPressed: () {
@@ -85,11 +92,12 @@ class _MyHomePageState extends State<MyHomePage> {
                         Navigator.pop(context, grams);
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Bitte gib eine gültige Menge ein.')),
+                          const SnackBar(
+                              content: Text('Bitte gib eine gültige Menge ein.')),
                         );
                       }
                     },
-                    child: Text('Hinzufügen'),
+                    child: const Text('Hinzufügen'),
                   ),
                 ],
               );
@@ -100,54 +108,53 @@ class _MyHomePageState extends State<MyHomePage> {
                   .addOrUpdateFood(mealName, food, grams, state.currentDate);
               if (!mounted) return;
               ScaffoldMessenger.of(parentContext).showSnackBar(
-                SnackBar(content: Text('Barcode für ${food.name} mit $grams g hinzugefügt.')),
+                SnackBar(
+                  content: Text('Barcode für ${food.name} mit $grams g hinzugefügt.'),
+                ),
               );
-              // Navigiere zum Home-Screen
               Navigator.popUntil(parentContext, ModalRoute.withName('/'));
             }
           });
         } else {
-          print('FoodItem mit Barcode $barcode nicht gefunden.');
+          // Nicht gefunden => Neuanlage oder Zuordnung
           await showDialog(
             context: parentContext,
             builder: (context) {
               return AlertDialog(
-                title: Text('Lebensmittel nicht gefunden'),
-                content: Text('Der gescannte Barcode wurde keinem Lebensmittel zugeordnet. Möchtest du ein neues Lebensmittel erstellen oder den Barcode einem bestehenden Lebensmittel zuordnen?'),
+                title: const Text('Lebensmittel nicht gefunden'),
+                content: const Text(
+                  'Der gescannte Barcode wurde keinem Lebensmittel '
+                  'zugeordnet. Möchtest du ein neues Lebensmittel erstellen '
+                  'oder den Barcode einem bestehenden Lebensmittel zuordnen?',
+                ),
                 actions: [
                   TextButton(
                     onPressed: () {
-                      print('Option ausgewählt: Neues Lebensmittel erstellen');
                       Navigator.pop(context);
                       _addNewFoodWithBarcode(parentContext, state, mealName, barcode);
                     },
-                    child: Text('Neues Lebensmittel erstellen'),
+                    child: const Text('Neues Lebensmittel erstellen'),
                   ),
                   TextButton(
                     onPressed: () {
-                      print('Option ausgewählt: Barcode zuordnen');
                       Navigator.pop(context);
                       _assignBarcodeToExistingFood(parentContext, state, mealName, barcode);
                     },
-                    child: Text('Barcode zuordnen'),
+                    child: const Text('Barcode zuordnen'),
                   ),
                   TextButton(
                     onPressed: () {
-                      print('Option ausgewählt: Abbrechen');
                       Navigator.pop(context);
                     },
-                    child: Text('Abbrechen'),
+                    child: const Text('Abbrechen'),
                   ),
                 ],
               );
             },
-          ).then((_) {
-            // Optional: Könnte hier ebenfalls zum Home-Screen navigieren, falls gewünscht
-          });
+          );
         }
       }
     } catch (e) {
-      print('Fehler beim Scannen des Barcodes: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(parentContext).showSnackBar(
         SnackBar(content: Text('Fehler beim Scannen des Barcodes: $e')),
@@ -155,7 +162,12 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  Future<void> _addNewFoodWithBarcode(BuildContext parentContext, AppState state, String mealName, String barcode) async {
+  Future<void> _addNewFoodWithBarcode(
+    BuildContext parentContext,
+    AppState state,
+    String mealName,
+    String barcode,
+  ) async {
     await showModalBottomSheet(
       context: parentContext,
       isScrollControlled: true,
@@ -168,28 +180,34 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Future<void> _assignBarcodeToExistingFood(BuildContext parentContext, AppState state, String mealName, String barcode) async {
-    List<FoodItem> existingFoods = await DatabaseHelper().getAllFoodItems();
+  Future<void> _assignBarcodeToExistingFood(
+    BuildContext parentContext,
+    AppState state,
+    String mealName,
+    String barcode,
+  ) async {
+    List<FoodItem> existingFoods = await state.loadAllFoodItems();
 
     showModalBottomSheet(
       context: parentContext,
       isScrollControlled: true,
       builder: (context) {
         return Padding(
-          padding:
-              EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
+              const Padding(
+                padding: EdgeInsets.all(16.0),
                 child: Text(
                   'Barcode einem bestehenden Lebensmittel zuordnen',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
-              Divider(),
-              Container(
+              const Divider(),
+              SizedBox(
                 height: 300,
                 child: ListView.builder(
                   itemCount: existingFoods.length,
@@ -198,24 +216,29 @@ class _MyHomePageState extends State<MyHomePage> {
                     return ListTile(
                       title: Text(food.name),
                       subtitle: Text(
-                          'Barcode: ${food.barcode ?? 'Nicht zugeordnet'}'),
+                        'Barcode: ${food.barcode ?? 'Nicht zugeordnet'}',
+                      ),
                       trailing: food.barcode == null
                           ? IconButton(
-                              icon: Icon(Icons.link, color: Colors.blue),
+                              icon: const Icon(Icons.link, color: Colors.blue),
                               onPressed: () async {
-                                FoodItem updatedFood = food.copyWith(barcode: barcode);
-                                await DatabaseHelper().updateFoodItem(updatedFood);
+                                await state.updateBarcodeForFood(food, barcode);
                                 await Provider.of<AppState>(context, listen: false)
                                     .addOrUpdateFood(
-                                        mealName, updatedFood, 100, state.currentDate);
+                                  mealName,
+                                  food.copyWith(barcode: barcode),
+                                  100,
+                                  state.currentDate,
+                                );
                                 if (!mounted) return;
-                                Navigator.pop(context); // Schließt Barcode-Zuordnung
-
-                                // Navigiere zum Home-Screen
+                                Navigator.pop(context);
                                 Navigator.popUntil(context, ModalRoute.withName('/'));
-
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Barcode zu ${food.name} zugeordnet und hinzugefügt.')),
+                                  SnackBar(
+                                    content: Text(
+                                      'Barcode zu ${food.name} zugeordnet und hinzugefügt.',
+                                    ),
+                                  ),
                                 );
                               },
                             )
@@ -224,7 +247,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   },
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
             ],
           ),
         );
@@ -262,8 +285,7 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  // Beim Aufruf von AddFoodSheet ohne Barcode
-  _searchFood(BuildContext context, AppState state, String mealName) async {
+  void _searchFood(BuildContext context, AppState state, String mealName) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -273,8 +295,7 @@ class _MyHomePageState extends State<MyHomePage> {
             Navigator.pop(context);
           },
           mealName: mealName,
-          // Entferne oder setze den Barcode auf null, da hier kein Barcode vorhanden ist
-          barcode: null, // Optional: Du kannst diese Zeile auch komplett entfernen
+          barcode: null,
         );
       },
     );
@@ -301,8 +322,8 @@ class _MyHomePageState extends State<MyHomePage> {
         final Color sugarProgressColor = Colors.orange;
 
         DateTime today = DateTime.now();
-        DateTime yesterday = today.subtract(Duration(days: 1));
-        DateTime tomorrow = today.add(Duration(days: 1));
+        DateTime yesterday = today.subtract(const Duration(days: 1));
+        DateTime tomorrow = today.add(const Duration(days: 1));
 
         String formattedDate;
         if (_isSameDate(state.currentDate, today)) {
@@ -321,14 +342,14 @@ class _MyHomePageState extends State<MyHomePage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  icon: Icon(Icons.arrow_back),
+                  icon: const Icon(Icons.arrow_back),
                   onPressed: () => _goToPreviousDay(state),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text('MacroMate - $formattedDate'),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 IconButton(
-                  icon: Icon(Icons.arrow_forward),
+                  icon: const Icon(Icons.arrow_forward),
                   onPressed: () => _goToNextDay(state),
                 ),
               ],
@@ -340,13 +361,12 @@ class _MyHomePageState extends State<MyHomePage> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // Änderung beginnt hier
+                // Kreisdiagramm / Kalorien
                 Center(
                   child: Row(
-                    mainAxisSize: MainAxisSize.min, // Nimmt nur den benötigten Platz ein
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Runde Anzeige nach links verschoben
                       CircularPercentIndicator(
                         radius: 80.0,
                         lineWidth: 12.0,
@@ -362,10 +382,10 @@ class _MyHomePageState extends State<MyHomePage> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            Text(
+                            const Text(
                               'Verbleibend',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -378,39 +398,43 @@ class _MyHomePageState extends State<MyHomePage> {
                         animation: true,
                         animateFromLastPercent: true,
                       ),
-                      SizedBox(width: 24), // Abstand zwischen Kreis und Text
-                      // Grundziel und bereits gegessene Kalorien rechts neben der Anzeige
+                      const SizedBox(width: 24),
+                      // Grundziel & Gegessen
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Grundziel
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              const Text(
                                 '\nGrundziel:',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              SizedBox(height: 4),
+                              const SizedBox(height: 4),
                               Text(
                                 '${state.dailyCalorieGoal.toStringAsFixed(0)} kcal',
-                                style: TextStyle(fontSize: 16),
+                                style: const TextStyle(fontSize: 16),
                               ),
                             ],
                           ),
-                          SizedBox(height: 16), // Abstand zwischen den beiden Abschnitten
-                          // Bereits gegessen
+                          const SizedBox(height: 16),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              const Text(
                                 'Gegessen:',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              SizedBox(height: 4),
+                              const SizedBox(height: 4),
                               Text(
                                 '${state.consumedCalories.toStringAsFixed(0)} kcal',
-                                style: TextStyle(fontSize: 16),
+                                style: const TextStyle(fontSize: 16),
                               ),
                             ],
                           ),
@@ -419,116 +443,126 @@ class _MyHomePageState extends State<MyHomePage> {
                     ],
                   ),
                 ),
-                // Änderung endet hier
-                const SizedBox(height: 24), // Erhöht den Abstand nach der Row
-
-                // Makronährstoffe-Fortschrittsbalken als lineare Balken
+                const SizedBox(height: 24),
+                // Balken für KH, Zucker, Proteine, Fette
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Kohlenhydrate
+                    // KH
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
                           'Kohlenhydrate (g)',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         Text(
-                          '${state.consumedCarbs.toStringAsFixed(0)} / ${state.dailyCarbGoal.toStringAsFixed(0)} g',
-                          style: TextStyle(fontSize: 14),
+                          '${state.consumedCarbs.toStringAsFixed(0)} / '
+                          '${state.dailyCarbGoal.toStringAsFixed(0)} g',
+                          style: const TextStyle(fontSize: 14),
                         ),
                       ],
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     LinearPercentIndicator(
                       lineHeight: 7.0,
                       percent: _carbProgress(state).clamp(0.0, 1.0),
                       progressColor: carbProgressColor,
                       backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(3.5),
+                      barRadius: const Radius.circular(3.5),
                       animation: true,
                     ),
-                    SizedBox(height: 16),
-
+                    const SizedBox(height: 16),
                     // Zucker
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
                           'Zucker (g)',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         Text(
-                          '${state.consumedSugar.toStringAsFixed(0)} / ${state.dailySugarGoalGrams.toStringAsFixed(0)} g',
-                          style: TextStyle(fontSize: 14),
+                          '${state.consumedSugar.toStringAsFixed(0)} / '
+                          '${state.dailySugarGoalGrams.toStringAsFixed(0)} g',
+                          style: const TextStyle(fontSize: 14),
                         ),
                       ],
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     LinearPercentIndicator(
                       lineHeight: 7.0,
                       percent: _sugarProgress(state).clamp(0.0, 1.0),
                       progressColor: sugarProgressColor,
                       backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(3.5),
+                      barRadius: const Radius.circular(3.5),
                       animation: true,
                     ),
-                    SizedBox(height: 16),
-
+                    const SizedBox(height: 16),
                     // Proteine
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
                           'Proteine (g)',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         Text(
-                          '${state.consumedProtein.toStringAsFixed(0)} / ${state.dailyProteinGoal.toStringAsFixed(0)} g',
-                          style: TextStyle(fontSize: 14),
+                          '${state.consumedProtein.toStringAsFixed(0)} / '
+                          '${state.dailyProteinGoal.toStringAsFixed(0)} g',
+                          style: const TextStyle(fontSize: 14),
                         ),
                       ],
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     LinearPercentIndicator(
                       lineHeight: 7.0,
                       percent: _proteinProgress(state).clamp(0.0, 1.0),
                       progressColor: proteinProgressColor,
                       backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(3.5),
+                      barRadius: const Radius.circular(3.5),
                       animation: true,
                     ),
-                    SizedBox(height: 16),
-
+                    const SizedBox(height: 16),
                     // Fette
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
                           'Fette (g)',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         Text(
-                          '${state.consumedFat.toStringAsFixed(0)} / ${state.dailyFatGoal.toStringAsFixed(0)} g',
-                          style: TextStyle(fontSize: 14),
+                          '${state.consumedFat.toStringAsFixed(0)} / '
+                          '${state.dailyFatGoal.toStringAsFixed(0)} g',
+                          style: const TextStyle(fontSize: 14),
                         ),
                       ],
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     LinearPercentIndicator(
                       lineHeight: 7.0,
                       percent: _fatProgress(state).clamp(0.0, 1.0),
                       progressColor: fatProgressColor,
                       backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(3.5),
+                      barRadius: const Radius.circular(3.5),
                       animation: true,
                     ),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
                   ],
                 ),
-
-                // Mahlzeitenabschnitte
+                // Vier Mahlzeiten (Frühstück, Mittagessen, Abendessen, Snacks)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -576,6 +610,7 @@ class _MyHomePageState extends State<MyHomePage> {
             child: const Icon(Icons.settings),
           ),
         );
-      });
-    }
+      },
+    );
+  }
 }

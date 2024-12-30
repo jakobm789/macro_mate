@@ -1,11 +1,6 @@
 // lib/pages/settings_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:share_plus/share_plus.dart';
 import '../models/app_state.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -31,6 +26,7 @@ class _SettingsPageState extends State<SettingsPage> {
       return (value / 5).round() * 5;
     }
 
+    // Aktuelle Werte aus dem AppState holen und ggf. runden
     carbPercentage = _roundToNearestFive(
       ((appState.dailyCarbGoal * 4 / appState.dailyCalorieGoal) * 100).round(),
     );
@@ -40,10 +36,10 @@ class _SettingsPageState extends State<SettingsPage> {
     fatPercentage = _roundToNearestFive(
       ((appState.dailyFatGoal * 9 / appState.dailyCalorieGoal) * 100).round(),
     );
-
     sugarPercentage = appState.dailySugarGoalPercentage;
 
-    calorieController = TextEditingController(text: appState.dailyCalorieGoal.toString());
+    calorieController =
+        TextEditingController(text: appState.dailyCalorieGoal.toString());
   }
 
   @override
@@ -61,9 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
     int? newCalorieGoal = int.tryParse(calorieController.text);
     int? newSugarPerc = sugarPercentage;
 
-    if (newCalorieGoal != null &&
-        newCalorieGoal > 0 &&
-        _validatePercentages()) {
+    if (newCalorieGoal != null && newCalorieGoal > 0 && _validatePercentages()) {
       await appState.updateGoals(
         newCalorieGoal,
         carbPercentage,
@@ -112,7 +106,8 @@ class _SettingsPageState extends State<SettingsPage> {
       fatPercentage = 20;
       sugarPercentage = 20;
     });
-    appState.updateGoals(2000, 50, 30, 20, 0);
+    appState.updateGoals(2000, 50, 30, 20, 20);
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Ziele wurden zurückgesetzt.')),
     );
@@ -124,7 +119,9 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Datenbank zurücksetzen'),
-          content: const Text('Möchtest du wirklich alle Daten löschen und die Datenbank neu erstellen? Dies kann nicht rückgängig gemacht werden.'),
+          content: const Text(
+              'Möchtest du wirklich alle Daten löschen und die Datenbank neu erstellen? '
+              'Dies kann nicht rückgängig gemacht werden.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -160,48 +157,22 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _exportDatabase(AppState appState) async {
-    try {
-      // Exportiere die Datenbank als JSON-String
-      String jsonData = await appState.exportDatabase();
-
-      // Erstelle temporäre Datei
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/macro_mate_export.json');
-      await tempFile.writeAsString(jsonData);
-
-      // Erstelle ein XFile-Objekt aus der Datei
-      final xFile = XFile(tempFile.path);
-
-      // Teile die Datei
-      await Share.shareXFiles(
-        [xFile],
-        text: 'Hier sind meine MacroMate Daten.',
-      );
-    } catch (e) {
-      // Zeige Fehlermeldung an
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Exportieren: $e')),
-      );
-    }
-  }
-
-  // Import aus Datei: JSON-Datei auswählen und dann importieren (Mergen)
-  Future<void> _importDatabase(AppState appState) async {
+  // NEU: Logout
+  void _logout(AppState appState) async {
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Datenbank importieren'),
-          content: Text('Möchtest du eine JSON-Datei laden und deine Daten damit ergänzen? Bestehende Einträge bleiben bestehen.'),
+          title: const Text('Logout'),
+          content: const Text('Möchtest du dich wirklich abmelden?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text('Abbrechen'),
+              child: const Text('Abbrechen'),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: Text('Datei wählen'),
+              child: const Text('Logout'),
             ),
           ],
         );
@@ -209,27 +180,52 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     if (confirm == true) {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
+      await appState.logout();
+      // Nach dem Logout zurück zum Login
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erfolgreich ausgeloggt.')),
       );
+    }
+  }
 
-      if (result != null && result.files.single.path != null) {
-        String filePath = result.files.single.path!;
-        try {
-          String fileContent = await File(filePath).readAsString();
-          await appState.importDatabase(fileContent);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Datenbank erfolgreich importiert und gemergt.')),
-          );
-        } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Fehler beim Import: $e')),
-          );
-        }
+  // NEU: Account löschen
+  void _deleteAccount(AppState appState) async {
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Account löschen'),
+          content: const Text(
+            'Möchtest du deinen Account wirklich löschen? '
+            'Dies kann nicht rückgängig gemacht werden.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Abbrechen'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Löschen'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      final ok = await appState.deleteAccount();
+      if (ok) {
+        if (!mounted) return;
+        Navigator.of(context).pop(); // Schließt Settings
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account wurde gelöscht.')),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Keine Datei ausgewählt.')),
+          const SnackBar(content: Text('Account konnte nicht gelöscht werden.')),
         );
       }
     }
@@ -239,10 +235,13 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, appState, child) {
-        int currentCalorieGoal = int.tryParse(calorieController.text) ?? appState.dailyCalorieGoal;
+        int currentCalorieGoal =
+            int.tryParse(calorieController.text) ?? appState.dailyCalorieGoal;
         double carbGrams = (currentCalorieGoal * carbPercentage / 100) / 4.0;
-        double proteinGrams = (currentCalorieGoal * proteinPercentage / 100) / 4.0;
-        double fatGrams = (currentCalorieGoal * fatPercentage / 100) / 9.0;
+        double proteinGrams =
+            (currentCalorieGoal * proteinPercentage / 100) / 4.0;
+        double fatGrams =
+            (currentCalorieGoal * fatPercentage / 100) / 9.0;
         double sugarGrams = carbGrams * sugarPercentage / 100;
         int totalPercentage = carbPercentage + proteinPercentage + fatPercentage;
         int percentageDifference = totalPercentage - 100;
@@ -259,7 +258,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ExpansionTile(
                   title: const Text(
                     'Ziele einstellen',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   children: [
                     TextField(
@@ -274,7 +274,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       },
                     ),
                     const SizedBox(height: 16),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -283,7 +282,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             DropdownButton<int>(
                               value: carbPercentage,
-                              items: List.generate(21, (index) => index * 5).map((value) {
+                              items: List.generate(21, (index) => index * 5)
+                                  .map((value) {
                                 return DropdownMenuItem<int>(
                                   value: value,
                                   child: Text('$value%'),
@@ -304,7 +304,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -313,7 +312,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             DropdownButton<int>(
                               value: sugarPercentage,
-                              items: List.generate(21, (index) => index * 5).map((value) {
+                              items: List.generate(21, (index) => index * 5)
+                                  .map((value) {
                                 return DropdownMenuItem<int>(
                                   value: value,
                                   child: Text('$value%'),
@@ -334,7 +334,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -343,7 +342,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             DropdownButton<int>(
                               value: proteinPercentage,
-                              items: List.generate(21, (index) => index * 5).map((value) {
+                              items: List.generate(21, (index) => index * 5)
+                                  .map((value) {
                                 return DropdownMenuItem<int>(
                                   value: value,
                                   child: Text('$value%'),
@@ -364,7 +364,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -373,7 +372,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             DropdownButton<int>(
                               value: fatPercentage,
-                              items: List.generate(21, (index) => index * 5).map((value) {
+                              items: List.generate(21, (index) => index * 5)
+                                  .map((value) {
                                 return DropdownMenuItem<int>(
                                   value: value,
                                   child: Text('$value%'),
@@ -394,7 +394,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-
                     Text(
                       percentageDifference > 0
                           ? 'Die Summe ist ${percentageDifference.abs()}% zu hoch.'
@@ -411,7 +410,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -421,16 +419,15 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                         ElevatedButton(
                           onPressed: () => _resetGoals(appState),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                          style:
+                              ElevatedButton.styleFrom(backgroundColor: Colors.red),
                           child: const Text('Zurücksetzen'),
                         ),
                       ],
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 20),
-
                 ExpansionTile(
                   title: const Text(
                     'Sonstige Einstellungen',
@@ -440,49 +437,52 @@ class _SettingsPageState extends State<SettingsPage> {
                     SwitchListTile(
                       title: const Text(
                         'Dark Mode aktivieren',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.normal),
                       ),
                       value: appState.isDarkMode,
                       onChanged: (value) {
                         _toggleDarkMode(appState, value);
                       },
-                      secondary: Icon(appState.isDarkMode ? Icons.dark_mode : Icons.light_mode),
+                      secondary: Icon(appState.isDarkMode
+                          ? Icons.dark_mode
+                          : Icons.light_mode),
                     ),
-
                     const SizedBox(height: 20),
-
                     ListTile(
-                      leading: Icon(Icons.delete_forever, color: Colors.red),
+                      leading:
+                          const Icon(Icons.delete_forever, color: Colors.red),
                       title: const Text(
                         'Datenbank zurücksetzen',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+                        style:
+                            TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
                       ),
-                      trailing: Icon(Icons.arrow_forward),
+                      trailing: const Icon(Icons.arrow_forward),
                       onTap: () => _resetDatabase(appState),
                     ),
-                  ],
-                ),
-
-                const SizedBox(height: 20),
-
-                // Daten teilen (Export/Import) mit Datei
-                ExpansionTile(
-                  title: const Text(
-                    'Daten teilen',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  children: [
+                    const Divider(),
+                    // NEU: Logout
                     ListTile(
-                      leading: Icon(Icons.file_upload, color: Colors.blue),
-                      title: Text('Datenbank exportieren und teilen'),
-                      subtitle: Text('Exportiert deine Daten als JSON-Datei zum Teilen.'),
-                      onTap: () => _exportDatabase(appState),
+                      leading: const Icon(Icons.logout, color: Colors.blueGrey),
+                      title: const Text(
+                        'Logout',
+                        style:
+                            TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+                      ),
+                      trailing: const Icon(Icons.arrow_forward),
+                      onTap: () => _logout(appState),
                     ),
+                    const Divider(),
+                    // NEU: Account löschen
                     ListTile(
-                      leading: Icon(Icons.file_download, color: Colors.green),
-                      title: Text('Datenbank aus Datei importieren'),
-                      subtitle: Text('Wähle eine JSON-Datei und merge sie mit deinen Daten.'),
-                      onTap: () => _importDatabase(appState),
+                      leading: const Icon(Icons.person_off, color: Colors.red),
+                      title: const Text(
+                        'Account löschen',
+                        style:
+                            TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+                      ),
+                      trailing: const Icon(Icons.arrow_forward),
+                      onTap: () => _deleteAccount(appState),
                     ),
                   ],
                 ),
@@ -490,6 +490,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
         );
-      });
-    }
+      },
+    );
+  }
 }
