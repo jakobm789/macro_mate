@@ -1,8 +1,26 @@
 // lib/models/app_state.dart
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:math';
+
+import '../services/remote_database_service.dart';
 import '../services/database_helper.dart';
 import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
+
+// Bcrypt-Package (für Passwort-Hashing)
+import 'package:bcrypt/bcrypt.dart';
+
+// NEU: HTTP-Client + Brevo (Sendinblue) E-Mail-Versand
+import 'package:http/http.dart' as http;
+
+// NEU: SharedPreferencesHelper für Auto-Login
+import '../services/shared_preferences_helper.dart';
+
+/// Hier konfigurierst du deinen Brevo-API-Key und Absender
+const String brevoApiKey =
+    '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'; // <--- ANPASSEN
+const String senderEmail = 'moehlenkamp100@gmail.com'; // <--- ANPASSEN
 
 class AppState extends ChangeNotifier {
   List<ConsumedFoodItem> breakfast = [];
@@ -28,33 +46,237 @@ class AppState extends ChangeNotifier {
 
   List<FoodItem> last20FoodItems = [];
 
-  AppState() {
-    _initialize();
-  }
+  final RemoteDatabaseService _remoteService = RemoteDatabaseService();
 
-  Future<void> _initialize() async {
+  // Login-Status
+  bool isLoggedIn = false;
+
+  AppState();
+
+  Future<void> initializeCompletely() async {
+    // 1) Versuche Dark Mode, Goals etc. zu laden
     await loadGoals();
     await loadDarkMode();
     await loadLast20FoodItems();
     await loadConsumedFoods();
+
+    // 2) Versuche Auto-Login
+    await _tryAutoLogin();
+
     notifyListeners();
   }
 
+  // ---------------------------------------------------
+  // AUTO-LOGIN: Wenn Email/Passwort lokal gespeichert
+  // ---------------------------------------------------
+  Future<void> _tryAutoLogin() async {
+    final savedEmail = await SharedPreferencesHelper.loadUserEmail();
+    final savedPass = await SharedPreferencesHelper.loadUserPassword();
+
+    if (savedEmail != null && savedPass != null) {
+      try {
+        final ok = await login(savedEmail, savedPass, storeCredentials: false);
+        if (ok) {
+          print('Auto-Login erfolgreich für $savedEmail');
+        } else {
+          print('Auto-Login fehlgeschlagen.');
+        }
+      } catch (e) {
+        print('Auto-Login Exception: $e');
+      }
+    }
+  }
+
+  // ---------------------------------------------------
+  // Login / Registrierung
+  // ---------------------------------------------------
+  /// Optionaler Parameter [storeCredentials]: Ob wir nach Erfolg
+  /// E-Mail/Passwort in SharedPrefs speichern sollen.
+  Future<bool> login(String email, String password,
+      {bool storeCredentials = true}) async {
+    try {
+      final userRow = await _remoteService.getUserByEmail(email);
+      if (userRow == null) {
+        return false; // Kein User gefunden
+      }
+
+      final String storedHash = userRow['password_hash'];
+      final bool isVerified = userRow['is_verified'] == true;
+
+      if (!isVerified) {
+        return false;
+      }
+
+      bool ok = BCrypt.checkpw(password, storedHash);
+      if (ok) {
+        isLoggedIn = true;
+        notifyListeners();
+
+        if (storeCredentials) {
+          await SharedPreferencesHelper.saveUserEmail(email);
+          await SharedPreferencesHelper.saveUserPassword(password);
+        }
+
+        return true;
+      }
+      return false;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<bool> registerUser(String email, String password) async {
+    try {
+      final existingUser = await _remoteService.getUserByEmail(email);
+      if (existingUser != null) {
+        return false; // E-Mail bereits vergeben
+      }
+
+      final hashed = BCrypt.hashpw(password, BCrypt.gensalt());
+
+      final verificationCode = _generateVerificationCode();
+      await _remoteService.insertUserWithVerification(
+        email,
+        hashed,
+        verificationCode,
+      );
+
+      await sendVerificationEmail(email, verificationCode);
+
+      return true;
+    } catch (e) {
+      print('Fehler bei registerUser: $e');
+      return false;
+    }
+  }
+
+  Future<void> sendVerificationEmail(String recipientEmail, String code) async {
+    const endpoint = 'https://api.brevo.com/v3/smtp/email';
+
+    final body = {
+      'to': [
+        {'email': recipientEmail}
+      ],
+      'sender': {
+        'email': senderEmail,
+      },
+      'subject': 'Dein Bestätigungscode',
+      'htmlContent': '<h3>Hallo!</h3>'
+          '<p>Dein Code lautet: <b>$code</b>.</p>'
+          '<p>Gib diesen Code in der App ein, um dein Konto zu aktivieren.</p>',
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: {
+          'accept': 'application/json',
+          'api-key': brevoApiKey,
+          'content-type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        print('Verifizierungs-Mail erfolgreich gesendet an $recipientEmail');
+      } else {
+        print('Fehler beim Senden der Mail: ${response.body}');
+      }
+    } catch (e) {
+      print('sendVerificationEmail EXCEPTION: $e');
+    }
+  }
+
+  String _generateVerificationCode() {
+    final rnd = Random();
+    final code = rnd.nextInt(900000) + 100000; // 6-stellig
+    return code.toString();
+  }
+
+  Future<bool> verifyAccount(String email, String code) async {
+    try {
+      final userRow = await _remoteService.getUserByEmail(email);
+      if (userRow == null) return false;
+
+      final dbCode = userRow['verification_code'];
+      if (dbCode == code) {
+        await _remoteService.verifyUser(email);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('verifyAccount EXCEPTION: $e');
+      return false;
+    }
+  }
+
+  // ---------------------------------------------------
+  // Logout-Funktion
+  // ---------------------------------------------------
+  Future<void> logout() async {
+    // Lokale Credentials löschen und Zustand zurücksetzen
+    await SharedPreferencesHelper.clearUserCredentials();
+    isLoggedIn = false;
+    notifyListeners();
+  }
+
+  // ---------------------------------------------------
+  // ACCOUNT LÖSCHEN
+  // ---------------------------------------------------
+  Future<bool> deleteAccount() async {
+    try {
+      // Hole gespeicherte E-Mail aus SharedPrefs
+      final email = await SharedPreferencesHelper.loadUserEmail();
+      if (email == null) {
+        print('deleteAccount: Keine E-Mail gefunden.');
+        return false;
+      }
+
+      // Auf dem Server löschen
+      await _remoteService.deleteUserByEmail(email);
+
+      // Danach logout
+      await logout();
+
+      return true;
+    } catch (e) {
+      print('Fehler beim Löschen des Accounts: $e');
+      return false;
+    }
+  }
+
+  // ---------------------------------------------------
+  // Normaler App-Flow
+  // ---------------------------------------------------
   Future<void> loadLast20FoodItems() async {
     try {
-      last20FoodItems = await DatabaseHelper().getLastAddedFoodItems(20);
+      last20FoodItems = await _remoteService.getLastAddedFoodItems(20);
     } catch (e) {
-      print('Fehler beim Laden der letzten 20 FoodItems: $e');
+      print('Fehler beim Laden der letzten 20 FoodItems aus Remote: $e');
     }
   }
 
   Future<void> loadConsumedFoods() async {
     try {
-      List<ConsumedFoodItem> consumedFoods = await DatabaseHelper().getConsumedFoods(currentDate);
-      breakfast = consumedFoods.where((food) => food.mealName == 'Frühstück').toList();
-      lunch = consumedFoods.where((food) => food.mealName == 'Mittagessen').toList();
-      dinner = consumedFoods.where((food) => food.mealName == 'Abendessen').toList();
-      snacks = consumedFoods.where((food) => food.mealName == 'Snacks').toList();
+      final dbHelper = DatabaseHelper();
+      List<ConsumedFoodItem> consumedFoods =
+          await dbHelper.getConsumedFoods(currentDate);
+
+      for (int i = 0; i < consumedFoods.length; i++) {
+        ConsumedFoodItem cItem = consumedFoods[i];
+        final int? remoteId = cItem.food.id;
+        if (remoteId != null) {
+          final remoteFood = await _remoteService.getFoodItemById(remoteId);
+          if (remoteFood != null) {
+            consumedFoods[i] = cItem.copyWith(food: remoteFood);
+          }
+        }
+      }
+
+      breakfast = consumedFoods.where((f) => f.mealName == 'Frühstück').toList();
+      lunch = consumedFoods.where((f) => f.mealName == 'Mittagessen').toList();
+      dinner = consumedFoods.where((f) => f.mealName == 'Abendessen').toList();
+      snacks = consumedFoods.where((f) => f.mealName == 'Snacks').toList();
 
       _calculateConsumedMacros();
     } catch (e) {
@@ -69,16 +291,17 @@ class AppState extends ChangeNotifier {
     consumedFat = 0.0;
     consumedSugar = 0.0;
 
-    for (var food in breakfast + lunch + dinner + snacks) {
-      consumedCalories += (food.food.caloriesPer100g * food.quantity) / 100;
-      consumedCarbs += (food.food.carbsPer100g * food.quantity) / 100;
-      consumedProtein += (food.food.proteinPer100g * food.quantity) / 100;
-      consumedFat += (food.food.fatPer100g * food.quantity) / 100;
-      consumedSugar += (food.food.sugarPer100g * food.quantity) / 100;
+    for (var cItem in breakfast + lunch + dinner + snacks) {
+      consumedCalories += (cItem.food.caloriesPer100g * cItem.quantity) / 100;
+      consumedCarbs += (cItem.food.carbsPer100g * cItem.quantity) / 100;
+      consumedProtein += (cItem.food.proteinPer100g * cItem.quantity) / 100;
+      consumedFat += (cItem.food.fatPer100g * cItem.quantity) / 100;
+      consumedSugar += (cItem.food.sugarPer100g * cItem.quantity) / 100;
     }
   }
 
-  double get dailySugarGoalGrams => dailyCarbGoal * dailySugarGoalPercentage / 100;
+  double get dailySugarGoalGrams =>
+      dailyCarbGoal * dailySugarGoalPercentage / 100;
 
   Future<void> loadGoals() async {
     try {
@@ -90,9 +313,12 @@ class AppState extends ChangeNotifier {
         int fatPerc = goals['fat_percentage'];
         int sugarPerc = goals['sugar_percentage'].toInt();
 
-        dailyCarbGoal = (dailyCalorieGoal * carbPerc / 100) / 4.0;
-        dailyProteinGoal = (dailyCalorieGoal * proteinPerc / 100) / 4.0;
-        dailyFatGoal = (dailyCalorieGoal * fatPerc / 100) / 9.0;
+        dailyCarbGoal =
+            (dailyCalorieGoal * carbPerc / 100) / 4.0;
+        dailyProteinGoal =
+            (dailyCalorieGoal * proteinPerc / 100) / 4.0;
+        dailyFatGoal =
+            (dailyCalorieGoal * fatPerc / 100) / 9.0;
         dailySugarGoalPercentage = sugarPerc;
       }
     } catch (e) {
@@ -100,7 +326,13 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> updateGoals(int newCalorieGoal, int carbPerc, int proteinPerc, int fatPerc, int sugarPerc) async {
+  Future<void> updateGoals(
+    int newCalorieGoal,
+    int carbPerc,
+    int proteinPerc,
+    int fatPerc,
+    int sugarPerc,
+  ) async {
     try {
       dailyCalorieGoal = newCalorieGoal;
       dailyCarbGoal = (dailyCalorieGoal * carbPerc / 100) / 4.0;
@@ -136,13 +368,20 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addOrUpdateFood(String mealName, FoodItem food, int quantity, DateTime date) async {
+  Future<void> addOrUpdateFood(
+    String mealName,
+    FoodItem food,
+    int quantity,
+    DateTime date,
+  ) async {
     try {
-      int foodId = food.id ?? await DatabaseHelper().insertOrUpdateFoodItem(food);
-      FoodItem foodWithId = food.copyWith(id: foodId);
+      int remoteFoodId = await _remoteService.insertOrUpdateFoodItem(food);
+      FoodItem foodWithId = food.copyWith(id: remoteFoodId);
 
       List<ConsumedFoodItem> mealList = _getMealList(mealName);
-      int index = mealList.indexWhere((item) => item.food.id == foodWithId.id);
+      int index =
+          mealList.indexWhere((item) => item.food.id == foodWithId.id);
+
       if (index != -1) {
         ConsumedFoodItem existingItem = mealList[index];
         if (existingItem.id == null) {
@@ -150,12 +389,21 @@ class AppState extends ChangeNotifier {
         }
         int newQuantity = existingItem.quantity + quantity;
 
-        await DatabaseHelper().updateConsumedFood(existingItem.id!, newQuantity);
+        await DatabaseHelper().updateConsumedFood(
+          existingItem.id!,
+          newQuantity,
+        );
 
-        ConsumedFoodItem updatedItem = existingItem.copyWith(quantity: newQuantity);
+        ConsumedFoodItem updatedItem =
+            existingItem.copyWith(quantity: newQuantity);
         mealList[index] = updatedItem;
       } else {
-        int consumedFoodId = await DatabaseHelper().insertConsumedFood(date, mealName, foodWithId.id!, quantity);
+        int consumedFoodId = await DatabaseHelper().insertConsumedFood(
+          date,
+          mealName,
+          foodWithId.id!,
+          quantity,
+        );
         ConsumedFoodItem newConsumedFood = ConsumedFoodItem(
           id: consumedFoodId,
           food: foodWithId,
@@ -167,17 +415,19 @@ class AppState extends ChangeNotifier {
       }
 
       _calculateConsumedMacros();
-
       await loadLast20FoodItems();
-
       notifyListeners();
     } catch (e) {
       print('Fehler beim Hinzufügen/Aktualisieren des Lebensmittels: $e');
-      throw e;
+      rethrow;
     }
   }
 
-  Future<void> updateConsumedFoodItem(ConsumedFoodItem consumedFood, {int? newQuantity, String? newMealName}) async {
+  Future<void> updateConsumedFoodItem(
+    ConsumedFoodItem consumedFood, {
+    int? newQuantity,
+    String? newMealName,
+  }) async {
     try {
       int updatedQuantity = newQuantity ?? consumedFood.quantity;
       String updatedMealName = newMealName ?? consumedFood.mealName;
@@ -188,10 +438,12 @@ class AppState extends ChangeNotifier {
         newMealName: updatedMealName,
       );
 
-      List<ConsumedFoodItem> oldMealList = _getMealList(consumedFood.mealName);
+      List<ConsumedFoodItem> oldMealList =
+          _getMealList(consumedFood.mealName);
       oldMealList.removeWhere((item) => item.id == consumedFood.id);
 
-      List<ConsumedFoodItem> newMealList = _getMealList(updatedMealName);
+      List<ConsumedFoodItem> newMealList =
+          _getMealList(updatedMealName);
       ConsumedFoodItem updatedConsumedFood = consumedFood.copyWith(
         quantity: updatedQuantity,
         mealName: updatedMealName,
@@ -203,7 +455,7 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('Fehler beim Aktualisieren des konsumierten Lebensmittels: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -222,7 +474,8 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> removeFood(String mealName, ConsumedFoodItem consumedFood) async {
+  Future<void> removeFood(
+      String mealName, ConsumedFoodItem consumedFood) async {
     try {
       if (consumedFood.id == null) {
         throw Exception("ConsumedFoodItem hat keine ID.");
@@ -234,60 +487,67 @@ class AppState extends ChangeNotifier {
       mealList.removeWhere((item) => item.id == consumedFood.id);
 
       _calculateConsumedMacros();
-
       notifyListeners();
     } catch (e) {
       print('Fehler beim Entfernen des Lebensmittels: $e');
-      throw e;
+      rethrow;
     }
   }
 
   Future<void> editFood(FoodItem updatedFood) async {
     try {
-      await DatabaseHelper().updateFoodItem(updatedFood);
+      await _remoteService.insertOrUpdateFoodItem(updatedFood);
 
-      List<ConsumedFoodItem> allConsumed = [...breakfast, ...lunch, ...dinner, ...snacks];
+      List<ConsumedFoodItem> allConsumed = [
+        ...breakfast,
+        ...lunch,
+        ...dinner,
+        ...snacks
+      ];
       for (int i = 0; i < allConsumed.length; i++) {
         if (allConsumed[i].food.id == updatedFood.id) {
-          allConsumed[i] = allConsumed[i].copyWith(food: updatedFood);
+          allConsumed[i] =
+              allConsumed[i].copyWith(food: updatedFood);
         }
       }
 
       _calculateConsumedMacros();
-
       await loadLast20FoodItems();
-
       notifyListeners();
     } catch (e) {
       print('Fehler beim Bearbeiten des Lebensmittels: $e');
-      throw e;
+      rethrow;
     }
   }
 
   Future<void> deleteFood(FoodItem food) async {
     try {
       if (food.id == null) {
-        throw Exception("FoodItem hat keine ID.");
+        throw Exception("FoodItem hat keine ID (Remote).");
       }
 
-      List<ConsumedFoodItem> allConsumed = [...breakfast, ...lunch, ...dinner, ...snacks];
+      List<ConsumedFoodItem> allConsumed = [
+        ...breakfast,
+        ...lunch,
+        ...dinner,
+        ...snacks
+      ];
       for (var consumed in allConsumed) {
         if (consumed.food.id == food.id) {
           await DatabaseHelper().deleteConsumedFood(consumed.id!);
-          _getMealList(consumed.mealName).removeWhere((item) => item.id == consumed.id);
+          _getMealList(consumed.mealName)
+              .removeWhere((item) => item.id == consumed.id);
         }
       }
 
-      await DatabaseHelper().deleteFoodItem(food.id!);
+      await _remoteService.deleteFoodItem(food.id!);
 
       _calculateConsumedMacros();
-
       await loadLast20FoodItems();
-
       notifyListeners();
     } catch (e) {
       print('Fehler beim Löschen des Lebensmittels: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -305,22 +565,82 @@ class AppState extends ChangeNotifier {
       consumedSugar = 0.0;
       last20FoodItems.clear();
       currentDate = DateTime.now();
-      await _initialize();
+      await initializeCompletely();
     } catch (e) {
-      print('Fehler beim Zurücksetzen der Datenbank: $e');
-      throw e;
+      print('Fehler beim Zurücksetzen der local DB: $e');
+      rethrow;
     }
   }
-  
-  void previousDay() {
-    currentDate = currentDate.subtract(Duration(days: 1));
-    loadConsumedFoods();
+
+  Future<void> previousDay() async {
+    currentDate = currentDate.subtract(const Duration(days: 1));
+    await loadConsumedFoods();
     notifyListeners();
   }
 
-  void nextDay() {
-    currentDate = currentDate.add(Duration(days: 1));
-    loadConsumedFoods();
+  Future<void> nextDay() async {
+    currentDate = currentDate.add(const Duration(days: 1));
+    await loadConsumedFoods();
     notifyListeners();
+  }
+
+  Future<String> exportDatabase() async {
+    try {
+      Map<String, dynamic> data = await DatabaseHelper().exportData();
+      return jsonEncode(data);
+    } catch (e) {
+      print('Fehler beim Exportieren der local DB: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> importDatabase(String jsonData) async {
+    try {
+      await DatabaseHelper().mergeData(jsonData);
+      await initializeCompletely();
+      notifyListeners();
+    } catch (e) {
+      print('Fehler beim Importieren der local DB (Merge): $e');
+      rethrow;
+    }
+  }
+
+  Future<FoodItem?> loadFoodItemByBarcode(String barcode) async {
+    try {
+      return await _remoteService.getFoodItemByBarcode(barcode);
+    } catch (e) {
+      print("Fehler beim Laden via Barcode: $e");
+      return null;
+    }
+  }
+
+  Future<List<FoodItem>> loadAllFoodItems() async {
+    try {
+      return await _remoteService.getAllFoodItems();
+    } catch (e) {
+      print("Fehler beim Laden aller FoodItems: $e");
+      return [];
+    }
+  }
+
+  Future<void> updateBarcodeForFood(FoodItem food, String barcode) async {
+    if (food.id == null) {
+      final newId =
+          await _remoteService.insertOrUpdateFoodItem(
+        food.copyWith(barcode: barcode),
+      );
+      food = food.copyWith(id: newId, barcode: barcode);
+    } else {
+      await _remoteService.updateBarcode(food.id!, barcode);
+    }
+  }
+
+  Future<List<FoodItem>> searchFoodItemsRemote(String query) async {
+    try {
+      return await _remoteService.searchFoodItems(query);
+    } catch (e) {
+      print("Fehler bei Remote-Suche: $e");
+      return [];
+    }
   }
 }

@@ -177,8 +177,8 @@ class _EditConsumedFoodItemSheetState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Menge aktualisiert.')),
       );
+      // Hier KEIN Navigator.pop mehr aufrufen, da onFoodEdited bereits ein Pop ausführen kann.
       widget.onFoodEdited();
-      Navigator.pop(context); // Schließt den EditConsumedFoodItemSheet
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler beim Aktualisieren: $e')),

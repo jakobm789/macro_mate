@@ -26,6 +26,7 @@ class _SettingsPageState extends State<SettingsPage> {
       return (value / 5).round() * 5;
     }
 
+    // Aktuelle Werte aus dem AppState holen und ggf. runden
     carbPercentage = _roundToNearestFive(
       ((appState.dailyCarbGoal * 4 / appState.dailyCalorieGoal) * 100).round(),
     );
@@ -35,10 +36,10 @@ class _SettingsPageState extends State<SettingsPage> {
     fatPercentage = _roundToNearestFive(
       ((appState.dailyFatGoal * 9 / appState.dailyCalorieGoal) * 100).round(),
     );
-
     sugarPercentage = appState.dailySugarGoalPercentage;
 
-    calorieController = TextEditingController(text: appState.dailyCalorieGoal.toString());
+    calorieController =
+        TextEditingController(text: appState.dailyCalorieGoal.toString());
   }
 
   @override
@@ -56,9 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
     int? newCalorieGoal = int.tryParse(calorieController.text);
     int? newSugarPerc = sugarPercentage;
 
-    if (newCalorieGoal != null &&
-        newCalorieGoal > 0 &&
-        _validatePercentages()) {
+    if (newCalorieGoal != null && newCalorieGoal > 0 && _validatePercentages()) {
       await appState.updateGoals(
         newCalorieGoal,
         carbPercentage,
@@ -107,7 +106,8 @@ class _SettingsPageState extends State<SettingsPage> {
       fatPercentage = 20;
       sugarPercentage = 20;
     });
-    appState.updateGoals(2000, 50, 30, 20, 0);
+    appState.updateGoals(2000, 50, 30, 20, 20);
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Ziele wurden zurückgesetzt.')),
     );
@@ -119,7 +119,9 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Datenbank zurücksetzen'),
-          content: const Text('Möchtest du wirklich alle Daten löschen und die Datenbank neu erstellen? Dies kann nicht rückgängig gemacht werden.'),
+          content: const Text(
+              'Möchtest du wirklich alle Daten löschen und die Datenbank neu erstellen? '
+              'Dies kann nicht rückgängig gemacht werden.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -134,7 +136,7 @@ class _SettingsPageState extends State<SettingsPage> {
       },
     );
 
-    if (confirm != null && confirm) {
+    if (confirm == true) {
       try {
         await appState.resetDatabase();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -155,14 +157,91 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // NEU: Logout
+  void _logout(AppState appState) async {
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Möchtest du dich wirklich abmelden?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Abbrechen'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      await appState.logout();
+      // Nach dem Logout zurück zum Login
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erfolgreich ausgeloggt.')),
+      );
+    }
+  }
+
+  // NEU: Account löschen
+  void _deleteAccount(AppState appState) async {
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Account löschen'),
+          content: const Text(
+            'Möchtest du deinen Account wirklich löschen? '
+            'Dies kann nicht rückgängig gemacht werden.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Abbrechen'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Löschen'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      final ok = await appState.deleteAccount();
+      if (ok) {
+        if (!mounted) return;
+        Navigator.of(context).pop(); // Schließt Settings
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account wurde gelöscht.')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account konnte nicht gelöscht werden.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, appState, child) {
-        int currentCalorieGoal = int.tryParse(calorieController.text) ?? appState.dailyCalorieGoal;
+        int currentCalorieGoal =
+            int.tryParse(calorieController.text) ?? appState.dailyCalorieGoal;
         double carbGrams = (currentCalorieGoal * carbPercentage / 100) / 4.0;
-        double proteinGrams = (currentCalorieGoal * proteinPercentage / 100) / 4.0;
-        double fatGrams = (currentCalorieGoal * fatPercentage / 100) / 9.0;
+        double proteinGrams =
+            (currentCalorieGoal * proteinPercentage / 100) / 4.0;
+        double fatGrams =
+            (currentCalorieGoal * fatPercentage / 100) / 9.0;
         double sugarGrams = carbGrams * sugarPercentage / 100;
         int totalPercentage = carbPercentage + proteinPercentage + fatPercentage;
         int percentageDifference = totalPercentage - 100;
@@ -179,7 +258,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ExpansionTile(
                   title: const Text(
                     'Ziele einstellen',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   children: [
                     TextField(
@@ -194,7 +274,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       },
                     ),
                     const SizedBox(height: 16),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -203,7 +282,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             DropdownButton<int>(
                               value: carbPercentage,
-                              items: List.generate(21, (index) => index * 5).map((value) {
+                              items: List.generate(21, (index) => index * 5)
+                                  .map((value) {
                                 return DropdownMenuItem<int>(
                                   value: value,
                                   child: Text('$value%'),
@@ -224,7 +304,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -233,7 +312,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             DropdownButton<int>(
                               value: sugarPercentage,
-                              items: List.generate(21, (index) => index * 5).map((value) {
+                              items: List.generate(21, (index) => index * 5)
+                                  .map((value) {
                                 return DropdownMenuItem<int>(
                                   value: value,
                                   child: Text('$value%'),
@@ -254,7 +334,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -263,7 +342,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             DropdownButton<int>(
                               value: proteinPercentage,
-                              items: List.generate(21, (index) => index * 5).map((value) {
+                              items: List.generate(21, (index) => index * 5)
+                                  .map((value) {
                                 return DropdownMenuItem<int>(
                                   value: value,
                                   child: Text('$value%'),
@@ -284,7 +364,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -293,7 +372,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             DropdownButton<int>(
                               value: fatPercentage,
-                              items: List.generate(21, (index) => index * 5).map((value) {
+                              items: List.generate(21, (index) => index * 5)
+                                  .map((value) {
                                 return DropdownMenuItem<int>(
                                   value: value,
                                   child: Text('$value%'),
@@ -314,7 +394,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-
                     Text(
                       percentageDifference > 0
                           ? 'Die Summe ist ${percentageDifference.abs()}% zu hoch.'
@@ -331,7 +410,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -341,16 +419,15 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                         ElevatedButton(
                           onPressed: () => _resetGoals(appState),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                          style:
+                              ElevatedButton.styleFrom(backgroundColor: Colors.red),
                           child: const Text('Zurücksetzen'),
                         ),
                       ],
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 20),
-
                 ExpansionTile(
                   title: const Text(
                     'Sonstige Einstellungen',
@@ -360,25 +437,52 @@ class _SettingsPageState extends State<SettingsPage> {
                     SwitchListTile(
                       title: const Text(
                         'Dark Mode aktivieren',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.normal),
                       ),
                       value: appState.isDarkMode,
                       onChanged: (value) {
                         _toggleDarkMode(appState, value);
                       },
-                      secondary: Icon(appState.isDarkMode ? Icons.dark_mode : Icons.light_mode),
+                      secondary: Icon(appState.isDarkMode
+                          ? Icons.dark_mode
+                          : Icons.light_mode),
                     ),
-
                     const SizedBox(height: 20),
-
                     ListTile(
-                      leading: Icon(Icons.delete_forever, color: Colors.red),
+                      leading:
+                          const Icon(Icons.delete_forever, color: Colors.red),
                       title: const Text(
                         'Datenbank zurücksetzen',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+                        style:
+                            TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
                       ),
-                      trailing: Icon(Icons.arrow_forward),
+                      trailing: const Icon(Icons.arrow_forward),
                       onTap: () => _resetDatabase(appState),
+                    ),
+                    const Divider(),
+                    // NEU: Logout
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.blueGrey),
+                      title: const Text(
+                        'Logout',
+                        style:
+                            TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+                      ),
+                      trailing: const Icon(Icons.arrow_forward),
+                      onTap: () => _logout(appState),
+                    ),
+                    const Divider(),
+                    // NEU: Account löschen
+                    ListTile(
+                      leading: const Icon(Icons.person_off, color: Colors.red),
+                      title: const Text(
+                        'Account löschen',
+                        style:
+                            TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+                      ),
+                      trailing: const Icon(Icons.arrow_forward),
+                      onTap: () => _deleteAccount(appState),
                     ),
                   ],
                 ),
@@ -386,6 +490,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
         );
-      });
-    }
+      },
+    );
+  }
 }
