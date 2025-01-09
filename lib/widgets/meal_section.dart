@@ -1,4 +1,5 @@
-// lib/widgets/meal_section.dart
+// ./macro_mate/lib/widgets/meal_section.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/app_state.dart';
@@ -17,74 +18,60 @@ class MealSection extends StatelessWidget {
     required this.onAdd,
   }) : super(key: key);
 
-  // Beim Klick auf Bearbeiten bei bereits hinzugefügten Lebensmitteln soll direkt die Mengenbearbeitung geöffnet werden
+  // Beim Langdruck auf ein bereits hinzugefügtes Lebensmittel => Bearbeiten-Dialog
   void _showQuantityEditDialog(BuildContext context, ConsumedFoodItem consumedFood) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) => EditConsumedFoodItemSheet(
         consumedFood: consumedFood,
+        // Der Callback ist jetzt leer, damit kein doppeltes pop auftritt.
         onFoodEdited: () {
-          Navigator.pop(context);
+          // KEIN Navigator.pop(context); mehr
         },
       ),
     );
   }
 
-  Future<void> _deleteFood(BuildContext context, ConsumedFoodItem consumedFood) async {
-    final appState = Provider.of<AppState>(context, listen: false);
-    bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Lebensmittel löschen'),
-          content: Text('Möchtest du ${consumedFood.food.name} wirklich entfernen?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text('Abbrechen'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text('Löschen'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirm == true) {
-      try {
-        await appState.removeFood(mealName, consumedFood);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${consumedFood.food.name} wurde entfernt.')),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Entfernen: $e')),
-        );
-      }
+  double _calculateMealCalories(List<ConsumedFoodItem> items) {
+    double sum = 0;
+    for (var item in items) {
+      sum += (item.food.caloriesPer100g * item.quantity) / 100.0;
     }
+    return sum;
   }
 
   @override
   Widget build(BuildContext context) {
+    // Gesamt-Kalorien für diese Mahlzeit berechnen
+    final double mealCalories = _calculateMealCalories(foods);
+
     if (foods.isEmpty) {
       return Card(
-        margin: EdgeInsets.symmetric(vertical: 8.0),
+        margin: const EdgeInsets.symmetric(vertical: 8.0),
         child: ExpansionTile(
-          title: Text(
-            mealName,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  mealName,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const Text(
+                '0 kcal',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
           children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
+            const Padding(
+              padding: EdgeInsets.all(8.0),
               child: Text('Keine Lebensmittel hinzugefügt.'),
             ),
             ListTile(
-              leading: Icon(Icons.add),
-              title: Text('Lebensmittel hinzufügen'),
+              leading: const Icon(Icons.add),
+              title: const Text('Lebensmittel hinzufügen'),
               onTap: onAdd,
             ),
           ],
@@ -93,53 +80,62 @@ class MealSection extends StatelessWidget {
     }
 
     return Card(
-      margin: EdgeInsets.symmetric(vertical: 8.0),
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
       child: ExpansionTile(
-        title: Text(
-          mealName,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        // Wir nutzen eine Row, um Mahlzeit-Name links und Kalorien rechts anzuzeigen
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                mealName,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            Text(
+              '${mealCalories.toStringAsFixed(0)} kcal',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
         children: [
           ListView.builder(
             shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
+            physics: const NeverScrollableScrollPhysics(),
             itemCount: foods.length,
             itemBuilder: (context, index) {
               final consumedFood = foods[index];
+
+              // Kalorien dieses Eintrags
+              double itemCalories = (consumedFood.food.caloriesPer100g *
+                      consumedFood.quantity) /
+                  100.0;
+
               return ListTile(
                 key: ValueKey(consumedFood.id),
                 title: Text(consumedFood.food.name),
                 subtitle: Text(
-                    '${consumedFood.quantity} g, ${consumedFood.food.caloriesPer100g} kcal/100g\nMarke: ${consumedFood.food.brand}'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Bearbeiten => direkt Menge bearbeiten
-                    IconButton(
-                      icon: Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () {
-                        _showQuantityEditDialog(context, consumedFood);
-                      },
-                    ),
-                    // Löschen führt zum Entfernen aus der DB
-                    IconButton(
-                      icon: Icon(Icons.delete, color: Colors.red),
-                      onPressed: () {
-                        _deleteFood(context, consumedFood);
-                      },
-                    ),
-                  ],
+                  '${consumedFood.quantity} g, '
+                  '${consumedFood.food.caloriesPer100g} kcal/100g\n'
+                  'Marke: ${consumedFood.food.brand}',
                 ),
-                // **Neuer Code: Beim Klicken auf das ListTile wird die Menge bearbeitet**
-                onTap: () {
+                // Anzeige der Item-Kalorien rechts
+                trailing: Text(
+                  '${itemCalories.toStringAsFixed(0)} kcal',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                // Langdruck öffnet das Bearbeiten-Dialog
+                onLongPress: () {
                   _showQuantityEditDialog(context, consumedFood);
                 },
               );
             },
           ),
           ListTile(
-            leading: Icon(Icons.add),
-            title: Text('Lebensmittel hinzufügen'),
+            leading: const Icon(Icons.add),
+            title: const Text('Lebensmittel hinzufügen'),
             onTap: onAdd,
           ),
         ],
