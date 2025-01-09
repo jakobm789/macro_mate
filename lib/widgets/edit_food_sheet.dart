@@ -10,7 +10,9 @@ import '../models/consumed_food_item.dart';
 enum EditingMode { quantity, macros }
 
 /// Popup-Sheet, um entweder die Menge eines bereits hinzugefügten Lebensmittels
-/// zu bearbeiten oder dessen Makros (FoodItem).
+/// zu bearbeiten oder die Makros. 
+///
+/// Da wir keine Remote-Bearbeitung mehr haben, entfernen wir das `editFood`-Feature.
 class EditFoodSheet extends StatelessWidget {
   final ConsumedFoodItem consumedFood;
   final VoidCallback onFoodEdited;
@@ -36,21 +38,17 @@ class EditFoodSheet extends StatelessWidget {
         ),
         child: Wrap(
           children: [
-            ListTile(
-              leading: Icon(
-                mode == EditingMode.quantity ? Icons.edit_attributes : Icons.edit,
-                color: mode == EditingMode.quantity ? Colors.green : Colors.orange,
-              ),
-              title: Text(
-                mode == EditingMode.quantity
-                    ? 'Menge bearbeiten'
-                    : 'Makronährstoffe bearbeiten',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                if (mode == EditingMode.quantity) {
-                  // Menge bearbeiten => öffnet Sheet
+            // Wir entfernen die Makro-Bearbeitung: 
+            // => Nur "Menge bearbeiten" bleibt relevant
+            if (mode == EditingMode.quantity)
+              ListTile(
+                leading: const Icon(Icons.edit_attributes, color: Colors.green),
+                title: const Text(
+                  'Menge bearbeiten',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
@@ -59,70 +57,63 @@ class EditFoodSheet extends StatelessWidget {
                       onFoodEdited: onFoodEdited,
                     ),
                   );
-                } else {
-                  // Makros bearbeiten => öffnet Sheet
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    builder: (context) => EditFoodDetailsSheet(
-                      foodItem: consumedFood.food,
-                      onFoodEdited: onFoodEdited,
-                    ),
-                  );
-                }
-              },
-            ),
-            const Divider(),
-            // Optional: direkt aus diesem Menü löschen
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text(
-                'Lebensmittel löschen',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                },
               ),
-              onTap: () async {
-                Navigator.pop(context);
-                bool? confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (context) {
-                    return AlertDialog(
-                      title: const Text('Lebensmittel löschen'),
-                      content: const Text(
-                        'Möchtest du das Lebensmittel wirklich löschen? '
-                        'Diese Aktion kann nicht rückgängig gemacht werden.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(false),
-                          child: const Text('Abbrechen'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(true),
-                          child: const Text('Löschen'),
-                        ),
-                      ],
-                    );
-                  },
-                );
 
-                if (confirm == true) {
-                  try {
-                    await Provider.of<AppState>(context, listen: false)
-                        .removeFood(consumedFood.mealName, consumedFood);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('${consumedFood.food.name} wurde gelöscht.'),
-                      ),
-                    );
-                    onFoodEdited();
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Fehler beim Löschen: $e')),
-                    );
+            // Divider + Löschen in der lokalen DB
+            if (mode == EditingMode.quantity) const Divider(),
+            if (mode == EditingMode.quantity)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text(
+                  'Lebensmittel löschen',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  bool? confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: const Text('Lebensmittel löschen'),
+                        content: const Text(
+                          'Möchtest du das Lebensmittel wirklich löschen? '
+                          'Diese Aktion kann nicht rückgängig gemacht werden.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text('Abbrechen'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            child: const Text('Löschen'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+
+                  if (confirm == true) {
+                    try {
+                      await Provider.of<AppState>(context, listen: false)
+                          .removeFood(consumedFood.mealName, consumedFood);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${consumedFood.food.name} wurde gelöscht.'),
+                        ),
+                      );
+                      onFoodEdited();
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Fehler beim Löschen: $e')),
+                      );
+                    }
                   }
-                }
-              },
-            ),
+                },
+              ),
+
+            // "Makro-Bearbeitung" (EditingMode.macros) ist nicht mehr möglich => entfernt.
           ],
         ),
       ),
@@ -211,8 +202,8 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Menge aktualisiert.')),
       );
-      widget.onFoodEdited(); // Aktualisiere das UI
-      Navigator.pop(context); // Schließe dieses Sheet
+      widget.onFoodEdited(); 
+      Navigator.pop(context); 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler beim Aktualisieren: $e')),
@@ -222,7 +213,6 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
     }
   }
 
-  /// Optionales direktes Löschen
   Future<void> _deleteItem() async {
     final appState = Provider.of<AppState>(context, listen: false);
     setState(() => _isLoading = true);
@@ -230,12 +220,13 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
     try {
       await appState.removeFood(widget.consumedFood.mealName, widget.consumedFood);
 
-      // Wir poppen hier direkt das BottomSheet:
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${widget.consumedFood.food.name} wurde gelöscht.')),
+        SnackBar(
+          content: Text('${widget.consumedFood.food.name} wurde gelöscht.'),
+        ),
       );
-      widget.onFoodEdited(); 
+      widget.onFoodEdited();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler beim Löschen: $e')),
@@ -255,10 +246,10 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         child: Container(
-          width: double.infinity, // So breit wie möglich
+          width: double.infinity, 
           padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 16.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, // Links ausrichten
+            crossAxisAlignment: CrossAxisAlignment.start, 
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
@@ -297,13 +288,12 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
                 },
               ),
               const SizedBox(height: 16),
-              // Dynamische Makro-Anzeige
               Card(
                 elevation: 0,
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, // Links ausrichten
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Aktuelle Menge: ${_gramController.text} g',
@@ -313,32 +303,16 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        'Kalorien: ${_partialCalories.toStringAsFixed(1)} kcal',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      Text(
-                        'Kohlenhydrate: ${_partialCarbs.toStringAsFixed(1)} g',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      Text(
-                        'Proteine: ${_partialProtein.toStringAsFixed(1)} g',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      Text(
-                        'Fette: ${_partialFat.toStringAsFixed(1)} g',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      Text(
-                        'Zucker: ${_partialSugar.toStringAsFixed(1)} g',
-                        style: const TextStyle(fontSize: 14),
-                      ),
+                      Text('Kalorien: ${_partialCalories.toStringAsFixed(1)} kcal'),
+                      Text('Kohlenhydrate: ${_partialCarbs.toStringAsFixed(1)} g'),
+                      Text('Proteine: ${_partialProtein.toStringAsFixed(1)} g'),
+                      Text('Fette: ${_partialFat.toStringAsFixed(1)} g'),
+                      Text('Zucker: ${_partialSugar.toStringAsFixed(1)} g'),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 24),
-              // Drei Buttons: Abbrechen, Speichern, Löschen
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -372,191 +346,6 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
                 ],
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Sheet zum Bearbeiten der Makros (FoodItem selbst) – z. B. wenn sich
-/// Kalorien oder Nährwerte geändert haben.
-class EditFoodDetailsSheet extends StatefulWidget {
-  final FoodItem foodItem;
-  final VoidCallback onFoodEdited;
-
-  const EditFoodDetailsSheet({
-    Key? key,
-    required this.foodItem,
-    required this.onFoodEdited,
-  }) : super(key: key);
-
-  @override
-  _EditFoodDetailsSheetState createState() => _EditFoodDetailsSheetState();
-}
-
-class _EditFoodDetailsSheetState extends State<EditFoodDetailsSheet> {
-  final _formKey = GlobalKey<FormState>();
-  late TextEditingController _caloriesController;
-  late TextEditingController _carbsController;
-  late TextEditingController _proteinController;
-  late TextEditingController _fatController;
-  late TextEditingController _sugarController;
-
-  @override
-  void initState() {
-    super.initState();
-    _caloriesController =
-        TextEditingController(text: widget.foodItem.caloriesPer100g.toString());
-    _carbsController =
-        TextEditingController(text: widget.foodItem.carbsPer100g.toString());
-    _proteinController =
-        TextEditingController(text: widget.foodItem.proteinPer100g.toString());
-    _fatController =
-        TextEditingController(text: widget.foodItem.fatPer100g.toString());
-    _sugarController =
-        TextEditingController(text: widget.foodItem.sugarPer100g.toString());
-  }
-
-  @override
-  void dispose() {
-    _caloriesController.dispose();
-    _carbsController.dispose();
-    _proteinController.dispose();
-    _fatController.dispose();
-    _sugarController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _saveFoodDetails() async {
-    if (_formKey.currentState!.validate()) {
-      int calories = int.parse(_caloriesController.text);
-      double carbs = double.parse(_carbsController.text.replaceAll(',', '.'));
-      double protein =
-          double.parse(_proteinController.text.replaceAll(',', '.'));
-      double fat = double.parse(_fatController.text.replaceAll(',', '.'));
-      double sugar = double.parse(_sugarController.text.replaceAll(',', '.'));
-
-      FoodItem updatedFood = widget.foodItem.copyWith(
-        caloriesPer100g: calories,
-        carbsPer100g: carbs,
-        proteinPer100g: protein,
-        fatPer100g: fat,
-        sugarPer100g: sugar,
-      );
-
-      try {
-        await Provider.of<AppState>(context, listen: false)
-            .editFood(updatedFood);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Makronährstoffe aktualisiert.')),
-        );
-        widget.onFoodEdited();
-        Navigator.pop(context); // Schließt den EditFoodDetailsSheet
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Aktualisieren: $e')),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: SingleChildScrollView(
-        child: Container(
-          width: double.infinity, // So breit wie möglich
-          padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, // Links ausrichten
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Makronährstoffe bearbeiten',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _caloriesController,
-                  decoration: const InputDecoration(
-                    labelText: 'Kalorien pro 100g',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) =>
-                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _carbsController,
-                  decoration: const InputDecoration(
-                    labelText: 'Kohlenhydrate pro 100g (g)',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  validator: (value) =>
-                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _proteinController,
-                  decoration: const InputDecoration(
-                    labelText: 'Proteine pro 100g (g)',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  validator: (value) =>
-                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _fatController,
-                  decoration: const InputDecoration(
-                    labelText: 'Fette pro 100g (g)',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  validator: (value) =>
-                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _sugarController,
-                  decoration: const InputDecoration(
-                    labelText: 'Zucker pro 100g (g)',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  validator: (value) =>
-                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
-                ),
-                const SizedBox(height: 24),
-                // Hier Abbrechen- und Speichern-Buttons nebeneinander
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context), 
-                      child: const Text('Abbrechen'),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      onPressed: _saveFoodDetails,
-                      child: const Text('Speichern'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
           ),
         ),
       ),

@@ -1,8 +1,6 @@
 // ./macro_mate/lib/widgets/meal_section.dart
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../models/app_state.dart';
 import '../models/consumed_food_item.dart';
 import 'edit_food_sheet.dart';
 
@@ -18,21 +16,6 @@ class MealSection extends StatelessWidget {
     required this.onAdd,
   }) : super(key: key);
 
-  // Beim Langdruck auf ein bereits hinzugefügtes Lebensmittel => Bearbeiten-Dialog
-  void _showQuantityEditDialog(BuildContext context, ConsumedFoodItem consumedFood) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => EditConsumedFoodItemSheet(
-        consumedFood: consumedFood,
-        // Der Callback ist jetzt leer, damit kein doppeltes pop auftritt.
-        onFoodEdited: () {
-          // KEIN Navigator.pop(context); mehr
-        },
-      ),
-    );
-  }
-
   double _calculateMealCalories(List<ConsumedFoodItem> items) {
     double sum = 0;
     for (var item in items) {
@@ -43,7 +26,6 @@ class MealSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Gesamt-Kalorien für diese Mahlzeit berechnen
     final double mealCalories = _calculateMealCalories(foods);
 
     if (foods.isEmpty) {
@@ -82,7 +64,6 @@ class MealSection extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
       child: ExpansionTile(
-        // Wir nutzen eine Row, um Mahlzeit-Name links und Kalorien rechts anzuzeigen
         title: Row(
           children: [
             Expanded(
@@ -104,11 +85,8 @@ class MealSection extends StatelessWidget {
             itemCount: foods.length,
             itemBuilder: (context, index) {
               final consumedFood = foods[index];
-
-              // Kalorien dieses Eintrags
-              double itemCalories = (consumedFood.food.caloriesPer100g *
-                      consumedFood.quantity) /
-                  100.0;
+              final double itemCalories =
+                  (consumedFood.food.caloriesPer100g * consumedFood.quantity) / 100.0;
 
               return ListTile(
                 key: ValueKey(consumedFood.id),
@@ -118,17 +96,22 @@ class MealSection extends StatelessWidget {
                   '${consumedFood.food.caloriesPer100g} kcal/100g\n'
                   'Marke: ${consumedFood.food.brand}',
                 ),
-                // Anzeige der Item-Kalorien rechts
                 trailing: Text(
                   '${itemCalories.toStringAsFixed(0)} kcal',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
-                // Langdruck öffnet das Bearbeiten-Dialog
+                // Nur lokaler LongPress => Menge bearbeiten
                 onLongPress: () {
-                  _showQuantityEditDialog(context, consumedFood);
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (ctx) => EditConsumedFoodItemSheet(
+                      consumedFood: consumedFood,
+                      onFoodEdited: () {
+                        // Nichts weiter tun hier
+                      },
+                    ),
+                  );
                 },
               );
             },
