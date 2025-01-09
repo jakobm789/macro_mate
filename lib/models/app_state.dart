@@ -250,6 +250,7 @@ class AppState extends ChangeNotifier {
   // ---------------------------------------------------
   Future<void> loadLast20FoodItems() async {
     try {
+      // Wir laden nur die Foods (READ-Operation)
       last20FoodItems = await _remoteService.getLastAddedFoodItems(20);
     } catch (e) {
       print('Fehler beim Laden der letzten 20 FoodItems aus Remote: $e');
@@ -262,6 +263,8 @@ class AppState extends ChangeNotifier {
       List<ConsumedFoodItem> consumedFoods =
           await dbHelper.getConsumedFoods(currentDate);
 
+      // Wir ziehen uns die passenden (bereits existierenden) Remote-Foods per ID,
+      // aber keinerlei Remote-Löschungen oder -Bearbeitungen mehr.
       for (int i = 0; i < consumedFoods.length; i++) {
         ConsumedFoodItem cItem = consumedFoods[i];
         final int? remoteId = cItem.food.id;
@@ -368,6 +371,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ------------------------------------------------------------
+  // AB HIER KEINE Remote-Bearbeitung oder -Löschung mehr
+  // ------------------------------------------------------------
   Future<void> addOrUpdateFood(
     String mealName,
     FoodItem food,
@@ -375,14 +381,21 @@ class AppState extends ChangeNotifier {
     DateTime date,
   ) async {
     try {
-      int remoteFoodId = await _remoteService.insertOrUpdateFoodItem(food);
-      FoodItem foodWithId = food.copyWith(id: remoteFoodId);
+      // Nur noch "insertOrUpdateFoodItem" wird im Sinne von createIfNotExist
+      // *oder* aktualisiert den Barcode, etc. – falls gewünscht.
+      // Aber wir entfernen das "Bearbeiten" im Remote-Sinn:
 
+      // Falls es noch keinen Eintrag hat, legen wir es an, 
+      // ansonsten holen wir uns die ID. 
+      final newRemoteId = await _remoteService.insertOrUpdateFoodItem(food);
+      FoodItem foodWithId = food.copyWith(id: newRemoteId);
+
+      // Lokal in ConsumedFood aktualisieren/einfügen
       List<ConsumedFoodItem> mealList = _getMealList(mealName);
-      int index =
-          mealList.indexWhere((item) => item.food.id == foodWithId.id);
+      int index = mealList.indexWhere((item) => item.food.id == foodWithId.id);
 
       if (index != -1) {
+        // Bereits vorhandenes Food -> Menge addieren
         ConsumedFoodItem existingItem = mealList[index];
         if (existingItem.id == null) {
           throw Exception("ConsumedFoodItem hat keine ID.");
@@ -398,6 +411,7 @@ class AppState extends ChangeNotifier {
             existingItem.copyWith(quantity: newQuantity);
         mealList[index] = updatedItem;
       } else {
+        // Ganz neu
         int consumedFoodId = await DatabaseHelper().insertConsumedFood(
           date,
           mealName,
@@ -415,10 +429,10 @@ class AppState extends ChangeNotifier {
       }
 
       _calculateConsumedMacros();
-      await loadLast20FoodItems();
+      await loadLast20FoodItems(); // Nur read
       notifyListeners();
     } catch (e) {
-      print('Fehler beim Hinzufügen/Aktualisieren des Lebensmittels: $e');
+      print('Fehler beim Hinzufügen/Aktualisieren (remote) des Lebensmittels: $e');
       rethrow;
     }
   }
@@ -432,18 +446,18 @@ class AppState extends ChangeNotifier {
       int updatedQuantity = newQuantity ?? consumedFood.quantity;
       String updatedMealName = newMealName ?? consumedFood.mealName;
 
+      // Nur lokales Update in DB
       await DatabaseHelper().updateConsumedFood(
         consumedFood.id!,
         updatedQuantity,
         newMealName: updatedMealName,
       );
 
-      List<ConsumedFoodItem> oldMealList =
-          _getMealList(consumedFood.mealName);
+      // Move in-memory
+      List<ConsumedFoodItem> oldMealList = _getMealList(consumedFood.mealName);
       oldMealList.removeWhere((item) => item.id == consumedFood.id);
 
-      List<ConsumedFoodItem> newMealList =
-          _getMealList(updatedMealName);
+      List<ConsumedFoodItem> newMealList = _getMealList(updatedMealName);
       ConsumedFoodItem updatedConsumedFood = consumedFood.copyWith(
         quantity: updatedQuantity,
         mealName: updatedMealName,
@@ -451,7 +465,7 @@ class AppState extends ChangeNotifier {
       newMealList.add(updatedConsumedFood);
 
       _calculateConsumedMacros();
-      await loadLast20FoodItems();
+      await loadLast20FoodItems(); 
       notifyListeners();
     } catch (e) {
       print('Fehler beim Aktualisieren des konsumierten Lebensmittels: $e');
@@ -474,9 +488,9 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> removeFood(
-      String mealName, ConsumedFoodItem consumedFood) async {
+  Future<void> removeFood(String mealName, ConsumedFoodItem consumedFood) async {
     try {
+      // Nur lokal aus DB entfernen
       if (consumedFood.id == null) {
         throw Exception("ConsumedFoodItem hat keine ID.");
       }
@@ -489,67 +503,22 @@ class AppState extends ChangeNotifier {
       _calculateConsumedMacros();
       notifyListeners();
     } catch (e) {
-      print('Fehler beim Entfernen des Lebensmittels: $e');
+      print('Fehler beim Entfernen (lokal) des Lebensmittels: $e');
       rethrow;
     }
   }
 
+  /// Keine remote-Löschung oder -Bearbeitung mehr
+  /// Wir entfernen editFood(...) und deleteFood(...) komplett.
+  /*
   Future<void> editFood(FoodItem updatedFood) async {
-    try {
-      await _remoteService.insertOrUpdateFoodItem(updatedFood);
-
-      List<ConsumedFoodItem> allConsumed = [
-        ...breakfast,
-        ...lunch,
-        ...dinner,
-        ...snacks
-      ];
-      for (int i = 0; i < allConsumed.length; i++) {
-        if (allConsumed[i].food.id == updatedFood.id) {
-          allConsumed[i] =
-              allConsumed[i].copyWith(food: updatedFood);
-        }
-      }
-
-      _calculateConsumedMacros();
-      await loadLast20FoodItems();
-      notifyListeners();
-    } catch (e) {
-      print('Fehler beim Bearbeiten des Lebensmittels: $e');
-      rethrow;
-    }
+    // ENTFERNT: Keine Remote-Bearbeitung
   }
 
   Future<void> deleteFood(FoodItem food) async {
-    try {
-      if (food.id == null) {
-        throw Exception("FoodItem hat keine ID (Remote).");
-      }
-
-      List<ConsumedFoodItem> allConsumed = [
-        ...breakfast,
-        ...lunch,
-        ...dinner,
-        ...snacks
-      ];
-      for (var consumed in allConsumed) {
-        if (consumed.food.id == food.id) {
-          await DatabaseHelper().deleteConsumedFood(consumed.id!);
-          _getMealList(consumed.mealName)
-              .removeWhere((item) => item.id == consumed.id);
-        }
-      }
-
-      await _remoteService.deleteFoodItem(food.id!);
-
-      _calculateConsumedMacros();
-      await loadLast20FoodItems();
-      notifyListeners();
-    } catch (e) {
-      print('Fehler beim Löschen des Lebensmittels: $e');
-      rethrow;
-    }
+    // ENTFERNT: Keine Remote-Löschung
   }
+  */
 
   Future<void> resetDatabase() async {
     try {
@@ -623,12 +592,15 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Barcode-Update ermöglichen wir noch (z.B. Neuanlage).
+  /// Aber "Löschen" oder "Bearbeiten" des Foods an sich ist entfernt.
   Future<void> updateBarcodeForFood(FoodItem food, String barcode) async {
     if (food.id == null) {
-      final newId =
-          await _remoteService.insertOrUpdateFoodItem(
+      // Falls es noch gar keine remote ID gibt, legen wir es an
+      final newId = await _remoteService.insertOrUpdateFoodItem(
         food.copyWith(barcode: barcode),
       );
+      // Aktualisiere die Kopie
       food = food.copyWith(id: newId, barcode: barcode);
     } else {
       await _remoteService.updateBarcode(food.id!, barcode);

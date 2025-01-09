@@ -1,9 +1,9 @@
+// ./macro_mate/lib/widgets/add_food_sheet.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/app_state.dart';
 import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
-import 'edit_food_sheet.dart';
 
 class AddFoodSheet extends StatefulWidget {
   final Function(ConsumedFoodItem) onFoodAdded;
@@ -47,7 +47,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
       _isLoading = true;
     });
     try {
-      // Suchanfrage an die Remote-DB (via AppState)
+      // Nur Suche in der Remote-DB (READ), kein Löschen/Bearbeiten
       final appState = Provider.of<AppState>(context, listen: false);
       List<FoodItem> results = await appState.searchFoodItemsRemote(query);
       if (!mounted) return;
@@ -96,58 +96,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
     );
   }
 
-  Future<void> _deleteFoodItemFromDB(BuildContext context, FoodItem food) async {
-    final appState = Provider.of<AppState>(context, listen: false);
-    bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Lebensmittel löschen'),
-          content: Text(
-              'Möchtest du ${food.name} wirklich löschen? Das entfernt das Lebensmittel vollständig aus der REMOTE-Datenbank.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text('Abbrechen'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text('Löschen'),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirm == true) {
-      try {
-        await appState.deleteFood(food);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${food.name} wurde (remote) gelöscht.')),
-        );
-        _searchFoods(_searchController.text);
-        Navigator.popUntil(context, ModalRoute.withName('/'));
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Löschen: $e')),
-        );
-      }
-    }
-  }
-
-  void _editMacros(BuildContext context, FoodItem food) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => EditFoodDetailsSheet(
-        foodItem: food,
-        onFoodEdited: () {
-          Navigator.pop(context);
-          _searchFoods(_searchController.text);
-          Navigator.popUntil(context, ModalRoute.withName('/'));
-        },
-      ),
-    );
-  }
+  // -- Entfernt: _deleteFoodItemFromDB() und _editMacros() --
 
   @override
   Widget build(BuildContext context) {
@@ -210,24 +159,12 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                     key: ValueKey(food.id),
                     title: Text(food.name),
                     subtitle: Text(
-                        '${food.caloriesPer100g} kcal, ${food.carbsPer100g}g KH, ${food.proteinPer100g}g Protein, ${food.fatPer100g}g Fett'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(Icons.edit, color: Colors.blue),
-                          onPressed: () {
-                            _editMacros(context, food);
-                          },
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.delete, color: Colors.red),
-                          onPressed: () {
-                            _deleteFoodItemFromDB(context, food);
-                          },
-                        ),
-                      ],
+                      '${food.caloriesPer100g} kcal, '
+                      '${food.carbsPer100g}g KH, '
+                      '${food.proteinPer100g}g Protein, '
+                      '${food.fatPer100g}g Fett',
                     ),
+                    // Keine Bearbeiten-/Löschen-Buttons mehr
                     onTap: () {
                       _showAddQuantityDialog(food);
                     },
@@ -251,24 +188,12 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                               key: ValueKey(food.id),
                               title: Text(food.name),
                               subtitle: Text(
-                                  '${food.caloriesPer100g} kcal, ${food.carbsPer100g}g KH, ${food.proteinPer100g}g Protein, ${food.fatPer100g}g Fett'),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: Icon(Icons.edit, color: Colors.blue),
-                                    onPressed: () {
-                                      _editMacros(context, food);
-                                    },
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.delete, color: Colors.red),
-                                    onPressed: () {
-                                      _deleteFoodItemFromDB(context, food);
-                                    },
-                                  ),
-                                ],
+                                '${food.caloriesPer100g} kcal, '
+                                '${food.carbsPer100g}g KH, '
+                                '${food.proteinPer100g}g Protein, '
+                                '${food.fatPer100g}g Fett',
                               ),
+                              // Keine IconButtons mehr
                               onTap: () {
                                 _showAddQuantityDialog(food);
                               },
@@ -300,14 +225,17 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
   Future<void> _addNewFoodWithBarcode(BuildContext context, String barcode) async {
     final appState = Provider.of<AppState>(context, listen: false);
     FoodItem? existingFood = await appState.loadFoodItemByBarcode(barcode);
+
     if (existingFood != null) {
-      // Wenn schon existiert, Barcode überschreiben / updaten
+      // Barcode bereits verknüpft => ggf. überschreiben
       await showDialog(
         context: context,
         builder: (context) => AlertDialog(
           title: Text('Barcode bereits vorhanden'),
           content: Text(
-              'Der Barcode gehört bereits zu ${existingFood.name}. Möchtest du den Barcode überschreiben?'),
+            'Der Barcode gehört bereits zu ${existingFood.name}. '
+            'Möchtest du den Barcode überschreiben?',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -322,9 +250,13 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
       ).then((overwrite) async {
         if (overwrite == true) {
           await appState.updateBarcodeForFood(existingFood, barcode);
-          // Ggf. Menge hinzufügen
+          // Menge hinzufügen
           await appState.addOrUpdateFood(
-              widget.mealName, existingFood, 100, appState.currentDate);
+            widget.mealName,
+            existingFood,
+            100,
+            appState.currentDate,
+          );
           Navigator.popUntil(context, ModalRoute.withName('/'));
         }
       });
@@ -336,7 +268,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
         builder: (context) => AddNewFoodSheet(
           barcode: barcode,
           onFoodAdded: (ConsumedFoodItem consumedFood) {
-            Navigator.pop(context); // Schließt das AddNewFoodSheet
+            Navigator.pop(context); // Schließt
             Navigator.popUntil(context, ModalRoute.withName('/'));
           },
         ),
@@ -371,7 +303,6 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
   late TextEditingController _gramController;
   bool _isLoading = false;
 
-  // Neue State-Variablen für die dynamische Makro-Anzeige
   double _partialCalories = 0.0;
   double _partialCarbs = 0.0;
   double _partialProtein = 0.0;
@@ -384,10 +315,7 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
     _gramController =
         TextEditingController(text: widget.food.lastUsedQuantity.toString());
 
-    // Listener, um bei jeder Änderung in _gramController die Makros neu zu berechnen
     _gramController.addListener(_updateMacros);
-
-    // Direkt initial berechnen
     _updateMacros();
   }
 
@@ -419,8 +347,7 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
 
     try {
       await Provider.of<AppState>(context, listen: false)
-          .addOrUpdateFood(widget.mealName, widget.food, consumedFood.quantity,
-              consumedFood.date);
+          .addOrUpdateFood(widget.mealName, widget.food, grams, consumedFood.date);
 
       setState(() {
         _isLoading = false;
@@ -438,7 +365,7 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
         _isLoading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Hinzufügen des Lebensmittels: $e')),
+        SnackBar(content: Text('Fehler beim Hinzufügen: $e')),
       );
     }
   }
@@ -452,61 +379,43 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
 
   @override
   Widget build(BuildContext context) {
-    String currentMeal = widget.mealName;
-
     return AlertDialog(
-      title: Text('Menge hinzufügen für $currentMeal'),
+      title: Text('Menge hinzufügen für ${widget.mealName}'),
       content: SingleChildScrollView(
         child: Container(
-          // Sorgt dafür, dass die Box so breit wie möglich ist
           width: double.infinity,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center, // Links anordnen
+            crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: _gramController,
-                decoration: InputDecoration(labelText: 'Menge in Gramm'),
+                decoration: const InputDecoration(
+                  labelText: 'Menge in Gramm',
+                ),
                 keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 16),
-              // Dynamische Makro-Anzeige
               Card(
                 elevation: 0,
                 child: Padding(
-                  // Eher großflächiges Padding
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, // Links anordnen
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Aktuelle Menge: ${_gramController.text} g',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        'Kalorien: ${_partialCalories.toStringAsFixed(1)} kcal',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      Text(
-                        'Kohlenhydrate: ${_partialCarbs.toStringAsFixed(1)} g',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      Text(
-                        'Proteine: ${_partialProtein.toStringAsFixed(1)} g',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      Text(
-                        'Fette: ${_partialFat.toStringAsFixed(1)} g',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      Text(
-                        'Zucker: ${_partialSugar.toStringAsFixed(1)} g',
-                        style: const TextStyle(fontSize: 14),
-                      ),
+                      Text('Kalorien: ${_partialCalories.toStringAsFixed(1)} kcal'),
+                      Text('Kohlenhydrate: ${_partialCarbs.toStringAsFixed(1)} g'),
+                      Text('Proteine: ${_partialProtein.toStringAsFixed(1)} g'),
+                      Text('Fette: ${_partialFat.toStringAsFixed(1)} g'),
+                      Text('Zucker: ${_partialSugar.toStringAsFixed(1)} g'),
                     ],
                   ),
                 ),
@@ -517,10 +426,8 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          child: Text('Abbrechen'),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
         ),
         TextButton(
           onPressed: _isLoading ? null : _addFood,
@@ -530,7 +437,7 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Text('Hinzufügen'),
+              : const Text('Hinzufügen'),
         ),
       ],
     );
@@ -561,7 +468,6 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
   final TextEditingController _barcodeController = TextEditingController();
   String selectedMeal = 'Frühstück';
 
-  // Neue State-Variablen für dynamische Makroberechnung
   double _partialCalories = 0.0;
   double _partialCarbs = 0.0;
   double _partialProtein = 0.0;
@@ -574,7 +480,6 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
     if (widget.barcode != null) {
       _barcodeController.text = widget.barcode!.toLowerCase();
     }
-    // Listener für die Gramm-Eingabe
     _gramController.addListener(_updateMacros);
   }
 
@@ -594,7 +499,6 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
   }
 
   void _updateMacros() {
-    // Falls die Makrodaten noch nicht valide sind, einfach 0 anzeigen.
     final grams = int.tryParse(_gramController.text) ?? 0;
     final calPer100 = int.tryParse(_caloriesController.text) ?? 0;
     final carbsPer100 =
@@ -619,7 +523,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
     if (_formKey.currentState!.validate()) {
       String name = _nameController.text.trim();
       String brand = _brandController.text.trim();
-      String? barcode = _barcodeController.text.trim().isNotEmpty
+      String? barcodeValue = _barcodeController.text.trim().isNotEmpty
           ? _barcodeController.text.trim().toLowerCase()
           : null;
       int caloriesPer100g = int.parse(_caloriesController.text);
@@ -636,7 +540,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
       FoodItem newFood = FoodItem(
         name: name,
         brand: brand,
-        barcode: barcode,
+        barcode: barcodeValue,
         caloriesPer100g: caloriesPer100g,
         fatPer100g: fatPer100g,
         carbsPer100g: carbsPer100g,
@@ -652,9 +556,12 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
       );
 
       try {
-        await Provider.of<AppState>(context, listen: false)
-            .addOrUpdateFood(selectedMeal, newFood, consumedFood.quantity,
-                consumedFood.date);
+        await Provider.of<AppState>(context, listen: false).addOrUpdateFood(
+          selectedMeal,
+          newFood,
+          consumedFood.quantity,
+          consumedFood.date,
+        );
 
         if (!mounted) return;
         widget.onFoodAdded(consumedFood);
@@ -667,7 +574,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Hinzufügen des Lebensmittels: $e')),
+          SnackBar(content: Text('Fehler beim Hinzufügen: $e')),
         );
       }
     }
@@ -680,12 +587,12 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         child: Container(
-          width: double.infinity, // So breit wie möglich
+          width: double.infinity, 
           padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 16.0),
           child: Form(
             key: _formKey,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, // Links ausrichten
+              crossAxisAlignment: CrossAxisAlignment.start, 
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
@@ -721,7 +628,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
                     border: OutlineInputBorder(),
                   ),
                   validator: (value) =>
-                      value == null || value.isEmpty ? 'Pflichtfeld' : null,
+                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
                 ),
                 SizedBox(height: 16),
                 TextFormField(
@@ -731,7 +638,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
                     border: OutlineInputBorder(),
                   ),
                   validator: (value) =>
-                      value == null || value.isEmpty ? 'Pflichtfeld' : null,
+                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
                 ),
                 SizedBox(height: 16),
                 TextFormField(
@@ -751,7 +658,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
                   ),
                   keyboardType: TextInputType.number,
                   validator: (value) =>
-                      value == null || value.isEmpty ? 'Pflichtfeld' : null,
+                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
                   onChanged: (_) => _updateMacros(),
                 ),
                 SizedBox(height: 16),
@@ -763,7 +670,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
                   ),
                   keyboardType: TextInputType.numberWithOptions(decimal: true),
                   validator: (value) =>
-                      value == null || value.isEmpty ? 'Pflichtfeld' : null,
+                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
                   onChanged: (_) => _updateMacros(),
                 ),
                 SizedBox(height: 16),
@@ -775,7 +682,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
                   ),
                   keyboardType: TextInputType.numberWithOptions(decimal: true),
                   validator: (value) =>
-                      value == null || value.isEmpty ? 'Pflichtfeld' : null,
+                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
                   onChanged: (_) => _updateMacros(),
                 ),
                 SizedBox(height: 16),
@@ -787,7 +694,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
                   ),
                   keyboardType: TextInputType.numberWithOptions(decimal: true),
                   validator: (value) =>
-                      value == null || value.isEmpty ? 'Pflichtfeld' : null,
+                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
                   onChanged: (_) => _updateMacros(),
                 ),
                 SizedBox(height: 16),
@@ -799,7 +706,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
                   ),
                   keyboardType: TextInputType.numberWithOptions(decimal: true),
                   validator: (value) =>
-                      value == null || value.isEmpty ? 'Pflichtfeld' : null,
+                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
                   onChanged: (_) => _updateMacros(),
                 ),
                 SizedBox(height: 16),
@@ -811,45 +718,29 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
                   ),
                   keyboardType: TextInputType.number,
                   validator: (value) =>
-                      value == null || value.isEmpty ? 'Pflichtfeld' : null,
+                      (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
                 ),
                 SizedBox(height: 16),
-                // Dynamische Makro-Anzeige
                 Card(
                   elevation: 0,
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start, 
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Aktuelle Menge: ${_gramController.text} g',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          'Kalorien: ${_partialCalories.toStringAsFixed(1)} kcal',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        Text(
-                          'Kohlenhydrate: ${_partialCarbs.toStringAsFixed(1)} g',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        Text(
-                          'Proteine: ${_partialProtein.toStringAsFixed(1)} g',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        Text(
-                          'Fette: ${_partialFat.toStringAsFixed(1)} g',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        Text(
-                          'Zucker: ${_partialSugar.toStringAsFixed(1)} g',
-                          style: const TextStyle(fontSize: 14),
-                        ),
+                        Text('Kalorien: ${_partialCalories.toStringAsFixed(1)} kcal'),
+                        Text('Kohlenhydrate: ${_partialCarbs.toStringAsFixed(1)} g'),
+                        Text('Proteine: ${_partialProtein.toStringAsFixed(1)} g'),
+                        Text('Fette: ${_partialFat.toStringAsFixed(1)} g'),
+                        Text('Zucker: ${_partialSugar.toStringAsFixed(1)} g'),
                       ],
                     ),
                   ),
@@ -857,7 +748,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
                 SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _submit,
-                  child: Text('Hinzufügen'),
+                  child: const Text('Hinzufügen'),
                 ),
               ],
             ),
