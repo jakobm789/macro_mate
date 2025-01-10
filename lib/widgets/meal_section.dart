@@ -1,5 +1,3 @@
-// ./macro_mate/lib/widgets/meal_section.dart
-
 import 'package:flutter/material.dart';
 import '../models/consumed_food_item.dart';
 import 'edit_food_sheet.dart';
@@ -100,16 +98,13 @@ class MealSection extends StatelessWidget {
                   '${itemCalories.toStringAsFixed(0)} kcal',
                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
-                // Nur lokaler LongPress => Menge bearbeiten
                 onLongPress: () {
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
                     builder: (ctx) => EditConsumedFoodItemSheet(
                       consumedFood: consumedFood,
-                      onFoodEdited: () {
-                        // Nichts weiter tun hier
-                      },
+                      onFoodEdited: () {},
                     ),
                   );
                 },

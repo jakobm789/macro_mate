@@ -1,7 +1,6 @@
-// lib/pages/weight_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart'; // Für das Diagramm
+import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
 import '../models/app_state.dart';
@@ -29,7 +28,7 @@ class _WeightPageState extends State<WeightPage> {
     final newDate = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime(now.year - 5), // bis 5 Jahre zurück
+      firstDate: DateTime(now.year - 5),
       lastDate: DateTime(now.year + 1),
     );
     if (newDate != null) {
@@ -77,11 +76,8 @@ class _WeightPageState extends State<WeightPage> {
     final appState = Provider.of<AppState>(context);
     final entries = appState.weightEntries;
 
-    // Daten für das Diagramm vorbereiten
     final spots = <FlSpot>[];
     for (var i = 0; i < entries.length; i++) {
-      // X: days since the earliest date, Y: weight
-      // Wir nehmen die Differenz in Tagen zwischen dem frühesten Datum und dem jeweiligen Datum
       final baseDate = entries.first.date;
       final diff = entries[i].date.difference(baseDate).inDays.toDouble();
       spots.add(FlSpot(diff, entries[i].weight));
@@ -96,7 +92,6 @@ class _WeightPageState extends State<WeightPage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Diagramm
             if (entries.isEmpty)
               const Expanded(
                 child: Center(
@@ -114,7 +109,6 @@ class _WeightPageState extends State<WeightPage> {
                           showTitles: true,
                           reservedSize: 40,
                           getTitlesWidget: (value, meta) {
-                            // Achsenbeschriftung links (Gewicht)
                             return Text('${value.toStringAsFixed(1)} kg',
                                 style: const TextStyle(fontSize: 10));
                           },
@@ -126,8 +120,6 @@ class _WeightPageState extends State<WeightPage> {
                           reservedSize: 42,
                           interval: (spots.length > 1) ? null : 1,
                           getTitlesWidget: (value, meta) {
-                            // Achsenbeschriftung unten (Datum)
-                            // value ist hier "Anzahl Tage ab baseDate"
                             final baseDate = entries.first.date;
                             final date = baseDate.add(Duration(days: value.toInt()));
                             return Padding(
@@ -154,7 +146,6 @@ class _WeightPageState extends State<WeightPage> {
                 ),
               ),
             const SizedBox(height: 16),
-            // Formular zum Hinzufügen eines Eintrags
             Card(
               elevation: 2,
               child: Padding(

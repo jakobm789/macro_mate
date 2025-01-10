@@ -1,4 +1,3 @@
-// lib/services/remote_database_service.dart
 import 'dart:async';
 import 'package:postgres/postgres.dart';
 import '../models/food_item.dart';
@@ -27,9 +26,6 @@ class RemoteDatabaseService {
     }
   }
 
-  // -------------------------------------
-  // USER / LOGIN-Funktionen (REMOTE)
-  // -------------------------------------
   Future<Map<String, dynamic>?> getUserByEmail(String email) async {
     await _init();
     final results = await _connection.query('''
@@ -54,7 +50,6 @@ class RemoteDatabaseService {
     };
   }
 
-  /// Insert mit Code + is_verified=false
   Future<void> insertUserWithVerification(
       String email, String passwordHash, String verificationCode) async {
     await _init();
@@ -74,7 +69,6 @@ class RemoteDatabaseService {
     }
   }
 
-  /// Falls du "nur" user ohne Code erstellst => unused.
   Future<void> insertUser(String email, String passwordHash) async {
     await _init();
     final result = await _connection.query('''
@@ -91,7 +85,6 @@ class RemoteDatabaseService {
     }
   }
 
-  /// Markiere user als verifiziert
   Future<void> verifyUser(String email) async {
     await _init();
     await _connection.query('''
@@ -103,7 +96,6 @@ class RemoteDatabaseService {
     });
   }
 
-  /// NEU: User via E-Mail löschen
   Future<void> deleteUserByEmail(String email) async {
     await _init();
     await _connection.query('''
@@ -114,9 +106,6 @@ class RemoteDatabaseService {
     });
   }
 
-  // -------------------------------------
-  // FOODITEMS (REMOTE)
-  // -------------------------------------
   Map<String, dynamic> _rowToMap(List<dynamic> row) {
     final dynamic cals = row[4];
     int calsInt = 0;
