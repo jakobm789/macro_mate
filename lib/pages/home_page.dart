@@ -1,4 +1,3 @@
-// lib/pages/home_page.dart
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
@@ -24,15 +23,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  // ENTFERNT: erneuter Aufruf von loadConsumedFoods() im initState,
-  // weil AppState bereits alles lädt.
-  //
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   final state = Provider.of<AppState>(context, listen: false);
-  //   state.loadConsumedFoods();
-  // }
+  bool _fabExpanded = false;
 
   double _calorieProgress(AppState state) =>
       state.consumedCalories / state.dailyCalorieGoal;
@@ -40,12 +31,10 @@ class _MyHomePageState extends State<MyHomePage> {
       state.consumedCarbs / state.dailyCarbGoal;
   double _proteinProgress(AppState state) =>
       state.consumedProtein / state.dailyProteinGoal;
-  double _fatProgress(AppState state) =>
-      state.consumedFat / state.dailyFatGoal;
+  double _fatProgress(AppState state) => state.consumedFat / state.dailyFatGoal;
   double _sugarProgress(AppState state) =>
       state.consumedSugar / state.dailySugarGoalGrams;
 
-  // Barcode-Scan:
   void _scanBarcode(BuildContext parentContext, AppState state, String mealName) async {
     try {
       var result = await BarcodeScanner.scan();
@@ -64,94 +53,51 @@ class _MyHomePageState extends State<MyHomePage> {
         if (!mounted) return;
 
         if (food != null) {
-          // Existiert bereits remote => Menge abfragen
-          await showDialog<int>(
-            context: parentContext,
-            builder: (context) {
-              final TextEditingController _gramController =
-                  TextEditingController(text: '100');
-              return AlertDialog(
-                title: Text('Menge für ${food.name} eingeben'),
-                content: TextField(
-                  controller: _gramController,
-                  decoration: const InputDecoration(
-                    labelText: 'Menge in Gramm',
-                    hintText: 'z.B. 150',
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Abbrechen'),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      final grams = int.tryParse(_gramController.text.trim());
-                      if (grams != null && grams > 0) {
-                        Navigator.pop(context, grams);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Bitte gib eine gültige Menge ein.')),
-                        );
-                      }
-                    },
-                    child: const Text('Hinzufügen'),
-                  ),
-                ],
-              );
-            },
-          ).then((grams) async {
-            if (grams != null) {
-              await Provider.of<AppState>(parentContext, listen: false)
-                  .addOrUpdateFood(mealName, food, grams, state.currentDate);
-              if (!mounted) return;
-              ScaffoldMessenger.of(parentContext).showSnackBar(
-                SnackBar(
-                  content: Text('Barcode für ${food.name} mit $grams g hinzugefügt.'),
-                ),
-              );
-              Navigator.popUntil(parentContext, ModalRoute.withName('/'));
-            }
-          });
+          _showAddQuantityDialog(parentContext, mealName, food);
         } else {
-          // Nicht gefunden => Neuanlage oder Zuordnung
-          await showDialog(
-            context: parentContext,
-            builder: (context) {
-              return AlertDialog(
-                title: const Text('Lebensmittel nicht gefunden'),
-                content: const Text(
-                  'Der gescannte Barcode wurde keinem Lebensmittel '
-                  'zugeordnet. Möchtest du ein neues Lebensmittel erstellen '
-                  'oder den Barcode einem bestehenden Lebensmittel zuordnen?',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _addNewFoodWithBarcode(parentContext, state, mealName, barcode);
-                    },
-                    child: const Text('Neues Lebensmittel erstellen'),
+          FoodItem? offItem = await state.searchOpenFoodFactsByBarcode(barcode);
+          if (!mounted) return;
+
+          if (offItem != null) {
+            _showAddQuantityDialog(parentContext, mealName, offItem);
+          } else {
+            await showDialog(
+              context: parentContext,
+              builder: (context) {
+                return AlertDialog(
+                  title: const Text('Lebensmittel nicht gefunden'),
+                  content: const Text(
+                    'Der gescannte Barcode wurde weder in der eigenen noch '
+                    'in der Open Food Facts Datenbank gefunden. '
+                    'Möchtest du ein neues Lebensmittel erstellen oder '
+                    'den Barcode einem bestehenden Lebensmittel zuordnen?',
                   ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _assignBarcodeToExistingFood(parentContext, state, mealName, barcode);
-                    },
-                    child: const Text('Barcode zuordnen'),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Abbrechen'),
-                  ),
-                ],
-              );
-            },
-          );
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _addNewFoodWithBarcode(parentContext, state, mealName, barcode);
+                      },
+                      child: const Text('Neues Lebensmittel erstellen'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _assignBarcodeToExistingFood(parentContext, state, mealName, barcode);
+                      },
+                      child: const Text('Barcode zuordnen'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Abbrechen'),
+                    ),
+                  ],
+                );
+              },
+            );
+          }
         }
       }
     } catch (e) {
@@ -160,6 +106,22 @@ class _MyHomePageState extends State<MyHomePage> {
         SnackBar(content: Text('Fehler beim Scannen des Barcodes: $e')),
       );
     }
+  }
+
+  void _showAddQuantityDialog(
+      BuildContext parentContext, String mealName, FoodItem foundFood) {
+    showDialog(
+      context: parentContext,
+      builder: (context) {
+        return AddQuantityDialog(
+          food: foundFood,
+          mealName: mealName,
+          onFoodAdded: (ConsumedFoodItem consumedFood) {
+            Navigator.popUntil(context, ModalRoute.withName('/'));
+          },
+        );
+      },
+    );
   }
 
   Future<void> _addNewFoodWithBarcode(
@@ -361,7 +323,6 @@ class _MyHomePageState extends State<MyHomePage> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // Kreisdiagramm / Kalorien
                 Center(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -399,7 +360,6 @@ class _MyHomePageState extends State<MyHomePage> {
                         animateFromLastPercent: true,
                       ),
                       const SizedBox(width: 24),
-                      // Grundziel & Gegessen
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -444,11 +404,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                // Balken für KH, Zucker, Proteine, Fette
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // KH
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -476,7 +434,6 @@ class _MyHomePageState extends State<MyHomePage> {
                       animation: true,
                     ),
                     const SizedBox(height: 16),
-                    // Zucker
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -504,7 +461,6 @@ class _MyHomePageState extends State<MyHomePage> {
                       animation: true,
                     ),
                     const SizedBox(height: 16),
-                    // Proteine
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -532,7 +488,6 @@ class _MyHomePageState extends State<MyHomePage> {
                       animation: true,
                     ),
                     const SizedBox(height: 16),
-                    // Fette
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -562,7 +517,6 @@ class _MyHomePageState extends State<MyHomePage> {
                     const SizedBox(height: 24),
                   ],
                 ),
-                // Vier Mahlzeiten (Frühstück, Mittagessen, Abendessen, Snacks)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -602,12 +556,48 @@ class _MyHomePageState extends State<MyHomePage> {
               ],
             ),
           ),
-          floatingActionButton: FloatingActionButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/settings');
-            },
-            tooltip: 'Einstellungen',
-            child: const Icon(Icons.settings),
+          floatingActionButton: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_fabExpanded) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: FloatingActionButton(
+                    heroTag: 'weightFab',
+                    mini: true,
+                    onPressed: () {
+                      setState(() => _fabExpanded = false);
+                      Navigator.pushNamed(context, '/weight');
+                    },
+                    tooltip: 'Gewicht tracken',
+                    child: const Icon(Icons.monitor_weight),
+                  ),
+                ),
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: FloatingActionButton(
+                    heroTag: 'settingsFab',
+                    mini: true,
+                    onPressed: () {
+                      setState(() => _fabExpanded = false);
+                      Navigator.pushNamed(context, '/settings');
+                    },
+                    tooltip: 'Einstellungen',
+                    child: const Icon(Icons.settings),
+                  ),
+                ),
+              ],
+              FloatingActionButton(
+                heroTag: 'mainFab',
+                onPressed: () {
+                  setState(() {
+                    _fabExpanded = !_fabExpanded;
+                  });
+                },
+                tooltip: _fabExpanded ? 'Schließen' : 'Optionen anzeigen',
+                child: Icon(_fabExpanded ? Icons.close : Icons.add),
+              ),
+            ],
           ),
         );
       },

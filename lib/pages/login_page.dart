@@ -1,4 +1,3 @@
-// lib/pages/login_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/app_state.dart';
@@ -13,16 +12,13 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-
-  // NEU: Für Code-Eingabe
   final TextEditingController _codeController = TextEditingController();
   bool _showCodeField = false;
-
   bool _isLoading = false;
 
   Future<void> _loginUser(BuildContext context) async {
     final email = _emailController.text.trim();
-    final password = _passwordController.text; // Klartext
+    final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -42,10 +38,8 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
 
       if (success) {
-        // Weiter zur Hauptseite
         Navigator.pushReplacementNamed(context, '/');
       } else {
-        // Login fehlgeschlagen => könnte sein, dass er NICHT verifiziert ist
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login fehlgeschlagen. Evtl. nicht verifiziert?')),
         );
@@ -107,7 +101,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // NEU: Code eingeben => verifyAccount
   Future<void> _verifyAccount(BuildContext context) async {
     final email = _emailController.text.trim();
     final code = _codeController.text.trim();
@@ -167,7 +160,6 @@ class _LoginPageState extends State<LoginPage> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  // E-Mail
                   TextField(
                     controller: _emailController,
                     decoration: const InputDecoration(
@@ -177,7 +169,6 @@ class _LoginPageState extends State<LoginPage> {
                     keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: 16),
-                  // Passwort
                   TextField(
                     controller: _passwordController,
                     decoration: const InputDecoration(
@@ -186,8 +177,6 @@ class _LoginPageState extends State<LoginPage> {
                     obscureText: true,
                   ),
                   const SizedBox(height: 16),
-
-                  // Falls Login fehlschlägt, Code-Eingabe erlauben
                   if (_showCodeField) ...[
                     const Divider(),
                     TextField(
@@ -200,9 +189,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 16),
                   ],
-
                   const SizedBox(height: 16),
-
                   if (_isLoading)
                     const CircularProgressIndicator()
                   else

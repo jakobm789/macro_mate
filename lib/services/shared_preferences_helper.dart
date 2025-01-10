@@ -1,16 +1,10 @@
-// lib/services/shared_preferences_helper.dart
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SharedPreferencesHelper {
   static const String darkModeKey = 'dark_mode';
-
-  // NEU: Keys für Auto-Login
   static const String userEmailKey = 'user_email';
   static const String userPasswordKey = 'user_password';
 
-  // ----------------------------
-  // Dark Mode
-  // ----------------------------
   static Future<void> saveDarkMode(bool isDarkMode) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(darkModeKey, isDarkMode);
@@ -21,9 +15,6 @@ class SharedPreferencesHelper {
     return prefs.getBool(darkModeKey) ?? false;
   }
 
-  // ----------------------------
-  // Auto-Login Credentials
-  // ----------------------------
   static Future<void> saveUserEmail(String email) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(userEmailKey, email);
