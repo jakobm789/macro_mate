@@ -1,4 +1,3 @@
-// lib/pages/home_page.dart
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
@@ -24,7 +23,6 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  /// State-Variable, um die "Mini-FABs" zu zeigen/verstecken
   bool _fabExpanded = false;
 
   double _calorieProgress(AppState state) =>
@@ -37,7 +35,6 @@ class _MyHomePageState extends State<MyHomePage> {
   double _sugarProgress(AppState state) =>
       state.consumedSugar / state.dailySugarGoalGrams;
 
-  // Barcode-Scan:
   void _scanBarcode(BuildContext parentContext, AppState state, String mealName) async {
     try {
       var result = await BarcodeScanner.scan();
@@ -56,18 +53,14 @@ class _MyHomePageState extends State<MyHomePage> {
         if (!mounted) return;
 
         if (food != null) {
-          // Existiert bereits in unserer Remote-DB => zeige denselben "Menge hinzufügen"-Dialog
           _showAddQuantityDialog(parentContext, mealName, food);
         } else {
-          // Versuche Open Food Facts
           FoodItem? offItem = await state.searchOpenFoodFactsByBarcode(barcode);
           if (!mounted) return;
 
           if (offItem != null) {
-            // Open Food Facts hat etwas gefunden => ebenfalls "Menge hinzufügen"
             _showAddQuantityDialog(parentContext, mealName, offItem);
           } else {
-            // Nicht gefunden => Neuanlage oder Zuordnung
             await showDialog(
               context: parentContext,
               builder: (context) {
@@ -330,7 +323,6 @@ class _MyHomePageState extends State<MyHomePage> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // Kreisdiagramm / Kalorien
                 Center(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -368,7 +360,6 @@ class _MyHomePageState extends State<MyHomePage> {
                         animateFromLastPercent: true,
                       ),
                       const SizedBox(width: 24),
-                      // Grundziel & Gegessen
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -413,11 +404,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                // Balken für KH, Zucker, Proteine, Fette
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // KH
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -445,7 +434,6 @@ class _MyHomePageState extends State<MyHomePage> {
                       animation: true,
                     ),
                     const SizedBox(height: 16),
-                    // Zucker
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -473,7 +461,6 @@ class _MyHomePageState extends State<MyHomePage> {
                       animation: true,
                     ),
                     const SizedBox(height: 16),
-                    // Proteine
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -501,7 +488,6 @@ class _MyHomePageState extends State<MyHomePage> {
                       animation: true,
                     ),
                     const SizedBox(height: 16),
-                    // Fette
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -531,7 +517,6 @@ class _MyHomePageState extends State<MyHomePage> {
                     const SizedBox(height: 24),
                   ],
                 ),
-                // Vier Mahlzeiten (Frühstück, Mittagessen, Abendessen, Snacks)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -571,16 +556,10 @@ class _MyHomePageState extends State<MyHomePage> {
               ],
             ),
           ),
-
-          //
-          // FAB-Bereich:
-          //
           floatingActionButton: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Nur anzeigen, wenn expanded == true
               if (_fabExpanded) ...[
-                // Kleiner FAB für "Gewicht"
                 Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: FloatingActionButton(
@@ -594,7 +573,6 @@ class _MyHomePageState extends State<MyHomePage> {
                     child: const Icon(Icons.monitor_weight),
                   ),
                 ),
-                // Kleiner FAB für "Settings"
                 Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: FloatingActionButton(
@@ -609,8 +587,6 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
               ],
-
-              // Haupt-FAB
               FloatingActionButton(
                 heroTag: 'mainFab',
                 onPressed: () {

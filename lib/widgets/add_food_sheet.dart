@@ -1,4 +1,4 @@
-import 'dart:async'; // <-- NEU für Timer (Debounce)
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/app_state.dart';
@@ -8,7 +8,7 @@ import '../models/consumed_food_item.dart';
 class AddFoodSheet extends StatefulWidget {
   final Function(ConsumedFoodItem) onFoodAdded;
   final String mealName;
-  final String? barcode; // Neuer Barcode-Parameter
+  final String? barcode;
 
   const AddFoodSheet({
     Key? key,
@@ -25,11 +25,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
   final TextEditingController _searchController = TextEditingController();
   List<FoodItem> _searchResults = [];
   bool _isLoading = false;
-
-  // Ergebnisse von Open Food Facts (zusätzlich zur Remote-Suche)
   List<FoodItem> _offResults = [];
-
-  // NEU: Debounce-Timer
   Timer? _debounce;
 
   @override
@@ -38,15 +34,10 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
     _searchController.addListener(_onSearchChanged);
   }
 
-  // NEU: Debounce-Mechanismus – 2 Sekunden warten, bis zuletzt getippt wurde,
-  // bevor die Suche gestartet wird.
   void _onSearchChanged() {
-    // Falls schon ein Timer läuft, abbrechen
     if (_debounce?.isActive ?? false) {
       _debounce!.cancel();
     }
-
-    // Nach 2 Sekunden Inaktivität erst suchen
     _debounce = Timer(const Duration(seconds: 1), () {
       _searchFoods(_searchController.text);
     });
@@ -54,7 +45,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
 
   @override
   void dispose() {
-    // Debounce-Timer aufräumen
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
@@ -73,13 +63,8 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
     });
     try {
       final appState = Provider.of<AppState>(context, listen: false);
-
-      // 1) Suche in unserer eigenen (Remote) DB
       List<FoodItem> results = await appState.searchFoodItemsRemote(query);
-
-      // 2) Zusätzlich in Open Food Facts suchen
       List<FoodItem> offResults = await appState.searchOpenFoodFacts(query);
-
       if (!mounted) return;
       setState(() {
         _searchResults = results;
@@ -103,7 +88,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
       isScrollControlled: true,
       builder: (context) => AddNewFoodSheet(
         onFoodAdded: (ConsumedFoodItem consumedFood) {
-          Navigator.pop(context); // Schließt das AddNewFoodSheet
+          Navigator.pop(context);
           Navigator.popUntil(context, ModalRoute.withName('/'));
         },
         barcode: widget.barcode,
@@ -132,7 +117,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
     final appState = Provider.of<AppState>(context);
     final last20 = appState.last20FoodItems;
 
-    // Wenn ein Barcode vorhanden ist, direktes Öffnen
     if (widget.barcode != null && widget.barcode!.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _addNewFoodWithBarcode(context, widget.barcode!);
@@ -140,7 +124,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
       return Container();
     }
 
-    // Kombiniere _searchResults + _offResults in einer Liste
     final combinedList = [
       ..._searchResults,
       ..._offResults.where(
@@ -153,13 +136,11 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
     ];
 
     return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Suchfeld
             Padding(
               padding: const EdgeInsets.fromLTRB(16.0, 40.0, 16.0, 8.0),
               child: TextField(
@@ -179,7 +160,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                 ),
               ),
             ),
-            // Zuletzt hinzugefügt
             if (_searchController.text.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -202,10 +182,10 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                     key: ValueKey(food.id),
                     title: Text(food.name),
                     subtitle: Text(
-                      '${food.caloriesPer100g} kcal, '
-                      '${food.carbsPer100g}g KH, '
-                      '${food.proteinPer100g}g Protein, '
-                      '${food.fatPer100g}g Fett',
+                      '${food.caloriesPer100g.toStringAsFixed(1)} kcal, '
+                      '${food.carbsPer100g.toStringAsFixed(1)}g KH, '
+                      '${food.proteinPer100g.toStringAsFixed(1)}g Protein, '
+                      '${food.fatPer100g.toStringAsFixed(1)}g Fett',
                     ),
                     onTap: () {
                       _showAddQuantityDialog(food);
@@ -213,7 +193,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                   );
                 },
               ),
-            // Suchergebnisse
             _isLoading
                 ? Padding(
                     padding: const EdgeInsets.all(8.0),
@@ -224,17 +203,24 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                         height: 300,
                         child: ListView.builder(
                           shrinkWrap: true,
-                          itemCount: combinedList.length,
+                          itemCount: combinedList.length + 1,
                           itemBuilder: (context, index) {
-                            FoodItem food = combinedList[index];
+                            if (index == 0) {
+                              return ListTile(
+                                leading: Icon(Icons.add),
+                                title: Text('Neues Lebensmittel hinzufügen'),
+                                onTap: _addNewFood,
+                              );
+                            }
+                            FoodItem food = combinedList[index -1];
                             return ListTile(
                               key: ValueKey('${food.barcode}-${food.name}'),
                               title: Text(food.name),
                               subtitle: Text(
-                                '${food.caloriesPer100g} kcal, '
-                                '${food.carbsPer100g}g KH, '
-                                '${food.proteinPer100g}g Protein, '
-                                '${food.fatPer100g}g Fett',
+                                '${food.caloriesPer100g.toStringAsFixed(1)} kcal, '
+                                '${food.carbsPer100g.toStringAsFixed(1)}g KH, '
+                                '${food.proteinPer100g.toStringAsFixed(1)}g Protein, '
+                                '${food.fatPer100g.toStringAsFixed(1)}g Fett',
                               ),
                               onTap: () {
                                 _showAddQuantityDialog(food);
@@ -250,8 +236,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                             title: Text('Neues Lebensmittel hinzufügen'),
                             onTap: () {
                               Navigator.pop(context);
-                              if (widget.barcode != null &&
-                                  widget.barcode!.isNotEmpty) {
+                              if (widget.barcode != null && widget.barcode!.isNotEmpty) {
                                 _addNewFoodWithBarcode(context, widget.barcode!);
                               } else {
                                 _addNewFood();
@@ -269,7 +254,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
     FoodItem? existingFood = await appState.loadFoodItemByBarcode(barcode);
 
     if (existingFood != null) {
-      // Barcode bereits verknüpft => ggf. überschreiben
       await showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -292,7 +276,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
       ).then((overwrite) async {
         if (overwrite == true) {
           await appState.updateBarcodeForFood(existingFood, barcode);
-          // Menge hinzufügen
           await appState.addOrUpdateFood(
             widget.mealName,
             existingFood,
@@ -303,14 +286,13 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
         }
       });
     } else {
-      // Direktes Öffnen des AddNewFoodSheet
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         builder: (context) => AddNewFoodSheet(
           barcode: barcode,
           onFoodAdded: (ConsumedFoodItem consumedFood) {
-            Navigator.pop(context); // Schließt
+            Navigator.pop(context);
             Navigator.popUntil(context, ModalRoute.withName('/'));
           },
         ),
@@ -338,7 +320,6 @@ class AddQuantityDialog extends StatefulWidget {
 class _AddQuantityDialogState extends State<AddQuantityDialog> {
   late TextEditingController _gramController;
   bool _isLoading = false;
-
   double _partialCalories = 0.0;
   double _partialCarbs = 0.0;
   double _partialProtein = 0.0;
@@ -348,9 +329,7 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
   @override
   void initState() {
     super.initState();
-    _gramController =
-        TextEditingController(text: widget.food.lastUsedQuantity.toString());
-
+    _gramController = TextEditingController(text: widget.food.lastUsedQuantity.toString());
     _gramController.addListener(_updateMacros);
     _updateMacros();
   }
@@ -433,7 +412,6 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
               ),
               const SizedBox(height: 16),
               Container(
-                // Keine Card mehr bzw. kein Hintergrund
                 child: Padding(
                   padding: const EdgeInsets.all(0.0),
                   child: Column(
@@ -503,7 +481,6 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
   final TextEditingController _gramController = TextEditingController(text: '100');
   final TextEditingController _barcodeController = TextEditingController();
   String selectedMeal = 'Frühstück';
-
   double _partialCalories = 0.0;
   double _partialCarbs = 0.0;
   double _partialProtein = 0.0;
@@ -517,6 +494,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
       _barcodeController.text = widget.barcode!.toLowerCase();
     }
     _gramController.addListener(_updateMacros);
+    _updateMacros();
   }
 
   @override
@@ -623,12 +601,12 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         child: Container(
-          width: double.infinity, 
+          width: double.infinity,
           padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 16.0),
           child: Form(
             key: _formKey,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, 
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
@@ -757,7 +735,6 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
                       (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
                 ),
                 SizedBox(height: 16),
-                // Hintergrund entfernt (transparent), nur Schrift
                 Padding(
                   padding: const EdgeInsets.all(0.0),
                   child: Column(

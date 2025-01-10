@@ -1,18 +1,11 @@
-// ./macro_mate/lib/widgets/edit_food_sheet.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/app_state.dart';
 import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
 
-/// Modus, um zwischen Mengen-Bearbeitung und Makro-Bearbeitung zu unterscheiden
 enum EditingMode { quantity, macros }
 
-/// Popup-Sheet, um entweder die Menge eines bereits hinzugefügten Lebensmittels
-/// zu bearbeiten oder die Makros. 
-///
-/// Da wir keine Remote-Bearbeitung mehr haben, entfernen wir das `editFood`-Feature.
 class EditFoodSheet extends StatelessWidget {
   final ConsumedFoodItem consumedFood;
   final VoidCallback onFoodEdited;
@@ -38,8 +31,6 @@ class EditFoodSheet extends StatelessWidget {
         ),
         child: Wrap(
           children: [
-            // Wir entfernen die Makro-Bearbeitung: 
-            // => Nur "Menge bearbeiten" bleibt relevant
             if (mode == EditingMode.quantity)
               ListTile(
                 leading: const Icon(Icons.edit_attributes, color: Colors.green),
@@ -60,7 +51,6 @@ class EditFoodSheet extends StatelessWidget {
                 },
               ),
 
-            // Divider + Löschen in der lokalen DB
             if (mode == EditingMode.quantity) const Divider(),
             if (mode == EditingMode.quantity)
               ListTile(
@@ -112,8 +102,6 @@ class EditFoodSheet extends StatelessWidget {
                   }
                 },
               ),
-
-            // "Makro-Bearbeitung" (EditingMode.macros) ist nicht mehr möglich => entfernt.
           ],
         ),
       ),
@@ -121,8 +109,6 @@ class EditFoodSheet extends StatelessWidget {
   }
 }
 
-/// Sheet, um die Menge eines bereits konsumierten Lebensmittels zu bearbeiten
-/// (bzw. die Mahlzeit zu wechseln).
 class EditConsumedFoodItemSheet extends StatefulWidget {
   final ConsumedFoodItem consumedFood;
   final VoidCallback onFoodEdited;
@@ -237,7 +223,7 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
   }
 
   void _cancelEdit() {
-    Navigator.pop(context); // Einfach Sheet schließen
+    Navigator.pop(context);
   }
 
   @override
