@@ -17,6 +17,9 @@ import 'package:http/http.dart' as http;
 // NEU: SharedPreferencesHelper für Auto-Login
 import '../services/shared_preferences_helper.dart';
 
+// NEU: Für Open Food Facts
+const String openFoodFactsBaseUrl = 'https://world.openfoodfacts.org';
+
 /// Hier konfigurierst du deinen Brevo-API-Key und Absender
 const String brevoApiKey =
     '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'; // <--- ANPASSEN
@@ -316,12 +319,9 @@ class AppState extends ChangeNotifier {
         int fatPerc = goals['fat_percentage'];
         int sugarPerc = goals['sugar_percentage'].toInt();
 
-        dailyCarbGoal =
-            (dailyCalorieGoal * carbPerc / 100) / 4.0;
-        dailyProteinGoal =
-            (dailyCalorieGoal * proteinPerc / 100) / 4.0;
-        dailyFatGoal =
-            (dailyCalorieGoal * fatPerc / 100) / 9.0;
+        dailyCarbGoal = (dailyCalorieGoal * carbPerc / 100) / 4.0;
+        dailyProteinGoal = (dailyCalorieGoal * proteinPerc / 100) / 4.0;
+        dailyFatGoal = (dailyCalorieGoal * fatPerc / 100) / 9.0;
         dailySugarGoalPercentage = sugarPerc;
       }
     } catch (e) {
@@ -381,12 +381,6 @@ class AppState extends ChangeNotifier {
     DateTime date,
   ) async {
     try {
-      // Nur noch "insertOrUpdateFoodItem" wird im Sinne von createIfNotExist
-      // *oder* aktualisiert den Barcode, etc. – falls gewünscht.
-      // Aber wir entfernen das "Bearbeiten" im Remote-Sinn:
-
-      // Falls es noch keinen Eintrag hat, legen wir es an, 
-      // ansonsten holen wir uns die ID. 
       final newRemoteId = await _remoteService.insertOrUpdateFoodItem(food);
       FoodItem foodWithId = food.copyWith(id: newRemoteId);
 
@@ -465,7 +459,7 @@ class AppState extends ChangeNotifier {
       newMealList.add(updatedConsumedFood);
 
       _calculateConsumedMacros();
-      await loadLast20FoodItems(); 
+      await loadLast20FoodItems();
       notifyListeners();
     } catch (e) {
       print('Fehler beim Aktualisieren des konsumierten Lebensmittels: $e');
@@ -490,7 +484,6 @@ class AppState extends ChangeNotifier {
 
   Future<void> removeFood(String mealName, ConsumedFoodItem consumedFood) async {
     try {
-      // Nur lokal aus DB entfernen
       if (consumedFood.id == null) {
         throw Exception("ConsumedFoodItem hat keine ID.");
       }
@@ -507,18 +500,6 @@ class AppState extends ChangeNotifier {
       rethrow;
     }
   }
-
-  /// Keine remote-Löschung oder -Bearbeitung mehr
-  /// Wir entfernen editFood(...) und deleteFood(...) komplett.
-  /*
-  Future<void> editFood(FoodItem updatedFood) async {
-    // ENTFERNT: Keine Remote-Bearbeitung
-  }
-
-  Future<void> deleteFood(FoodItem food) async {
-    // ENTFERNT: Keine Remote-Löschung
-  }
-  */
 
   Future<void> resetDatabase() async {
     try {
@@ -592,15 +573,11 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Barcode-Update ermöglichen wir noch (z.B. Neuanlage).
-  /// Aber "Löschen" oder "Bearbeiten" des Foods an sich ist entfernt.
   Future<void> updateBarcodeForFood(FoodItem food, String barcode) async {
     if (food.id == null) {
-      // Falls es noch gar keine remote ID gibt, legen wir es an
       final newId = await _remoteService.insertOrUpdateFoodItem(
         food.copyWith(barcode: barcode),
       );
-      // Aktualisiere die Kopie
       food = food.copyWith(id: newId, barcode: barcode);
     } else {
       await _remoteService.updateBarcode(food.id!, barcode);
@@ -614,5 +591,152 @@ class AppState extends ChangeNotifier {
       print("Fehler bei Remote-Suche: $e");
       return [];
     }
+  }
+
+  // ----------------------------------------------------------------
+  // ANPASSUNG FÜR OPENFOODFACTS-SUCHE + RETRY BEI 429
+  // ----------------------------------------------------------------
+  Future<FoodItem?> searchOpenFoodFactsByBarcode(String barcode) async {
+    try {
+      final url = Uri.parse('$openFoodFactsBaseUrl/api/v0/product/$barcode.json');
+      final response = await http.get(
+        url,
+        headers: {
+          'User-Agent': 'MacroMate/1.0 (Barcodesuche)',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 1 && data['product'] != null) {
+          final product = data['product'];
+
+          // Nährwerte
+          final nutriments = product['nutriments'] ?? {};
+          final calories = (nutriments['energy-kcal_100g'] ?? 0).toDouble();
+          final fat = (nutriments['fat_100g'] ?? 0).toDouble();
+          final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
+          final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
+          final protein = (nutriments['proteins_100g'] ?? 0).toDouble();
+
+          final foundItem = FoodItem(
+            name: product['product_name'] ?? 'Unbekannt',
+            brand: product['brands'] ?? 'Unbekannt',
+            barcode: barcode,
+            caloriesPer100g: calories.round(), // gerundet auf int
+            fatPer100g: fat,
+            carbsPer100g: carbs,
+            sugarPer100g: sugar,
+            proteinPer100g: protein,
+          );
+          return foundItem;
+        }
+      } else if (response.statusCode == 429) {
+        // Retry nach kurzer Wartezeit
+        print('OpenFoodFacts-Barcode: Status 429 -> Warte 2 Sekunden & retry...');
+        await Future.delayed(const Duration(seconds: 2));
+        // Erneuter Versuch
+        final retryResponse = await http.get(
+          url,
+          headers: {
+            'User-Agent': 'MacroMate/1.0 (Barcodesuche)',
+          },
+        );
+        if (retryResponse.statusCode == 200) {
+          final data = jsonDecode(retryResponse.body);
+          if (data['status'] == 1 && data['product'] != null) {
+            final product = data['product'];
+            final nutriments = product['nutriments'] ?? {};
+            final calories = (nutriments['energy-kcal_100g'] ?? 0).toDouble();
+            final fat = (nutriments['fat_100g'] ?? 0).toDouble();
+            final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
+            final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
+            final protein = (nutriments['proteins_100g'] ?? 0).toDouble();
+
+            return FoodItem(
+              name: product['product_name'] ?? 'Unbekannt',
+              brand: product['brands'] ?? 'Unbekannt',
+              barcode: barcode,
+              caloriesPer100g: calories.round(),
+              fatPer100g: fat,
+              carbsPer100g: carbs,
+              sugarPer100g: sugar,
+              proteinPer100g: protein,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print("Fehler bei der OpenFoodFacts-Barcode-Suche: $e");
+    }
+    return null;
+  }
+
+  /// Einfache Suche nach Produkten (Name) über die Open Food Facts Search-API.
+  /// Falls 429 kommt, wird einmal nach kurzer Wartezeit erneut versucht.
+  Future<List<FoodItem>> searchOpenFoodFacts(String query) async {
+    try {
+      // Wichtig: Encode Query, um Probleme mit Sonderzeichen zu vermeiden
+      final encodedQuery = Uri.encodeQueryComponent(query);
+      final url = Uri.parse(
+        '$openFoodFactsBaseUrl/cgi/search.pl?search_terms=$encodedQuery&search_simple=1&action=process&json=1&page_size=10',
+      );
+
+      // Mit User-Agent-Header
+      http.Response response = await http.get(
+        url,
+        headers: {
+          'User-Agent': 'MacroMate/1.0 (String-Suche)',
+        },
+      );
+
+      // Falls 429 -> Retry
+      if (response.statusCode == 429) {
+        print('OpenFoodFacts-Suche: HTTP-Status 429 - Warte 2 Sekunden & retry...');
+        await Future.delayed(const Duration(seconds: 2));
+        response = await http.get(
+          url,
+          headers: {
+            'User-Agent': 'MacroMate/1.0 (String-Suche)',
+          },
+        );
+      }
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final products = data['products'] as List<dynamic>?;
+
+        if (products != null && products.isNotEmpty) {
+          List<FoodItem> results = [];
+          for (var p in products) {
+            final nutriments = p['nutriments'] ?? {};
+            final calories =
+                (nutriments['energy-kcal_100g'] ?? 0).toDouble().round();
+            final fat = (nutriments['fat_100g'] ?? 0).toDouble();
+            final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
+            final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
+            final protein = (nutriments['proteins_100g'] ?? 0).toDouble();
+
+            final item = FoodItem(
+              name: p['product_name'] ?? 'Unbekannt',
+              brand: p['brands'] ?? 'Unbekannt',
+              barcode: p['code'] ?? null,
+              caloriesPer100g: calories,
+              fatPer100g: fat,
+              carbsPer100g: carbs,
+              sugarPer100g: sugar,
+              proteinPer100g: protein,
+            );
+            results.add(item);
+          }
+          return results;
+        }
+      } else {
+        print('OpenFoodFacts-Suche: HTTP-Status ${response.statusCode}');
+      }
+    } catch (e) {
+      print("Fehler bei der OpenFoodFacts-Suche: $e");
+    }
+    return [];
   }
 }

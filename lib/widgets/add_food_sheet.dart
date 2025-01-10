@@ -1,4 +1,4 @@
-// ./macro_mate/lib/widgets/add_food_sheet.dart
+import 'dart:async'; // <-- NEU für Timer (Debounce)
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/app_state.dart';
@@ -26,20 +26,45 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
   List<FoodItem> _searchResults = [];
   bool _isLoading = false;
 
+  // Ergebnisse von Open Food Facts (zusätzlich zur Remote-Suche)
+  List<FoodItem> _offResults = [];
+
+  // NEU: Debounce-Timer
+  Timer? _debounce;
+
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
   }
 
+  // NEU: Debounce-Mechanismus – 2 Sekunden warten, bis zuletzt getippt wurde,
+  // bevor die Suche gestartet wird.
   void _onSearchChanged() {
-    _searchFoods(_searchController.text);
+    // Falls schon ein Timer läuft, abbrechen
+    if (_debounce?.isActive ?? false) {
+      _debounce!.cancel();
+    }
+
+    // Nach 2 Sekunden Inaktivität erst suchen
+    _debounce = Timer(const Duration(seconds: 1), () {
+      _searchFoods(_searchController.text);
+    });
+  }
+
+  @override
+  void dispose() {
+    // Debounce-Timer aufräumen
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _searchFoods(String query) async {
     if (query.isEmpty) {
       setState(() {
         _searchResults = [];
+        _offResults = [];
       });
       return;
     }
@@ -47,12 +72,18 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
       _isLoading = true;
     });
     try {
-      // Nur Suche in der Remote-DB (READ), kein Löschen/Bearbeiten
       final appState = Provider.of<AppState>(context, listen: false);
+
+      // 1) Suche in unserer eigenen (Remote) DB
       List<FoodItem> results = await appState.searchFoodItemsRemote(query);
+
+      // 2) Zusätzlich in Open Food Facts suchen
+      List<FoodItem> offResults = await appState.searchOpenFoodFacts(query);
+
       if (!mounted) return;
       setState(() {
         _searchResults = results;
+        _offResults = offResults;
         _isLoading = false;
       });
     } catch (e) {
@@ -96,8 +127,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
     );
   }
 
-  // -- Entfernt: _deleteFoodItemFromDB() und _editMacros() --
-
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
@@ -111,6 +140,18 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
       return Container();
     }
 
+    // Kombiniere _searchResults + _offResults in einer Liste
+    final combinedList = [
+      ..._searchResults,
+      ..._offResults.where(
+        (offItem) => !_searchResults.any(
+          (r) =>
+              (r.barcode ?? '').isNotEmpty &&
+              r.barcode?.toLowerCase() == offItem.barcode?.toLowerCase(),
+        ),
+      ),
+    ];
+
     return Padding(
       padding:
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -118,6 +159,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Suchfeld
             Padding(
               padding: const EdgeInsets.fromLTRB(16.0, 40.0, 16.0, 8.0),
               child: TextField(
@@ -137,6 +179,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                 ),
               ),
             ),
+            // Zuletzt hinzugefügt
             if (_searchController.text.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -164,28 +207,28 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                       '${food.proteinPer100g}g Protein, '
                       '${food.fatPer100g}g Fett',
                     ),
-                    // Keine Bearbeiten-/Löschen-Buttons mehr
                     onTap: () {
                       _showAddQuantityDialog(food);
                     },
                   );
                 },
               ),
+            // Suchergebnisse
             _isLoading
                 ? Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: CircularProgressIndicator(),
                   )
-                : _searchResults.isNotEmpty
+                : combinedList.isNotEmpty
                     ? Container(
                         height: 300,
                         child: ListView.builder(
                           shrinkWrap: true,
-                          itemCount: _searchResults.length,
+                          itemCount: combinedList.length,
                           itemBuilder: (context, index) {
-                            FoodItem food = _searchResults[index];
+                            FoodItem food = combinedList[index];
                             return ListTile(
-                              key: ValueKey(food.id),
+                              key: ValueKey('${food.barcode}-${food.name}'),
                               title: Text(food.name),
                               subtitle: Text(
                                 '${food.caloriesPer100g} kcal, '
@@ -193,7 +236,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                                 '${food.proteinPer100g}g Protein, '
                                 '${food.fatPer100g}g Fett',
                               ),
-                              // Keine IconButtons mehr
                               onTap: () {
                                 _showAddQuantityDialog(food);
                               },
@@ -275,12 +317,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
       );
     }
   }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
 }
 
 class AddQuantityDialog extends StatefulWidget {
@@ -334,7 +370,7 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
     final gramsText = _gramController.text;
     final grams = int.tryParse(gramsText) ?? widget.food.lastUsedQuantity;
 
-    ConsumedFoodItem consumedFood = ConsumedFoodItem(
+    final consumedFood = ConsumedFoodItem(
       food: widget.food,
       quantity: grams,
       date: Provider.of<AppState>(context, listen: false).currentDate,
@@ -396,10 +432,10 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
                 keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 16),
-              Card(
-                elevation: 0,
+              Container(
+                // Keine Card mehr bzw. kein Hintergrund
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(0.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -521,23 +557,23 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
 
   Future<void> _submit() async {
     if (_formKey.currentState!.validate()) {
-      String name = _nameController.text.trim();
-      String brand = _brandController.text.trim();
-      String? barcodeValue = _barcodeController.text.trim().isNotEmpty
+      final name = _nameController.text.trim();
+      final brand = _brandController.text.trim();
+      final barcodeValue = _barcodeController.text.trim().isNotEmpty
           ? _barcodeController.text.trim().toLowerCase()
           : null;
-      int caloriesPer100g = int.parse(_caloriesController.text);
-      double fatPer100g =
+      final caloriesPer100g = int.parse(_caloriesController.text);
+      final fatPer100g =
           double.parse(_fatController.text.replaceAll(',', '.'));
-      double carbsPer100g =
+      final carbsPer100g =
           double.parse(_carbsController.text.replaceAll(',', '.'));
-      double sugarPer100g =
+      final sugarPer100g =
           double.parse(_sugarController.text.replaceAll(',', '.'));
-      double proteinPer100g =
+      final proteinPer100g =
           double.parse(_proteinController.text.replaceAll(',', '.'));
-      int quantity = int.parse(_gramController.text);
+      final quantity = int.parse(_gramController.text);
 
-      FoodItem newFood = FoodItem(
+      final newFood = FoodItem(
         name: name,
         brand: brand,
         barcode: barcodeValue,
@@ -548,7 +584,7 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
         proteinPer100g: proteinPer100g,
       );
 
-      ConsumedFoodItem consumedFood = ConsumedFoodItem(
+      final consumedFood = ConsumedFoodItem(
         food: newFood,
         quantity: quantity,
         date: Provider.of<AppState>(context, listen: false).currentDate,
@@ -721,28 +757,26 @@ class _AddNewFoodSheetState extends State<AddNewFoodSheet> {
                       (value == null || value.isEmpty) ? 'Pflichtfeld' : null,
                 ),
                 SizedBox(height: 16),
-                Card(
-                  elevation: 0,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Aktuelle Menge: ${_gramController.text} g',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                // Hintergrund entfernt (transparent), nur Schrift
+                Padding(
+                  padding: const EdgeInsets.all(0.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Aktuelle Menge: ${_gramController.text} g',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
-                        const SizedBox(height: 6),
-                        Text('Kalorien: ${_partialCalories.toStringAsFixed(1)} kcal'),
-                        Text('Kohlenhydrate: ${_partialCarbs.toStringAsFixed(1)} g'),
-                        Text('Proteine: ${_partialProtein.toStringAsFixed(1)} g'),
-                        Text('Fette: ${_partialFat.toStringAsFixed(1)} g'),
-                        Text('Zucker: ${_partialSugar.toStringAsFixed(1)} g'),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text('Kalorien: ${_partialCalories.toStringAsFixed(1)} kcal'),
+                      Text('Kohlenhydrate: ${_partialCarbs.toStringAsFixed(1)} g'),
+                      Text('Proteine: ${_partialProtein.toStringAsFixed(1)} g'),
+                      Text('Fette: ${_partialFat.toStringAsFixed(1)} g'),
+                      Text('Zucker: ${_partialSugar.toStringAsFixed(1)} g'),
+                    ],
                   ),
                 ),
                 SizedBox(height: 24),

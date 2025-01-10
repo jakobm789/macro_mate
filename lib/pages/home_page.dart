@@ -24,24 +24,13 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  // ENTFERNT: erneuter Aufruf von loadConsumedFoods() im initState,
-  // weil AppState bereits alles lädt.
-  //
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   final state = Provider.of<AppState>(context, listen: false);
-  //   state.loadConsumedFoods();
-  // }
-
   double _calorieProgress(AppState state) =>
       state.consumedCalories / state.dailyCalorieGoal;
   double _carbProgress(AppState state) =>
       state.consumedCarbs / state.dailyCarbGoal;
   double _proteinProgress(AppState state) =>
       state.consumedProtein / state.dailyProteinGoal;
-  double _fatProgress(AppState state) =>
-      state.consumedFat / state.dailyFatGoal;
+  double _fatProgress(AppState state) => state.consumedFat / state.dailyFatGoal;
   double _sugarProgress(AppState state) =>
       state.consumedSugar / state.dailySugarGoalGrams;
 
@@ -64,94 +53,55 @@ class _MyHomePageState extends State<MyHomePage> {
         if (!mounted) return;
 
         if (food != null) {
-          // Existiert bereits remote => Menge abfragen
-          await showDialog<int>(
-            context: parentContext,
-            builder: (context) {
-              final TextEditingController _gramController =
-                  TextEditingController(text: '100');
-              return AlertDialog(
-                title: Text('Menge für ${food.name} eingeben'),
-                content: TextField(
-                  controller: _gramController,
-                  decoration: const InputDecoration(
-                    labelText: 'Menge in Gramm',
-                    hintText: 'z.B. 150',
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Abbrechen'),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      final grams = int.tryParse(_gramController.text.trim());
-                      if (grams != null && grams > 0) {
-                        Navigator.pop(context, grams);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Bitte gib eine gültige Menge ein.')),
-                        );
-                      }
-                    },
-                    child: const Text('Hinzufügen'),
-                  ),
-                ],
-              );
-            },
-          ).then((grams) async {
-            if (grams != null) {
-              await Provider.of<AppState>(parentContext, listen: false)
-                  .addOrUpdateFood(mealName, food, grams, state.currentDate);
-              if (!mounted) return;
-              ScaffoldMessenger.of(parentContext).showSnackBar(
-                SnackBar(
-                  content: Text('Barcode für ${food.name} mit $grams g hinzugefügt.'),
-                ),
-              );
-              Navigator.popUntil(parentContext, ModalRoute.withName('/'));
-            }
-          });
+          // Existiert bereits in unserer Remote-DB => zeige denselben "Menge hinzufügen"-Dialog
+          _showAddQuantityDialog(parentContext, mealName, food);
         } else {
-          // Nicht gefunden => Neuanlage oder Zuordnung
-          await showDialog(
-            context: parentContext,
-            builder: (context) {
-              return AlertDialog(
-                title: const Text('Lebensmittel nicht gefunden'),
-                content: const Text(
-                  'Der gescannte Barcode wurde keinem Lebensmittel '
-                  'zugeordnet. Möchtest du ein neues Lebensmittel erstellen '
-                  'oder den Barcode einem bestehenden Lebensmittel zuordnen?',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _addNewFoodWithBarcode(parentContext, state, mealName, barcode);
-                    },
-                    child: const Text('Neues Lebensmittel erstellen'),
+          // Versuche Open Food Facts
+          FoodItem? offItem = await state.searchOpenFoodFactsByBarcode(barcode);
+          if (!mounted) return;
+
+          if (offItem != null) {
+            // Open Food Facts hat etwas gefunden => ebenfalls "Menge hinzufügen"
+            _showAddQuantityDialog(parentContext, mealName, offItem);
+          } else {
+            // Nicht gefunden => Neuanlage oder Zuordnung
+            await showDialog(
+              context: parentContext,
+              builder: (context) {
+                return AlertDialog(
+                  title: const Text('Lebensmittel nicht gefunden'),
+                  content: const Text(
+                    'Der gescannte Barcode wurde weder in der eigenen noch '
+                    'in der Open Food Facts Datenbank gefunden. '
+                    'Möchtest du ein neues Lebensmittel erstellen oder '
+                    'den Barcode einem bestehenden Lebensmittel zuordnen?',
                   ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _assignBarcodeToExistingFood(parentContext, state, mealName, barcode);
-                    },
-                    child: const Text('Barcode zuordnen'),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Abbrechen'),
-                  ),
-                ],
-              );
-            },
-          );
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _addNewFoodWithBarcode(parentContext, state, mealName, barcode);
+                      },
+                      child: const Text('Neues Lebensmittel erstellen'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _assignBarcodeToExistingFood(parentContext, state, mealName, barcode);
+                      },
+                      child: const Text('Barcode zuordnen'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Abbrechen'),
+                    ),
+                  ],
+                );
+              },
+            );
+          }
         }
       }
     } catch (e) {
@@ -160,6 +110,23 @@ class _MyHomePageState extends State<MyHomePage> {
         SnackBar(content: Text('Fehler beim Scannen des Barcodes: $e')),
       );
     }
+  }
+
+  // NEU: Ausgelagerte Methode, damit wir direkt den AddQuantityDialog nutzen können
+  void _showAddQuantityDialog(
+      BuildContext parentContext, String mealName, FoodItem foundFood) {
+    showDialog(
+      context: parentContext,
+      builder: (context) {
+        return AddQuantityDialog(
+          food: foundFood,
+          mealName: mealName,
+          onFoodAdded: (ConsumedFoodItem consumedFood) {
+            Navigator.popUntil(context, ModalRoute.withName('/'));
+          },
+        );
+      },
+    );
   }
 
   Future<void> _addNewFoodWithBarcode(
