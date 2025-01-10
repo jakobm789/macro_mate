@@ -24,6 +24,9 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  /// State-Variable, um die "Mini-FABs" zu zeigen/verstecken
+  bool _fabExpanded = false;
+
   double _calorieProgress(AppState state) =>
       state.consumedCalories / state.dailyCalorieGoal;
   double _carbProgress(AppState state) =>
@@ -112,7 +115,6 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  // NEU: Ausgelagerte Methode, damit wir direkt den AddQuantityDialog nutzen können
   void _showAddQuantityDialog(
       BuildContext parentContext, String mealName, FoodItem foundFood) {
     showDialog(
@@ -569,12 +571,57 @@ class _MyHomePageState extends State<MyHomePage> {
               ],
             ),
           ),
-          floatingActionButton: FloatingActionButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/settings');
-            },
-            tooltip: 'Einstellungen',
-            child: const Icon(Icons.settings),
+
+          //
+          // FAB-Bereich:
+          //
+          floatingActionButton: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Nur anzeigen, wenn expanded == true
+              if (_fabExpanded) ...[
+                // Kleiner FAB für "Gewicht"
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: FloatingActionButton(
+                    heroTag: 'weightFab',
+                    mini: true,
+                    onPressed: () {
+                      setState(() => _fabExpanded = false);
+                      Navigator.pushNamed(context, '/weight');
+                    },
+                    tooltip: 'Gewicht tracken',
+                    child: const Icon(Icons.monitor_weight),
+                  ),
+                ),
+                // Kleiner FAB für "Settings"
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: FloatingActionButton(
+                    heroTag: 'settingsFab',
+                    mini: true,
+                    onPressed: () {
+                      setState(() => _fabExpanded = false);
+                      Navigator.pushNamed(context, '/settings');
+                    },
+                    tooltip: 'Einstellungen',
+                    child: const Icon(Icons.settings),
+                  ),
+                ),
+              ],
+
+              // Haupt-FAB
+              FloatingActionButton(
+                heroTag: 'mainFab',
+                onPressed: () {
+                  setState(() {
+                    _fabExpanded = !_fabExpanded;
+                  });
+                },
+                tooltip: _fabExpanded ? 'Schließen' : 'Optionen anzeigen',
+                child: Icon(_fabExpanded ? Icons.close : Icons.add),
+              ),
+            ],
           ),
         );
       },

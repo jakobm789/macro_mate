@@ -25,6 +25,31 @@ const String brevoApiKey =
     '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'; // <--- ANPASSEN
 const String senderEmail = 'moehlenkamp100@gmail.com'; // <--- ANPASSEN
 
+/// NEU: Einfache Klasse für Gewichtseinträge
+class WeightEntry {
+  final int? id;
+  final DateTime date;
+  final double weight;
+
+  WeightEntry({
+    this.id,
+    required this.date,
+    required this.weight,
+  });
+
+  WeightEntry copyWith({
+    int? id,
+    DateTime? date,
+    double? weight,
+  }) {
+    return WeightEntry(
+      id: id ?? this.id,
+      date: date ?? this.date,
+      weight: weight ?? this.weight,
+    );
+  }
+}
+
 class AppState extends ChangeNotifier {
   List<ConsumedFoodItem> breakfast = [];
   List<ConsumedFoodItem> lunch = [];
@@ -54,6 +79,10 @@ class AppState extends ChangeNotifier {
   // Login-Status
   bool isLoggedIn = false;
 
+  // NEU: Liste von Gewichtseinträgen
+  List<WeightEntry> _weightEntries = [];
+  List<WeightEntry> get weightEntries => _weightEntries;
+
   AppState();
 
   Future<void> initializeCompletely() async {
@@ -63,7 +92,10 @@ class AppState extends ChangeNotifier {
     await loadLast20FoodItems();
     await loadConsumedFoods();
 
-    // 2) Versuche Auto-Login
+    // 2) Gewichts-Einträge laden
+    await loadWeightEntries();
+
+    // 3) Versuche Auto-Login
     await _tryAutoLogin();
 
     notifyListeners();
@@ -738,5 +770,41 @@ class AppState extends ChangeNotifier {
       print("Fehler bei der OpenFoodFacts-Suche: $e");
     }
     return [];
+  }
+
+  // ---------------------------------------------------
+  // GEWICHTS-FUNKTIONEN
+  // ---------------------------------------------------
+  Future<void> loadWeightEntries() async {
+    try {
+      final dbHelper = DatabaseHelper();
+      final entries = await dbHelper.getWeightEntries();
+      _weightEntries = entries
+          .map(
+            (row) => WeightEntry(
+              id: row['id'],
+              date: DateTime.parse(row['date']),
+              weight: row['weight'] as double,
+            ),
+          )
+          .toList();
+      // Optional nach Datum sortieren (falls gewünscht)
+      _weightEntries.sort((a, b) => a.date.compareTo(b.date));
+    } catch (e) {
+      print('Fehler beim Laden der Gewichts-Einträge: $e');
+    }
+  }
+
+  Future<void> addWeightEntry(DateTime date, double weight) async {
+    try {
+      final dbHelper = DatabaseHelper();
+      final insertedId = await dbHelper.insertWeightEntry(date, weight);
+      final newEntry = WeightEntry(id: insertedId, date: date, weight: weight);
+      _weightEntries.add(newEntry);
+      _weightEntries.sort((a, b) => a.date.compareTo(b.date));
+      notifyListeners();
+    } catch (e) {
+      print('Fehler beim Hinzufügen eines Gewichts-Eintrags: $e');
+    }
   }
 }

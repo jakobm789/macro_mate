@@ -32,7 +32,7 @@ class DatabaseHelper {
 
       return await openDatabase(
         path,
-        version: 14, 
+        version: 15, // <-- Version hochgesetzt (von 14 auf 15)
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
       );
@@ -74,7 +74,14 @@ class DatabaseHelper {
         )
       ''');
 
-      // Keine lokale Users-Tabelle mehr, da Logins remote sind.
+      // NEU: WeightEntries
+      await db.execute('''
+        CREATE TABLE WeightEntries(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT NOT NULL,
+          weight REAL NOT NULL
+        )
+      ''');
 
       // Default-Eintrag in Settings
       List<Map<String, dynamic>> settings = await db.query('Settings');
@@ -105,6 +112,17 @@ class DatabaseHelper {
       try {
         await db.execute('DROP TABLE IF EXISTS Users');
       } catch (_) {}
+    }
+
+    // Falls du erst jetzt auf Version 15 upgradest, legen wir WeightEntries an:
+    if (oldVersion < 15) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS WeightEntries(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT NOT NULL,
+          weight REAL NOT NULL
+        )
+      ''');
     }
   }
 
@@ -282,11 +300,15 @@ class DatabaseHelper {
     final goals = await db.query('Goals');
     final settings = await db.query('Settings');
 
+    // NEU: WeightEntries
+    final weightEntries = await db.query('WeightEntries');
+
     return {
       'food_items': foodItems,
       'consumed_foods': consumedFoods,
       'goals': goals,
       'settings': settings,
+      'weight_entries': weightEntries, // <-- NEU
     };
   }
 
@@ -325,5 +347,39 @@ class DatabaseHelper {
         await db.insert('Settings', s, conflictAlgorithm: ConflictAlgorithm.ignore);
       }
     }
+
+    // NEU: weight_entries
+    if (data['weight_entries'] is List) {
+      for (var w in data['weight_entries']) {
+        List<Map<String, dynamic>> existingW = await db.query(
+          'WeightEntries',
+          where: 'date = ? AND weight = ?',
+          whereArgs: [w['date'], w['weight']],
+        );
+        if (existingW.isEmpty) {
+          await db.insert('WeightEntries', w, conflictAlgorithm: ConflictAlgorithm.ignore);
+        }
+      }
+    }
+  }
+
+  // ------------------------------------------------
+  // NEU: Funktionen für Gewichtseinträge
+  // ------------------------------------------------
+  Future<int> insertWeightEntry(DateTime date, double weight) async {
+    final db = await database;
+    return await db.insert(
+      'WeightEntries',
+      {
+        'date': DateFormat('yyyy-MM-dd').format(date),
+        'weight': weight,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getWeightEntries() async {
+    final db = await database;
+    return await db.query('WeightEntries', orderBy: 'date ASC');
   }
 }

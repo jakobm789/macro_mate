@@ -8,6 +8,7 @@ import 'models/app_state.dart';
 import 'pages/home_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/login_page.dart'; // <-- NEU: Login-Seite importieren
+import 'pages/weight_page.dart'; // <-- NEU: WeightTracker-Seite importieren
 import 'package:path/path.dart' as p; // Für Dateiname-Prüfung
 import 'package:path_provider/path_provider.dart'; // Falls benötigt
 
@@ -169,6 +170,7 @@ class _MyAppState extends State<MyApp> {
           home: const MyHomePage(title: 'MacroMate'),
           routes: {
             '/settings': (context) => const SettingsPage(),
+            '/weight': (context) => const WeightPage(), // <-- NEU: Route für Gewichtstracker
           },
         );
       },

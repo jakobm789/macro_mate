@@ -63,7 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
         carbPercentage,
         proteinPercentage,
         fatPercentage,
-        newSugarPerc,
+        newSugarPerc!,
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -157,7 +157,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // NEU: Logout
+  // Logout
   void _logout(AppState appState) async {
     bool? confirm = await showDialog<bool>(
       context: context,
@@ -181,7 +181,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (confirm == true) {
       await appState.logout();
-      // Nach dem Logout zurück zum Login
       if (!mounted) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -190,7 +189,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // NEU: Account löschen
+  // Account löschen
   void _deleteAccount(AppState appState) async {
     bool? confirm = await showDialog<bool>(
       context: context,
@@ -258,8 +257,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ExpansionTile(
                   title: const Text(
                     'Ziele einstellen',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   children: [
                     TextField(
@@ -419,8 +417,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                         ElevatedButton(
                           onPressed: () => _resetGoals(appState),
-                          style:
-                              ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                           child: const Text('Zurücksetzen'),
                         ),
                       ],
@@ -450,40 +447,35 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     const SizedBox(height: 20),
                     ListTile(
-                      leading:
-                          const Icon(Icons.delete_forever, color: Colors.red),
+                      leading: const Icon(Icons.delete_forever, color: Colors.red),
                       title: const Text(
                         'Datenbank zurücksetzen',
-                        style:
-                            TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
                       ),
                       trailing: const Icon(Icons.arrow_forward),
                       onTap: () => _resetDatabase(appState),
                     ),
                     const Divider(),
-                    // NEU: Logout
                     ListTile(
                       leading: const Icon(Icons.logout, color: Colors.blueGrey),
                       title: const Text(
                         'Logout',
-                        style:
-                            TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
                       ),
                       trailing: const Icon(Icons.arrow_forward),
                       onTap: () => _logout(appState),
                     ),
                     const Divider(),
-                    // NEU: Account löschen
                     ListTile(
                       leading: const Icon(Icons.person_off, color: Colors.red),
                       title: const Text(
                         'Account löschen',
-                        style:
-                            TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
                       ),
                       trailing: const Icon(Icons.arrow_forward),
                       onTap: () => _deleteAccount(appState),
                     ),
+                    // Hier haben wir den Menüpunkt "Gewicht tracken" ENTFERNT
                   ],
                 ),
               ],
