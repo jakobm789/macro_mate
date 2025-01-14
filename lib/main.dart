@@ -10,6 +10,7 @@ import 'pages/weight_page.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 final FlutterLocalNotificationsPlugin notificationsPlugin = FlutterLocalNotificationsPlugin();
 
@@ -35,12 +36,25 @@ void main() async {
   final initializationSettingsIOS = DarwinInitializationSettings();
   final initializationSettings = InitializationSettings(android: initializationSettingsAndroid, iOS: initializationSettingsIOS);
   await notificationsPlugin.initialize(initializationSettings);
+  await _checkNotificationPermission();
   String initialFilePath = PlatformDispatcher.instance.defaultRouteName;
   final appState = AppState();
   runApp(MaterialApp(home: const LoadingScreen()));
   await appState.initializeCompletely();
   appState.scheduleAllNotifications();
   runApp(ChangeNotifierProvider.value(value: appState, child: MyApp(initialFilePath: initialFilePath)));
+}
+
+Future<void> _checkNotificationPermission() async {
+  if (Platform.isAndroid) {
+    final version = (await Permission.notification.status).isGranted;
+    if (!version) {
+      final result = await Permission.notification.request();
+      if (!result.isGranted) {
+        return;
+      }
+    }
+  }
 }
 
 class MyApp extends StatefulWidget {

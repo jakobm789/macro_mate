@@ -27,6 +27,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _useCustomStartCals = false;
   late TextEditingController _startCaloriesController;
   late TextEditingController _ageController;
+  late TextEditingController _heightController;
   final List<PalOption> _palOptions = [
     PalOption(1.2, 'Sehr niedrig (1.2)', 'Du verbringst den Großteil des Tages sitzend oder liegend. Beispiele: Bettlägerig oder reine Sitzarbeit.'),
     PalOption(1.375, 'Niedrig (1.375)', 'Sitzende Tätigkeit mit wenig Bewegung. Beispiele: Büroarbeit mit kurzen Wegen, kaum Sport.'),
@@ -57,6 +58,13 @@ class _SettingsPageState extends State<SettingsPage> {
     carbPercentage = f(((appState.dailyCarbGoal * 4 / appState.dailyCalorieGoal) * 100).round());
     proteinPercentage = f(((appState.dailyProteinGoal * 4 / appState.dailyCalorieGoal) * 100).round());
     fatPercentage = f(((appState.dailyFatGoal * 9 / appState.dailyCalorieGoal) * 100).round());
+    int sum = carbPercentage + proteinPercentage + fatPercentage;
+    int diff = 100 - sum;
+    if (diff != 0) {
+      carbPercentage += diff;
+      if (carbPercentage < 0) carbPercentage = 0;
+      if (carbPercentage > 100) carbPercentage = 100;
+    }
     sugarPercentage = appState.dailySugarGoalPercentage;
     calorieController = TextEditingController(text: appState.dailyCalorieGoal.toString());
     _selectedMode = appState.autoMode;
@@ -64,6 +72,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _useCustomStartCals = appState.useCustomStartCalories;
     _startCaloriesController = TextEditingController(text: appState.userStartCalories.toString());
     _ageController = TextEditingController(text: appState.userAge.toString());
+    _heightController = TextEditingController(text: appState.userHeight.toStringAsFixed(0));
     double storedPal = appState.userActivityLevel;
     final palCandidates = _palOptions.map((p) => p.value).toList();
     double closest = palCandidates.reduce((a, b) => (storedPal - a).abs() < (storedPal - b).abs() ? a : b);
@@ -86,6 +95,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _customPercentController.dispose();
     _startCaloriesController.dispose();
     _ageController.dispose();
+    _heightController.dispose();
     super.dispose();
   }
 
@@ -98,13 +108,21 @@ class _SettingsPageState extends State<SettingsPage> {
     int? newCalorieGoal = int.tryParse(calorieController.text);
     int? newSugarPerc = sugarPercentage;
     int? newAge = int.tryParse(_ageController.text);
+    double? newHeight = double.tryParse(_heightController.text);
     double newActivity = _selectedPalValue;
-    if (newCalorieGoal != null && newCalorieGoal > 0 && _validatePercentages() && newAge != null && newAge > 0 && newActivity > 0.0) {
+    if (newCalorieGoal != null && newCalorieGoal > 0 && _validatePercentages() && newAge != null && newAge > 0 && newActivity > 0.0 && newHeight != null && newHeight > 0) {
+      int oldModeIndex = appState.autoMode.index;
       appState.dailyCalorieGoal = newCalorieGoal;
       appState.userAge = newAge;
       appState.userActivityLevel = newActivity;
+      appState.userHeight = newHeight;
       await appState.updateGoals(newCalorieGoal, carbPercentage, proteinPercentage, fatPercentage, newSugarPerc!);
+      AutoCalorieMode oldMode = appState.autoMode;
       appState.autoMode = _selectedMode;
+      if (oldMode == AutoCalorieMode.off && _selectedMode != AutoCalorieMode.off) {
+        appState.firstWeekInitialized = false;
+        appState.autoAdjustCaloriesIfNeeded();
+      }
       double? customVal = double.tryParse(_customPercentController.text.replaceAll(',', '.'));
       if (customVal == null) {
         customVal = 1.0;
@@ -116,18 +134,6 @@ class _SettingsPageState extends State<SettingsPage> {
         startCals = 2000;
       }
       appState.userStartCalories = startCals;
-      appState.reminderWeighEnabled = reminderWeighEnabled;
-      appState.reminderWeighTime = reminderWeighTime;
-      appState.reminderWeighTimeSecond = reminderWeighTime2;
-      appState.reminderSupplementEnabled = reminderSupplementEnabled;
-      appState.reminderSupplementTime = reminderSupplementTime;
-      appState.reminderSupplementTimeSecond = reminderSupplementTime2;
-      appState.reminderMealsEnabled = reminderMealsEnabled;
-      appState.reminderBreakfast = reminderBreakfast;
-      appState.reminderLunch = reminderLunch;
-      appState.reminderDinner = reminderDinner;
-      await appState.updateGoals(appState.dailyCalorieGoal, carbPercentage, proteinPercentage, fatPercentage, sugarPercentage);
-      appState.scheduleAllNotifications();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Einstellungen gespeichert.')));
       Navigator.of(context).pop();
     } else {
@@ -140,6 +146,9 @@ class _SettingsPageState extends State<SettingsPage> {
       }
       if (newAge == null || newAge <= 0) {
         errorMessage += 'Bitte ein gültiges Alter eingeben.\n';
+      }
+      if (newHeight == null || newHeight <= 0) {
+        errorMessage += 'Bitte eine gültige Körpergröße eingeben.\n';
       }
       if (newActivity <= 0.0) {
         errorMessage += 'Bitte einen gültigen Aktivitätsfaktor auswählen.\n';
@@ -198,7 +207,7 @@ class _SettingsPageState extends State<SettingsPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value ? 'Dark Mode aktiviert.' : 'Dark Mode deaktiviert.')));
   }
 
-  void _logout(AppState appState, ) async {
+  void _logout(AppState appState) async {
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -297,11 +306,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     setState(() {});
                   },
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Kohlenhydrate (%)'),
+                    Text('Kohlenhydrate (%)'),
                     Row(
                       children: [
                         DropdownButton<int>(
@@ -315,17 +324,17 @@ class _SettingsPageState extends State<SettingsPage> {
                             }
                           },
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Text(': ${carbGrams.toStringAsFixed(0)} g'),
                       ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Zucker (% von KH)'),
+                    Text('Zucker (% von KH)'),
                     Row(
                       children: [
                         DropdownButton<int>(
@@ -339,17 +348,17 @@ class _SettingsPageState extends State<SettingsPage> {
                             }
                           },
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Text(': ${sugarGrams.toStringAsFixed(0)} g'),
                       ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Proteine (%)'),
+                    Text('Proteine (%)'),
                     Row(
                       children: [
                         DropdownButton<int>(
@@ -363,17 +372,17 @@ class _SettingsPageState extends State<SettingsPage> {
                             }
                           },
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Text(': ${proteinGrams.toStringAsFixed(0)} g'),
                       ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Fette (%)'),
+                    Text('Fette (%)'),
                     Row(
                       children: [
                         DropdownButton<int>(
@@ -387,13 +396,13 @@ class _SettingsPageState extends State<SettingsPage> {
                             }
                           },
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Text(': ${fatGrams.toStringAsFixed(0)} g'),
                       ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Text(
                   difference > 0 ? 'Die Summe ist ${difference.abs()}% zu hoch.' : difference < 0 ? 'Die Summe ist ${difference.abs()}% zu niedrig.' : 'Die Summe der Makronährstoffe beträgt 100%',
                   style: TextStyle(
@@ -401,22 +410,22 @@ class _SettingsPageState extends State<SettingsPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    ElevatedButton(onPressed: () => _saveSettings(appState), child: const Text('Speichern')),
-                    ElevatedButton(onPressed: () => _resetGoals(appState), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('Zurücksetzen')),
+                    ElevatedButton(onPressed: () => _saveSettings(appState), child: Text('Speichern')),
+                    ElevatedButton(onPressed: () => _resetGoals(appState), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: Text('Zurücksetzen')),
                   ],
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             ExpansionTile(
-              title: const Text('Automatische Kaloriensteuerung', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              title: Text('Automatische Kaloriensteuerung', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               children: [
                 RadioListTile<AutoCalorieMode>(
-                  title: const Text('Aus (manuell)'),
+                  title: Text('Aus (manuell)'),
                   value: AutoCalorieMode.off,
                   groupValue: _selectedMode,
                   onChanged: (val) {
@@ -428,7 +437,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 RadioListTile<AutoCalorieMode>(
-                  title: const Text('Diät-Modus (ca. -1% pro Woche)'),
+                  title: Text('Diät-Modus (ca. -1% pro Woche)'),
                   value: AutoCalorieMode.diet,
                   groupValue: _selectedMode,
                   onChanged: (val) {
@@ -440,7 +449,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 RadioListTile<AutoCalorieMode>(
-                  title: const Text('Aufbau-Modus (ca. +1% pro Monat)'),
+                  title: Text('Aufbau-Modus (ca. +1% pro Monat)'),
                   value: AutoCalorieMode.bulk,
                   groupValue: _selectedMode,
                   onChanged: (val) {
@@ -452,7 +461,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 RadioListTile<AutoCalorieMode>(
-                  title: const Text('Eigenen Prozentsatz einstellen (Monat)'),
+                  title: Text('Eigenen Prozentsatz einstellen (Monat)'),
                   value: AutoCalorieMode.custom,
                   groupValue: _selectedMode,
                   onChanged: (val) {
@@ -466,24 +475,24 @@ class _SettingsPageState extends State<SettingsPage> {
                 if (_selectedMode == AutoCalorieMode.custom) ...[
                   Row(
                     children: [
-                      const SizedBox(width: 16),
-                      const Text('Prozentsatz pro Monat:'),
-                      const SizedBox(width: 16),
+                      SizedBox(width: 16),
+                      Text('Prozentsatz pro Monat:'),
+                      SizedBox(width: 16),
                       SizedBox(
                         width: 80,
                         child: TextField(
                           controller: _customPercentController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(labelText: '%'),
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(labelText: '%'),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                 ],
-                const Divider(),
+                Divider(),
                 CheckboxListTile(
-                  title: const Text('Eigene Startkalorien verwenden'),
+                  title: Text('Eigene Startkalorien verwenden'),
                   value: _useCustomStartCals,
                   onChanged: (val) {
                     if (val != null) {
@@ -495,33 +504,42 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 if (_useCustomStartCals) ...[
                   Padding(
-                    padding: const EdgeInsets.only(left: 16.0),
+                    padding: EdgeInsets.only(left: 16.0),
                     child: TextField(
                       controller: _startCaloriesController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Start-Kalorien (z.B. 2000)'),
+                      decoration: InputDecoration(labelText: 'Start-Kalorien (z.B. 2000)'),
                     ),
                   ),
                 ],
-                const SizedBox(height: 16),
-                const Divider(),
+                SizedBox(height: 16),
+                Divider(),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
                   child: TextField(
                     controller: _ageController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Alter (Jahre)'),
+                    decoration: InputDecoration(labelText: 'Alter (Jahre)'),
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: TextField(
+                    controller: _heightController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: 'Körpergröße (cm)'),
+                  ),
+                ),
+                SizedBox(height: 16),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
                   child: Row(
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<double>(
                           value: _selectedPalValue,
-                          decoration: const InputDecoration(labelText: 'Aktivitätsfaktor', border: OutlineInputBorder()),
+                          decoration: InputDecoration(labelText: 'Aktivitätsfaktor', border: OutlineInputBorder()),
                           items: _palOptions.map((pal) => DropdownMenuItem<double>(value: pal.value, child: Text(pal.title))).toList(),
                           onChanged: (newVal) {
                             if (newVal != null) {
@@ -532,9 +550,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       IconButton(
-                        icon: const Icon(Icons.help_outline),
+                        icon: Icon(Icons.help_outline),
                         onPressed: () {
                           final selected = _palOptions.firstWhere((p) => p.value == _selectedPalValue, orElse: () => _palOptions.first);
                           showDialog(
@@ -542,7 +560,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             builder: (context) => AlertDialog(
                               title: Text(selected.title),
                               content: Text(selected.description),
-                              actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
+                              actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('OK'))],
                             ),
                           );
                         },
@@ -550,22 +568,20 @@ class _SettingsPageState extends State<SettingsPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    ElevatedButton(onPressed: () => _saveSettings(appState), child: const Text('Speichern (Auto-Modus)')),
+                    ElevatedButton(onPressed: () => _saveSettings(appState), child: Text('Speichern (Auto-Modus)')),
                     IconButton(
-                      icon: const Icon(Icons.help_outline),
+                      icon: Icon(Icons.help_outline),
                       onPressed: () {
                         showDialog(
                           context: context,
                           builder: (context) => AlertDialog(
-                            title: const Text('Formel Info'),
-                            content: const Text('Formel: \n\n Umsatz = \n 66 + (13.7 * KG) + (5 * 170) - (6.8 * Alter). \n\n Danach multipliziert mit Aktivitätsfaktor. \n KG: Körpergewicht'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))
-                            ],
+                            title: Text('Formel Info'),
+                            content: Text('Formel:\n\nUmsatz = 66 + (13.7 * KG) + (5 * Größe) - (6.8 * Alter)\n\nDanach multipliziert mit Aktivitätsfaktor\nKG: Körpergewicht'),
+                            actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('OK'))],
                           ),
                         );
                       },
@@ -574,12 +590,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             ExpansionTile(
-              title: const Text('Benachrichtigungen', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              title: Text('Benachrichtigungen', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               children: [
                 SwitchListTile(
-                  title: const Text('Wiegen-Erinnerung'),
+                  title: Text('Wiegen-Erinnerung'),
                   value: reminderWeighEnabled,
                   onChanged: (v) {
                     setState(() {
@@ -599,9 +615,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       reminderWeighTime2 = picked;
                     });
                   }),
-                const Divider(),
+                Divider(),
                 SwitchListTile(
-                  title: const Text('Supplement-Erinnerung'),
+                  title: Text('Supplement-Erinnerung'),
                   value: reminderSupplementEnabled,
                   onChanged: (v) {
                     setState(() {
@@ -621,9 +637,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       reminderSupplementTime2 = picked;
                     });
                   }),
-                const Divider(),
+                Divider(),
                 SwitchListTile(
-                  title: const Text('Mahlzeiten-Erinnerungen'),
+                  title: Text('Mahlzeiten-Erinnerungen'),
                   value: reminderMealsEnabled,
                   onChanged: (v) {
                     setState(() {
@@ -649,39 +665,58 @@ class _SettingsPageState extends State<SettingsPage> {
                       reminderDinner = picked;
                     });
                   }),
+                SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () async {
+                    appState.reminderWeighEnabled = reminderWeighEnabled;
+                    appState.reminderWeighTime = reminderWeighTime;
+                    appState.reminderWeighTimeSecond = reminderWeighTime2;
+                    appState.reminderSupplementEnabled = reminderSupplementEnabled;
+                    appState.reminderSupplementTime = reminderSupplementTime;
+                    appState.reminderSupplementTimeSecond = reminderSupplementTime2;
+                    appState.reminderMealsEnabled = reminderMealsEnabled;
+                    appState.reminderBreakfast = reminderBreakfast;
+                    appState.reminderLunch = reminderLunch;
+                    appState.reminderDinner = reminderDinner;
+                    await appState.saveNotificationSettings();
+                    appState.scheduleAllNotifications();
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Benachrichtigungseinstellungen gespeichert.')));
+                  },
+                  child: Text('Benachrichtigungen speichern'),
+                ),
               ],
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             ExpansionTile(
-              title: const Text('Sonstige Einstellungen', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              title: Text('Sonstige Einstellungen', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               children: [
                 SwitchListTile(
-                  title: const Text('Dark Mode aktivieren', style: TextStyle(fontSize: 16)),
+                  title: Text('Dark Mode aktivieren', style: TextStyle(fontSize: 16)),
                   value: appState.isDarkMode,
                   onChanged: (value) {
                     _toggleDarkMode(appState, value);
                   },
                   secondary: Icon(appState.isDarkMode ? Icons.dark_mode : Icons.light_mode),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 ListTile(
-                  leading: const Icon(Icons.delete_forever, color: Colors.red),
-                  title: const Text('Datenbank zurücksetzen', style: TextStyle(fontSize: 16)),
-                  trailing: const Icon(Icons.arrow_forward),
+                  leading: Icon(Icons.delete_forever, color: Colors.red),
+                  title: Text('Datenbank zurücksetzen', style: TextStyle(fontSize: 16)),
+                  trailing: Icon(Icons.arrow_forward),
                   onTap: () => _resetDatabase(appState),
                 ),
-                const Divider(),
+                Divider(),
                 ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.blueGrey),
-                  title: const Text('Logout', style: TextStyle(fontSize: 16)),
-                  trailing: const Icon(Icons.arrow_forward),
+                  leading: Icon(Icons.logout, color: Colors.blueGrey),
+                  title: Text('Logout', style: TextStyle(fontSize: 16)),
+                  trailing: Icon(Icons.arrow_forward),
                   onTap: () => _logout(appState),
                 ),
-                const Divider(),
+                Divider(),
                 ListTile(
-                  leading: const Icon(Icons.person_off, color: Colors.red),
-                  title: const Text('Account löschen', style: TextStyle(fontSize: 16)),
-                  trailing: const Icon(Icons.arrow_forward),
+                  leading: Icon(Icons.person_off, color: Colors.red),
+                  title: Text('Account löschen', style: TextStyle(fontSize: 16)),
+                  trailing: Icon(Icons.arrow_forward),
                   onTap: () => _deleteAccount(appState),
                 ),
               ],
