@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-
 import '../models/app_state.dart';
 
 class WeightPage extends StatefulWidget {
@@ -16,6 +15,7 @@ class _WeightPageState extends State<WeightPage> {
   final TextEditingController _weightController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
   bool _isAdding = false;
+  int _selectedRangeInDays = 7;
 
   @override
   void dispose() {
@@ -46,7 +46,6 @@ class _WeightPageState extends State<WeightPage> {
       );
       return;
     }
-
     final weight = double.tryParse(text.replaceAll(',', '.'));
     if (weight == null || weight <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -54,9 +53,7 @@ class _WeightPageState extends State<WeightPage> {
       );
       return;
     }
-
     setState(() => _isAdding = true);
-
     try {
       final appState = Provider.of<AppState>(context, listen: false);
       await appState.addWeightEntry(_selectedDate, weight);
@@ -71,17 +68,43 @@ class _WeightPageState extends State<WeightPage> {
     }
   }
 
+  List<FlSpot> _generateSpotsForRange(BuildContext context) {
+    final appState = Provider.of<AppState>(context, listen: false);
+    final allEntries = appState.weightEntries;
+    final now = DateTime.now();
+    final cutoff = now.subtract(Duration(days: _selectedRangeInDays));
+    final filtered = allEntries.where((entry) => entry.date.isAfter(cutoff)).toList();
+    if (filtered.isEmpty) {
+      return [];
+    }
+    filtered.sort((a, b) => a.date.compareTo(b.date));
+    final baseDate = filtered.first.date;
+    return filtered
+        .map((entry) {
+          final diff = entry.date.difference(baseDate).inDays.toDouble();
+          return FlSpot(diff, entry.weight);
+        })
+        .toList();
+  }
+
+  Widget _rangeButton(String label, int days) {
+    return ElevatedButton(
+      onPressed: () {
+        setState(() {
+          _selectedRangeInDays = days;
+        });
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _selectedRangeInDays == days ? Colors.lightBlueAccent : Colors.white,
+      ),
+      child: Text(label),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
-    final entries = appState.weightEntries;
-
-    final spots = <FlSpot>[];
-    for (var i = 0; i < entries.length; i++) {
-      final baseDate = entries.first.date;
-      final diff = entries[i].date.difference(baseDate).inDays.toDouble();
-      spots.add(FlSpot(diff, entries[i].weight));
-    }
+    final spots = _generateSpotsForRange(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -92,10 +115,23 @@ class _WeightPageState extends State<WeightPage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            if (entries.isEmpty)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _rangeButton('1 Woche', 7),
+                  _rangeButton('1 Monat', 30),
+                  _rangeButton('3 Monate', 90),
+                  _rangeButton('1 Jahr', 365),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (spots.isEmpty)
               const Expanded(
                 child: Center(
-                  child: Text('Noch keine Einträge vorhanden.'),
+                  child: Text('Keine Einträge für den ausgewählten Zeitraum.'),
                 ),
               )
             else
@@ -109,8 +145,7 @@ class _WeightPageState extends State<WeightPage> {
                           showTitles: true,
                           reservedSize: 40,
                           getTitlesWidget: (value, meta) {
-                            return Text('${value.toStringAsFixed(1)} kg',
-                                style: const TextStyle(fontSize: 10));
+                            return Text('${value.toStringAsFixed(1)} kg', style: const TextStyle(fontSize: 10));
                           },
                         ),
                       ),
@@ -118,9 +153,14 @@ class _WeightPageState extends State<WeightPage> {
                         sideTitles: SideTitles(
                           showTitles: true,
                           reservedSize: 42,
-                          interval: (spots.length > 1) ? null : 1,
+                          interval: spots.length > 1 ? null : 1,
                           getTitlesWidget: (value, meta) {
-                            final baseDate = entries.first.date;
+                            final firstDate = spots.isNotEmpty ? appState.weightEntries.first.date : DateTime.now();
+                            final entriesInRange = appState.weightEntries.where((e) => e.date.isAfter(firstDate));
+                            if (entriesInRange.isEmpty) {
+                              return const SizedBox();
+                            }
+                            final baseDate = entriesInRange.first.date;
                             final date = baseDate.add(Duration(days: value.toInt()));
                             return Padding(
                               padding: const EdgeInsets.only(top: 4.0),
@@ -154,8 +194,7 @@ class _WeightPageState extends State<WeightPage> {
                   children: [
                     TextField(
                       controller: _weightController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
                         labelText: 'Gewicht (kg)',
                         hintText: 'z.B. 80.5',
