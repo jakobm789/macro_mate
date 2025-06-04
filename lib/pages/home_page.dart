@@ -135,8 +135,8 @@ class _MyHomePageState extends State<MyHomePage> {
                           ? IconButton(
                               icon: Icon(Icons.link, color: Colors.blue),
                               onPressed: () async {
-                                await state.updateBarcodeForFood(food, barcode);
-                                await Provider.of<AppState>(context, listen: false).addOrUpdateFood(mealName, food.copyWith(barcode: barcode), 100, state.currentDate);
+                                FoodItem updatedFood = await state.updateBarcodeForFood(food, barcode);
+                                await Provider.of<AppState>(context, listen: false).addOrUpdateFood(mealName, updatedFood, 100, state.currentDate);
                                 if (!mounted) return;
                                 Navigator.pop(context);
                                 Navigator.popUntil(context, ModalRoute.withName('/'));
