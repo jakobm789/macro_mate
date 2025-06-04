@@ -1,16 +1,12 @@
-# macro_mate
+# MacroMate
 
-A new Flutter project.
+MacroMate is a Flutter app for tracking daily calorie and macronutrient intake. It lets you log foods, scan barcodes and monitor your progress toward nutrition goals.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+1. Install Flutter (3.10 or newer).
+2. Run `flutter pub get` to install dependencies.
+3. Connect a device or launch an emulator.
+4. Start the app with `flutter run`.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+For additional Flutter documentation, see [flutter.dev](https://docs.flutter.dev/).
