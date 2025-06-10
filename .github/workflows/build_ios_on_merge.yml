@@ -1,0 +1,29 @@
+name: Build iOS app on PR merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  build:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Build iOS app
+        run: flutter build ios --release --no-codesign
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-ios
+          path: build/ios/iphoneos/Runner.app
