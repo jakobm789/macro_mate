@@ -34,3 +34,30 @@ export PATH="$(pwd)/flutter_sdk/bin:$PATH"
 ```bash
 flutter test
 ```
+
+## Building for iOS (free provisioning)
+
+To run the app on an iOS device without a paid developer account, follow these steps:
+
+1. In the project root, run:
+
+```bash
+flutter clean
+flutter pub get
+cd ios && pod install && cd ..
+```
+
+This generates the `Runner.xcworkspace` used by Xcode.
+
+2. Open the workspace:
+
+```bash
+open ios/Runner.xcworkspace
+```
+
+3. In Xcode, sign in with your Apple ID under **Preferences > Accounts**.
+4. Select the `Runner` target and choose your account under **Signing & Capabilities → Team**. Keep **Automatically manage signing** enabled.
+5. Connect your device and press **Run** (`⌘R`) to build and install the app.
+
+The certificate created this way is valid for seven days. After it expires you must rebuild the app from Xcode.
+
