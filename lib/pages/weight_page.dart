@@ -68,16 +68,22 @@ class _WeightPageState extends State<WeightPage> {
     }
   }
 
-  List<FlSpot> _generateSpotsForRange(BuildContext context) {
+  List<WeightEntry> _getEntriesForRange(BuildContext context) {
     final appState = Provider.of<AppState>(context, listen: false);
-    final allEntries = appState.weightEntries;
     final now = DateTime.now();
     final cutoff = now.subtract(Duration(days: _selectedRangeInDays));
-    final filtered = allEntries.where((entry) => entry.date.isAfter(cutoff)).toList();
+    final filtered = appState.weightEntries
+        .where((entry) => entry.date.isAfter(cutoff))
+        .toList();
+    filtered.sort((a, b) => a.date.compareTo(b.date));
+    return filtered;
+  }
+
+  List<FlSpot> _generateSpotsForRange(BuildContext context) {
+    final filtered = _getEntriesForRange(context);
     if (filtered.isEmpty) {
       return [];
     }
-    filtered.sort((a, b) => a.date.compareTo(b.date));
     final baseDate = filtered.first.date;
     return filtered
         .map((entry) {
@@ -105,6 +111,7 @@ class _WeightPageState extends State<WeightPage> {
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
     final spots = _generateSpotsForRange(context);
+    final entries = _getEntriesForRange(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -155,12 +162,11 @@ class _WeightPageState extends State<WeightPage> {
                           reservedSize: 42,
                           interval: spots.length > 1 ? null : 1,
                           getTitlesWidget: (value, meta) {
-                            final firstDate = spots.isNotEmpty ? appState.weightEntries.first.date : DateTime.now();
-                            final entriesInRange = appState.weightEntries.where((e) => e.date.isAfter(firstDate));
-                            if (entriesInRange.isEmpty) {
+                            final entries = _getEntriesForRange(context);
+                            if (entries.isEmpty) {
                               return const SizedBox();
                             }
-                            final baseDate = entriesInRange.first.date;
+                            final baseDate = entries.first.date;
                             final date = baseDate.add(Duration(days: value.toInt()));
                             return Padding(
                               padding: const EdgeInsets.only(top: 4.0),
@@ -228,6 +234,37 @@ class _WeightPageState extends State<WeightPage> {
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.builder(
+                itemCount: entries.length,
+                itemBuilder: (context, index) {
+                  final entry = entries[index];
+                  return Dismissible(
+                    key: ValueKey(entry.id),
+                    direction: DismissDirection.endToStart,
+                    background: Container(
+                      color: Colors.red,
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: const Icon(Icons.delete, color: Colors.white),
+                    ),
+                    onDismissed: (_) async {
+                      await Provider.of<AppState>(context, listen: false)
+                          .deleteWeightEntry(entry.id!);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Eintrag gelöscht.')),
+                      );
+                    },
+                    child: ListTile(
+                      title: Text('${entry.weight.toStringAsFixed(1)} kg'),
+                      subtitle:
+                          Text(DateFormat('dd.MM.yyyy').format(entry.date)),
+                    ),
+                  );
+                },
               ),
             ),
           ],

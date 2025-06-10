@@ -318,4 +318,9 @@ class DatabaseHelper {
     final db = await database;
     return await db.query('WeightEntries', orderBy: 'date ASC');
   }
+
+  Future<void> deleteWeightEntry(int id) async {
+    final db = await database;
+    await db.delete('WeightEntries', where: 'id = ?', whereArgs: [id]);
+  }
 }
