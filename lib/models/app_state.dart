@@ -169,7 +169,12 @@ class AppState extends ChangeNotifier {
     }
   }
   DateTime _nextInstanceOfTime(TimeOfDay t, DateTime base) {
-    return DateTime(base.year, base.month, base.day, t.hour, t.minute);
+    DateTime scheduled =
+        DateTime(base.year, base.month, base.day, t.hour, t.minute);
+    if (scheduled.isBefore(base)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+    return scheduled;
   }
   Future<void> _tryAutoLogin() async {
     final savedEmail = await SharedPreferencesHelper.loadUserEmail();
