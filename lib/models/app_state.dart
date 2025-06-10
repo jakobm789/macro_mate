@@ -623,12 +623,15 @@ class AppState extends ChangeNotifier {
       return [];
     }
   }
-  Future<void> updateBarcodeForFood(FoodItem food, String barcode) async {
+  Future<FoodItem> updateBarcodeForFood(FoodItem food, String barcode) async {
     if (food.id == null) {
-      final newId = await _remoteService.insertOrUpdateFoodItem(food.copyWith(barcode: barcode));
-      food = food.copyWith(id: newId, barcode: barcode);
+      final newId = await _remoteService.insertOrUpdateFoodItem(
+        food.copyWith(barcode: barcode),
+      );
+      return food.copyWith(id: newId, barcode: barcode);
     } else {
       await _remoteService.updateBarcode(food.id!, barcode);
+      return food.copyWith(barcode: barcode);
     }
   }
   Future<List<FoodItem>> searchFoodItemsRemote(String query) async {

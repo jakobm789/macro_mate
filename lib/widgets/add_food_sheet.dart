@@ -240,8 +240,8 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
         ),
       ).then((overwrite) async {
         if (overwrite == true) {
-          await appState.updateBarcodeForFood(existingFood, barcode);
-          await appState.addOrUpdateFood(widget.mealName, existingFood, 100, appState.currentDate);
+          FoodItem updatedFood = await appState.updateBarcodeForFood(existingFood, barcode);
+          await appState.addOrUpdateFood(widget.mealName, updatedFood, 100, appState.currentDate);
           Navigator.popUntil(context, ModalRoute.withName('/'));
         }
       });
