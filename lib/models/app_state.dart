@@ -778,4 +778,15 @@ class AppState extends ChangeNotifier {
       rethrow;
     }
   }
+
+  Future<void> deleteWeightEntry(int id) async {
+    try {
+      final dbHelper = DatabaseHelper();
+      await dbHelper.deleteWeightEntry(id);
+      _weightEntries.removeWhere((entry) => entry.id == id);
+      notifyListeners();
+    } catch (e) {
+      rethrow;
+    }
+  }
 }
