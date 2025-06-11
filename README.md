@@ -69,4 +69,7 @@ The workflow in `.github/workflows/build_ios_on_merge.yml` can sign the iOS app 
 - `APPLE_ID_EMAIL` – the email address of your Apple ID
 - `APPLE_ID_PASSWORD` – an app‑specific password for the Apple ID
 
+The workflow fails early if either secret is missing, so be sure to add them to
+your repository's secrets before merging pull requests.
+
 On every merge into `main` the workflow logs in using `xcrun altool` and runs `flutter build ipa` with automatic signing enabled. The resulting `Runner.ipa` is uploaded as a build artifact.
