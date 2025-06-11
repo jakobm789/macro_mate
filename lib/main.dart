@@ -46,13 +46,10 @@ void main() async {
 }
 
 Future<void> _checkNotificationPermission() async {
-  if (Platform.isAndroid) {
-    final version = (await Permission.notification.status).isGranted;
-    if (!version) {
-      final result = await Permission.notification.request();
-      if (!result.isGranted) {
-        return;
-      }
+  if (Platform.isAndroid || Platform.isIOS) {
+    final status = await Permission.notification.status;
+    if (!status.isGranted) {
+      await Permission.notification.request();
     }
   }
 }

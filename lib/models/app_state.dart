@@ -168,6 +168,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> scheduleAllNotifications() async {
+    await notificationsPlugin.cancelAll();
     if (reminderWeighEnabled) {
       scheduleDailyNotification(
         10000,
@@ -548,40 +549,65 @@ class AppState extends ChangeNotifier {
     if (autoMode == AutoCalorieMode.off) {
       return;
     }
-    firstWeekInitialized = true;
     double w = 80.0;
     if (_weightEntries.isNotEmpty) {
       w = _weightEntries.last.weight;
     }
+
+    double carbPerc = (dailyCarbGoal * 4) / dailyCalorieGoal * 100;
+    double proteinPerc = (dailyProteinGoal * 4) / dailyCalorieGoal * 100;
+    double fatPerc = (dailyFatGoal * 9) / dailyCalorieGoal * 100;
+
+    if (!firstWeekInitialized && useCustomStartCalories) {
+      dailyCalorieGoal = userStartCalories;
+      dailyCarbGoal = (dailyCalorieGoal * carbPerc / 100) / 4.0;
+      dailyProteinGoal = (dailyCalorieGoal * proteinPerc / 100) / 4.0;
+      dailyFatGoal = (dailyCalorieGoal * fatPerc / 100) / 9.0;
+      DatabaseHelper().saveGoalsExtended(
+        dailyCalories: dailyCalorieGoal,
+        carbPercentage: carbPerc.round(),
+        proteinPercentage: proteinPerc.round(),
+        fatPercentage: fatPerc.round(),
+        sugarPercentage: dailySugarGoalPercentage,
+        autoCalorieModeIndex: autoMode.index,
+        customPercentPerMonth: customPercentPerMonth,
+        useCustomStartCaloriesInt: useCustomStartCalories ? 1 : 0,
+        userStartCalories: userStartCalories,
+        userAge: userAge,
+        userActivityLevel: userActivityLevel,
+        lastMondayCheck: lastMondayCheck,
+        firstWeekInitializedVal: firstWeekInitialized,
+        userHeightVal: userHeight,
+      );
+      notifyListeners();
+      return;
+    }
+
+    firstWeekInitialized = true;
     double bmr = 66 + (13.7 * w) + (5 * userHeight) - (6.8 * userAge);
     double baseCalDouble = bmr * userActivityLevel;
     int baseCal =
         useCustomStartCalories ? userStartCalories : baseCalDouble.round();
     if (autoMode == AutoCalorieMode.diet) {
       dailyCalorieGoal = baseCal - 300;
-      dailyProteinGoal = 2.2 * w;
-      dailyFatGoal = 1.0 * w;
     } else {
       if (autoMode == AutoCalorieMode.bulk) {
         dailyCalorieGoal = baseCal + 200;
       } else if (autoMode == AutoCalorieMode.custom) {
         double factor = 1.0 + (customPercentPerMonth / 100.0);
         dailyCalorieGoal = (baseCal * factor).round();
+      } else {
+        dailyCalorieGoal = baseCal;
       }
-      dailyProteinGoal = 2.0 * w;
-      dailyFatGoal = 1.0 * w;
     }
-    double calsFromProtein = dailyProteinGoal * 4;
-    double calsFromFat = dailyFatGoal * 9;
-    double calsFromCarbs = dailyCalorieGoal - (calsFromProtein + calsFromFat);
-    if (calsFromCarbs < 0) calsFromCarbs = 0;
-    dailyCarbGoal = calsFromCarbs / 4;
+    dailyCarbGoal = (dailyCalorieGoal * carbPerc / 100) / 4.0;
+    dailyProteinGoal = (dailyCalorieGoal * proteinPerc / 100) / 4.0;
+    dailyFatGoal = (dailyCalorieGoal * fatPerc / 100) / 9.0;
     DatabaseHelper().saveGoalsExtended(
       dailyCalories: dailyCalorieGoal,
-      carbPercentage: ((dailyCarbGoal * 4) / dailyCalorieGoal * 100).round(),
-      proteinPercentage:
-          ((dailyProteinGoal * 4) / dailyCalorieGoal * 100).round(),
-      fatPercentage: ((dailyFatGoal * 9) / dailyCalorieGoal * 100).round(),
+      carbPercentage: carbPerc.round(),
+      proteinPercentage: proteinPerc.round(),
+      fatPercentage: fatPerc.round(),
       sugarPercentage: dailySugarGoalPercentage,
       autoCalorieModeIndex: autoMode.index,
       customPercentPerMonth: customPercentPerMonth,
@@ -603,6 +629,53 @@ class AppState extends ChangeNotifier {
       final todayString =
           "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
       if (lastMondayCheck != todayString) {
+        if (!firstWeekInitialized && useCustomStartCalories) {
+          int before = dailyCalorieGoal;
+          firstWeekInitialized = true;
+          autoAdjustCaloriesIfNeeded();
+
+          double weeklyChange = computeWeightChangeInLastWeek();
+          double weight =
+              _weightEntries.isNotEmpty ? _weightEntries.last.weight : 80.0;
+          double targetWeekly = (customPercentPerMonth / 100) * weight / 4;
+          if (autoMode == AutoCalorieMode.diet && targetWeekly > 0) {
+            targetWeekly = -targetWeekly;
+          }
+          int calAdjust = dailyCalorieGoal - before;
+          String adjText = calAdjust == 0
+              ? ''
+              : (calAdjust > 0 ? '+$calAdjust' : '$calAdjust');
+          if (calAdjust == 0) {
+            mondayPopupMessage =
+                "Gewichtsveränderung letzte Woche: ${weeklyChange.toStringAsFixed(1)}kg (Ziel ${targetWeekly.toStringAsFixed(1)}kg). Kalorien unverändert bei $dailyCalorieGoal.";
+          } else {
+            mondayPopupMessage =
+                "Gewichtsveränderung letzte Woche: ${weeklyChange.toStringAsFixed(1)}kg (Ziel ${targetWeekly.toStringAsFixed(1)}kg). Kalorienziel $adjText auf $dailyCalorieGoal.";
+          }
+
+          lastMondayCheck = todayString;
+          await DatabaseHelper().saveGoalsExtended(
+            dailyCalories: dailyCalorieGoal,
+            carbPercentage:
+                ((dailyCarbGoal * 4) / dailyCalorieGoal * 100).round(),
+            proteinPercentage:
+                ((dailyProteinGoal * 4) / dailyCalorieGoal * 100).round(),
+            fatPercentage:
+                ((dailyFatGoal * 9) / dailyCalorieGoal * 100).round(),
+            sugarPercentage: dailySugarGoalPercentage,
+            autoCalorieModeIndex: autoMode.index,
+            customPercentPerMonth: customPercentPerMonth,
+            useCustomStartCaloriesInt: useCustomStartCalories ? 1 : 0,
+            userStartCalories: userStartCalories,
+            userAge: userAge,
+            userActivityLevel: userActivityLevel,
+            lastMondayCheck: lastMondayCheck,
+            firstWeekInitializedVal: firstWeekInitialized,
+            userHeightVal: userHeight,
+          );
+          notifyListeners();
+          return;
+        }
         double carbPerc = (dailyCarbGoal * 4) / dailyCalorieGoal * 100;
         double proteinPerc = (dailyProteinGoal * 4) / dailyCalorieGoal * 100;
         double fatPerc = (dailyFatGoal * 9) / dailyCalorieGoal * 100;
@@ -642,9 +715,13 @@ class AppState extends ChangeNotifier {
         String adjText = calAdjust == 0
             ? ''
             : (calAdjust > 0 ? '+$calAdjust' : '$calAdjust');
-        mondayPopupMessage = calAdjust == 0
-            ? "Keine Anpassung. Gewichtsveränderung letzte Woche: ${weeklyChange.toStringAsFixed(1)}kg"
-            : "Kalorienziel $adjText auf $dailyCalorieGoal. Gewichtsveränderung letzte Woche: ${weeklyChange.toStringAsFixed(1)}kg (Ziel ${targetWeekly.toStringAsFixed(1)}kg)";
+        if (calAdjust == 0) {
+          mondayPopupMessage =
+              "Gewichtsveränderung letzte Woche: ${weeklyChange.toStringAsFixed(1)}kg (Ziel ${targetWeekly.toStringAsFixed(1)}kg). Kalorien unverändert bei $dailyCalorieGoal.";
+        } else {
+          mondayPopupMessage =
+              "Gewichtsveränderung letzte Woche: ${weeklyChange.toStringAsFixed(1)}kg (Ziel ${targetWeekly.toStringAsFixed(1)}kg). Kalorienziel $adjText auf $dailyCalorieGoal.";
+        }
         lastMondayCheck = todayString;
         await DatabaseHelper().saveGoalsExtended(
           dailyCalories: dailyCalorieGoal,
@@ -1052,7 +1129,7 @@ class AppState extends ChangeNotifier {
       final newEntry = WeightEntry(id: insertedId, date: date, weight: weight);
       _weightEntries.add(newEntry);
       _weightEntries.sort((a, b) => a.date.compareTo(b.date));
-      if (!firstWeekInitialized) {
+      if (!firstWeekInitialized && !useCustomStartCalories) {
         firstWeekInitialized = true;
         DatabaseHelper().saveGoalsExtended(
           dailyCalories: dailyCalorieGoal,
