@@ -61,3 +61,12 @@ open ios/Runner.xcworkspace
 
 The certificate created this way is valid for seven days. After it expires you must rebuild the app from Xcode.
 
+
+## Building and signing iOS in GitHub Actions
+
+The workflow in `.github/workflows/build_ios_on_merge.yml` can sign the iOS app automatically. Store these values in your repository secrets:
+
+- `APPLE_ID_EMAIL` – the email address of your Apple ID
+- `APPLE_ID_PASSWORD` – an app‑specific password for the Apple ID
+
+On every merge into `main` the workflow logs in using `xcrun altool` and runs `flutter build ipa` with automatic signing enabled. The resulting `Runner.ipa` is uploaded as a build artifact.
