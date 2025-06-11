@@ -111,29 +111,30 @@ class _SettingsPageState extends State<SettingsPage> {
     double? newHeight = double.tryParse(_heightController.text);
     double newActivity = _selectedPalValue;
     if (newCalorieGoal != null && newCalorieGoal > 0 && _validatePercentages() && newAge != null && newAge > 0 && newActivity > 0.0 && newHeight != null && newHeight > 0) {
-      int oldModeIndex = appState.autoMode.index;
-      appState.dailyCalorieGoal = newCalorieGoal;
-      appState.userAge = newAge;
-      appState.userActivityLevel = newActivity;
-      appState.userHeight = newHeight;
-      await appState.updateGoals(newCalorieGoal, carbPercentage, proteinPercentage, fatPercentage, newSugarPerc!);
       AutoCalorieMode oldMode = appState.autoMode;
-      appState.autoMode = _selectedMode;
-      if (oldMode == AutoCalorieMode.off && _selectedMode != AutoCalorieMode.off) {
-        appState.firstWeekInitialized = false;
-        appState.autoAdjustCaloriesIfNeeded();
-      }
-      double? customVal = double.tryParse(_customPercentController.text.replaceAll(',', '.'));
+
+      double? customVal =
+          double.tryParse(_customPercentController.text.replaceAll(',', '.'));
       if (customVal == null) {
         customVal = 1.0;
       }
-      appState.customPercentPerMonth = customVal;
-      appState.useCustomStartCalories = _useCustomStartCals;
       int? startCals = int.tryParse(_startCaloriesController.text);
       if (startCals == null || startCals < 500) {
         startCals = 2000;
       }
+
+      appState.customPercentPerMonth = customVal;
+      appState.useCustomStartCalories = _useCustomStartCals;
       appState.userStartCalories = startCals;
+      appState.autoMode = _selectedMode;
+      appState.dailyCalorieGoal = newCalorieGoal;
+      appState.userAge = newAge;
+      appState.userActivityLevel = newActivity;
+      appState.userHeight = newHeight;
+      if (oldMode == AutoCalorieMode.off && _selectedMode != AutoCalorieMode.off) {
+        appState.firstWeekInitialized = false;
+      }
+      await appState.updateGoals(newCalorieGoal, carbPercentage, proteinPercentage, fatPercentage, newSugarPerc!);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Einstellungen gespeichert.')));
       Navigator.of(context).pop();
     } else {
