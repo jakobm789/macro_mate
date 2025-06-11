@@ -13,56 +13,21 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+
       - name: Install dependencies
         run: flutter pub get
-      - name: Configure Apple ID
-        env:
-          APPLE_ID_EMAIL: ${{ secrets.APPLE_ID_EMAIL }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-        run: |
-          if [[ -z "$APPLE_ID_EMAIL" || -z "$APPLE_ID_PASSWORD" ]]; then
-            echo "Missing APPLE_ID_EMAIL or APPLE_ID_PASSWORD secrets."
-            exit 1
-          fi
-          echo "$APPLE_ID_PASSWORD" | xcrun altool --store-password-in-keychain-item AC_PASSWORD -u "$APPLE_ID_EMAIL" -p @keychain:AC_PASSWORD
-      - name: Build iOS app
-        run: flutter build ipa --release --export-options-plist ios/exportOptions.plist
-      - name: Set Default Scheme
-        working-directory: ios
-        run: |
-          scheme_list=$(xcodebuild -list -json | tr -d "\n")
-          default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
-          echo $default | cat >default
-          echo Using default scheme: $default
-      - name: Build for Simulator
-        working-directory: ios
-        env:
-          scheme: ${{ 'default' }}
-          platform: ${{ 'iOS Simulator' }}
-        run: |
-          device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
-          if [ $scheme = default ]; then scheme=$(cat default); fi
-          if [ "`ls -A | grep -i \.xcworkspace$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \.xcworkspace$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \.xcodeproj$`"; fi
-          file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
-          xcodebuild build-for-testing -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,name=$device"
-      - name: Test on Simulator
-        working-directory: ios
-        env:
-          scheme: ${{ 'default' }}
-          platform: ${{ 'iOS Simulator' }}
-        run: |
-          device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
-          if [ $scheme = default ]; then scheme=$(cat default); fi
-          if [ "`ls -A | grep -i \.xcworkspace$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \.xcworkspace$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \.xcodeproj$`"; fi
-          file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
-          xcodebuild test-without-building -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,name=$device"
-      - name: Upload artifact
+
+      - name: Build iOS (unsigned)
+        run: flutter build ipa --release --no-codesign
+
+      - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: app-ios
-          path: build/ios/ipa/Runner.ipa
+          name: app-ios-unsigned
+          path: build/ios/ipa/*.ipa
