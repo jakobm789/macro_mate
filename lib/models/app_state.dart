@@ -93,7 +93,6 @@ class AppState extends ChangeNotifier {
     await loadConsumedFoods();
     await loadWeightEntries();
     await _tryAutoLogin();
-    autoAdjustCaloriesIfNeeded();
     notifyListeners();
   }
 
