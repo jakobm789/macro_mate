@@ -19,6 +19,13 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   bool _fabExpanded = false;
   bool _hasShownMondayPopup = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showMondayPopupIfNeeded();
+    });
+  }
   double _calorieProgress(AppState state) => state.consumedCalories / state.dailyCalorieGoal;
   double _carbProgress(AppState state) => state.consumedCarbs / state.dailyCarbGoal;
   double _proteinProgress(AppState state) => state.consumedProtein / state.dailyProteinGoal;
@@ -238,9 +245,6 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, state, child) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _showMondayPopupIfNeeded();
-        });
         final Color carbProgressColor = Colors.purple;
         final Color proteinProgressColor = Colors.green;
         final Color fatProgressColor = Colors.blue;
