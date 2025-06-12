@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import '../services/remote_database_service.dart';
 import '../services/database_helper.dart';
 import '../models/food_item.dart';
@@ -77,8 +78,14 @@ class AppState extends ChangeNotifier {
   bool firstWeekInitialized = false;
   String? mondayPopupMessage;
   AppState();
-  Future<void> initializeCompletely() async {
+  Future<void> _configureLocalTimezone() async {
     tz.initializeTimeZones();
+    final String timeZoneName = await FlutterTimezone.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(timeZoneName));
+  }
+
+  Future<void> initializeCompletely() async {
+    await _configureLocalTimezone();
     await loadGoals();
     await loadDarkMode();
     await loadNotificationSettings();
@@ -231,7 +238,6 @@ class AppState extends ChangeNotifier {
     TimeOfDay? secondTime,
     int? secondId,
   ) {
-    tz.initializeTimeZones();
     final now = DateTime.now();
     final location = tz.getLocation(tz.local.name);
     final firstScheduled = _nextInstanceOfTime(time, now);
