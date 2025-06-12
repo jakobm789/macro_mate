@@ -1155,8 +1155,8 @@ class AppState extends ChangeNotifier {
           firstWeekInitializedVal: true,
           userHeightVal: userHeight,
         );
+        autoAdjustCaloriesIfNeeded();
       }
-      autoAdjustCaloriesIfNeeded();
       notifyListeners();
     } catch (e) {
       rethrow;
