@@ -209,9 +209,6 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showMondayPopupIfNeeded();
-    });
   }
   void _showMondayPopupIfNeeded() {
     final state = Provider.of<AppState>(context, listen: false);
@@ -241,6 +238,9 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, state, child) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showMondayPopupIfNeeded();
+        });
         final Color carbProgressColor = Colors.purple;
         final Color proteinProgressColor = Colors.green;
         final Color fatProgressColor = Colors.blue;
