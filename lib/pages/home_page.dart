@@ -219,23 +219,22 @@ class _MyHomePageState extends State<MyHomePage> {
   }
   void _showMondayPopupIfNeeded() {
     final state = Provider.of<AppState>(context, listen: false);
-    if (!_hasShownMondayPopup && state.mondayPopupMessage != null && state.mondayPopupMessage!.isNotEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: Text('Kalorien-/Makro-Update'),
-            content: Text(state.mondayPopupMessage!),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: Text('Ok'),
-              ),
-            ],
-          );
-        },
+    if (!_hasShownMondayPopup &&
+        state.mondayPopupMessage != null &&
+        state.mondayPopupMessage!.isNotEmpty) {
+      ScaffoldMessenger.of(context).showMaterialBanner(
+        MaterialBanner(
+          content: Text(state.mondayPopupMessage!),
+          leading: Icon(Icons.info_outline),
+          actions: [
+            TextButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+              },
+              child: Text('Ok'),
+            ),
+          ],
+        ),
       );
       _hasShownMondayPopup = true;
       state.mondayPopupMessage = null;
