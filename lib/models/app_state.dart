@@ -594,16 +594,23 @@ class AppState extends ChangeNotifier {
     double baseCalDouble = bmr * userActivityLevel;
     int baseCal =
         useCustomStartCalories ? userStartCalories : baseCalDouble.round();
-    if (autoMode == AutoCalorieMode.diet) {
-      dailyCalorieGoal = baseCal - 300;
+    if (useCustomStartCalories) {
+      // keine Fix-Offsets bei eigenen Startkalorien
+      dailyCalorieGoal = baseCal;
     } else {
-      if (autoMode == AutoCalorieMode.bulk) {
-        dailyCalorieGoal = baseCal + 200;
-      } else if (autoMode == AutoCalorieMode.custom) {
-        double factor = 1.0 + (customPercentPerMonth / 100.0);
-        dailyCalorieGoal = (baseCal * factor).round();
-      } else {
-        dailyCalorieGoal = baseCal;
+      switch (autoMode) {
+        case AutoCalorieMode.diet:
+          dailyCalorieGoal = baseCal - 300;
+          break;
+        case AutoCalorieMode.bulk:
+          dailyCalorieGoal = baseCal + 200;
+          break;
+        case AutoCalorieMode.custom:
+          double factor = 1.0 + (customPercentPerMonth / 100.0);
+          dailyCalorieGoal = (baseCal * factor).round();
+          break;
+        default: // AutoCalorieMode.off
+          dailyCalorieGoal = baseCal;
       }
     }
     dailyCarbGoal = (dailyCalorieGoal * carbPerc / 100) / 4.0;
