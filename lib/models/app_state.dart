@@ -636,10 +636,7 @@ class AppState extends ChangeNotifier {
           "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
       if (lastMondayCheck != todayString) {
         if (!firstWeekInitialized && useCustomStartCalories) {
-          int before = dailyCalorieGoal;
           firstWeekInitialized = true;
-          autoAdjustCaloriesIfNeeded();
-
           double weeklyChange = computeWeightChangeInLastWeek();
           double weight =
               _weightEntries.isNotEmpty ? _weightEntries.last.weight : 80.0;
@@ -647,17 +644,8 @@ class AppState extends ChangeNotifier {
           if (autoMode == AutoCalorieMode.diet && targetWeekly > 0) {
             targetWeekly = -targetWeekly;
           }
-          int calAdjust = dailyCalorieGoal - before;
-          String adjText = calAdjust == 0
-              ? ''
-              : (calAdjust > 0 ? '+$calAdjust' : '$calAdjust');
-          if (calAdjust == 0) {
-            mondayPopupMessage =
-                "Gewichtsveränderung letzte Woche: ${weeklyChange.toStringAsFixed(1)}kg (Ziel ${targetWeekly.toStringAsFixed(1)}kg). Kalorien unverändert bei $dailyCalorieGoal.";
-          } else {
-            mondayPopupMessage =
-                "Gewichtsveränderung letzte Woche: ${weeklyChange.toStringAsFixed(1)}kg (Ziel ${targetWeekly.toStringAsFixed(1)}kg). Kalorienziel $adjText auf $dailyCalorieGoal.";
-          }
+          mondayPopupMessage =
+              "Gewichtsveränderung letzte Woche: ${weeklyChange.toStringAsFixed(1)}kg (Ziel ${targetWeekly.toStringAsFixed(1)}kg). Kalorien unverändert bei $dailyCalorieGoal.";
 
           lastMondayCheck = todayString;
           await DatabaseHelper().saveGoalsExtended(
