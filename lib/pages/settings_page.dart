@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/app_state.dart';
+import '../models/app_state.dart' show Gender, BmrFormula;
 
 class PalOption {
   final double value;
@@ -47,6 +48,8 @@ class _SettingsPageState extends State<SettingsPage> {
   TimeOfDay reminderBreakfast = const TimeOfDay(hour: 7, minute: 0);
   TimeOfDay reminderLunch = const TimeOfDay(hour: 12, minute: 30);
   TimeOfDay reminderDinner = const TimeOfDay(hour: 19, minute: 0);
+  Gender _selectedGender = Gender.male;
+  BmrFormula _selectedFormula = BmrFormula.mifflin;
 
   @override
   void initState() {
@@ -87,6 +90,8 @@ class _SettingsPageState extends State<SettingsPage> {
     reminderBreakfast = appState.reminderBreakfast;
     reminderLunch = appState.reminderLunch;
     reminderDinner = appState.reminderDinner;
+    _selectedGender   = appState.userGender;
+    _selectedFormula  = appState.bmrFormula;
   }
 
   @override
@@ -105,6 +110,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _saveSettings(AppState appState) async {
+    appState.userGender  = _selectedGender;
+    appState.bmrFormula  = _selectedFormula;
     int? newCalorieGoal = int.tryParse(calorieController.text);
     int? newSugarPerc = sugarPercentage;
     int? newAge = int.tryParse(_ageController.text);
@@ -133,6 +140,9 @@ class _SettingsPageState extends State<SettingsPage> {
       appState.userHeight = newHeight;
       if (oldMode == AutoCalorieMode.off && _selectedMode != AutoCalorieMode.off) {
         appState.firstWeekInitialized = false;
+      }
+      if (appState.useCustomStartCalories) {
+        appState.firstWeekInitialized = false;   // Re-initialisierung erzwingen
       }
       await appState.updateGoals(newCalorieGoal, carbPercentage, proteinPercentage, fatPercentage, newSugarPerc!);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Einstellungen gespeichert.')));
@@ -473,6 +483,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     }
                   },
                 ),
+                RadioListTile<AutoCalorieMode>(
+                  title : const Text('Erhalt (Gewicht halten)'),
+                  subtitle: const Text('±0 % pro Monat'),
+                  value : AutoCalorieMode.maintain,
+                  groupValue: _selectedMode,
+                  onChanged: (val) => setState(() => _selectedMode = val!),
+                ),
                 if (_selectedMode == AutoCalorieMode.custom) ...[
                   Row(
                     children: [
@@ -533,6 +550,52 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 SizedBox(height: 16),
+                // ----- Geschlecht -------------------------------------------------
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Geschlecht', style: TextStyle(fontWeight: FontWeight.bold)),
+                      RadioListTile<Gender>(
+                        title: const Text('Männlich'),
+                        value: Gender.male,
+                        groupValue: _selectedGender,
+                        onChanged: (val) => setState(() => _selectedGender = val!),
+                      ),
+                      RadioListTile<Gender>(
+                        title: const Text('Weiblich'),
+                        value: Gender.female,
+                        groupValue: _selectedGender,
+                        onChanged: (val) => setState(() => _selectedGender = val!),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // ----- Formelwahl --------------------------------------------------
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: DropdownButtonFormField<BmrFormula>(
+                    value: _selectedFormula,
+                    decoration: const InputDecoration(
+                      labelText: 'BMR-Formel',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: BmrFormula.mifflin,
+                        child: Text('Mifflin-St Jeor'),
+                      ),
+                      DropdownMenuItem(
+                        value: BmrFormula.harris,
+                        child: Text('Harris-Benedict'),
+                      ),
+                    ],
+                    onChanged: (val) => setState(() => _selectedFormula = val!),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16.0),
                   child: Row(
@@ -581,7 +644,15 @@ class _SettingsPageState extends State<SettingsPage> {
                           context: context,
                           builder: (context) => AlertDialog(
                             title: Text('Formel Info'),
-                            content: Text('Formel:\n\nUmsatz = 66 + (13.7 * KG) + (5 * Größe) - (6.8 * Alter)\n\nDanach multipliziert mit Aktivitätsfaktor\nKG: Körpergewicht'),
+                            content: const Text(
+                              'Mifflin-St Jeor:\n'
+                              ' 10 × Gewicht + 6.25 × Größe – 5 × Alter + s\n'
+                              '   s = +5 (männlich) / −161 (weiblich)\n\n'
+                              'Harris-Benedict:\n'
+                              '  Männer: 66.5 + 13.7 × Gewicht + 5 × Größe – 6.8 × Alter\n'
+                              '  Frauen: 655 + 9.6 × Gewicht + 1.8 × Größe – 4.7 × Alter\n\n'
+                              '→ Ergebnis danach mit Aktivitätsfaktor multiplizieren.',
+                            ),
                             actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('OK'))],
                           ),
                         );
