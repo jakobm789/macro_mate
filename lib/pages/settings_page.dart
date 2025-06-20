@@ -145,6 +145,7 @@ class _SettingsPageState extends State<SettingsPage> {
         appState.firstWeekInitialized = false;   // Re-initialisierung erzwingen
       }
       await appState.updateGoals(newCalorieGoal, carbPercentage, proteinPercentage, fatPercentage, newSugarPerc!);
+      appState.autoAdjustCaloriesIfNeeded();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Einstellungen gespeichert.')));
       Navigator.of(context).pop();
     } else {
