@@ -1,4 +1,4 @@
-name: Build APK on PR merge
+name: Build APK on main changes or PR merge
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
