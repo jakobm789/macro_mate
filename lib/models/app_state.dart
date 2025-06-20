@@ -6,6 +6,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/remote_database_service.dart';
 import '../services/database_helper.dart';
 import '../models/food_item.dart';
@@ -39,6 +40,8 @@ enum BmrFormula       { mifflin, harris }
 enum AutoCalorieMode  { off, diet, bulk, custom, maintain }  
 
 class AppState extends ChangeNotifier {
+  Gender userGender = Gender.male;
+  BmrFormula bmrFormula = BmrFormula.mifflin;
   List<ConsumedFoodItem> breakfast = [];
   List<ConsumedFoodItem> lunch = [];
   List<ConsumedFoodItem> dinner = [];
@@ -96,7 +99,15 @@ class AppState extends ChangeNotifier {
       await prefs.setInt('bmr_formula', BmrFormula.mifflin.index); // Default
     }
 
-    Timer.periodic(Duration(hours: 6), _checkMondayAndAutoAdjustIfNeeded);
+    userGender = (prefs.getString('user_gender') == 'male')
+      ? Gender.male
+      : Gender.female;
+    bmrFormula = BmrFormula.values[prefs.getInt('bmr_formula')!];
+
+
+    Timer.periodic(Duration(hours: 6), (timer) {
+      _checkMondayAndAutoAdjustIfNeeded();
+    });
     await _configureLocalTimezone();
     await loadGoals();
     await loadDarkMode();
