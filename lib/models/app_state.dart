@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:async';
+import 'dart:io';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -17,9 +18,6 @@ import '../services/shared_preferences_helper.dart';
 import '../main.dart';
 
 const String openFoodFactsBaseUrl = 'https://world.openfoodfacts.org';
-const String brevoApiKey =
-    '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';
-const String senderEmail = 'moehlenkamp100@gmail.com';
 
 class WeightEntry {
   final int? id;
@@ -389,7 +387,7 @@ class AppState extends ChangeNotifier {
       'to': [
         {'email': recipientEmail},
       ],
-      'sender': {'email': senderEmail},
+      'sender': {'email': Platform.environment['SENDER_EMAIL']},
       'subject': 'Dein Bestätigungscode',
       'htmlContent':
           '<h3>Hallo!</h3><p>Dein Code lautet: <b>$code</b>.</p><p>Gib diesen Code in der App ein, um dein Konto zu aktivieren.</p>',
@@ -399,7 +397,7 @@ class AppState extends ChangeNotifier {
         Uri.parse(endpoint),
         headers: {
           'accept': 'application/json',
-          'api-key': brevoApiKey,
+          'api-key': Platform.environment['BREVO_API_KEY'] ?? '',
           'content-type': 'application/json',
         },
         body: jsonEncode(body),
