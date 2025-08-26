@@ -69,4 +69,4 @@ flutter test
 Der Workflow `.github/workflows/build_ios_on_merge.yml` kann automatisch signieren. Notwendige Secrets:
 - `APPLE_ID_EMAIL`
 - `APPLE_ID_PASSWORD` (App-spezifisches Passwort)
-Auf jedem Merge in `main` wird `flutter build ipa` ausgeführt und das Artefakt `Runner.ipa` bereitgestellt.
+Auf jedem Merge in `main` wird `flutter build ipa` ausgeführt und das Artefakt `Runner.ipa` bereitgestellt>>>>>>> main
