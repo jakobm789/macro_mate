@@ -1,15 +1,18 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:postgres/postgres.dart';
 import '../models/food_item.dart';
 
 class RemoteDatabaseService {
-  final String _host = Platform.environment['DB_HOST'] ?? '';
+  final String _host =
+      const String.fromEnvironment('DB_HOST', defaultValue: '');
   final int _port =
-      int.tryParse(Platform.environment['DB_PORT'] ?? '') ?? 0;
-  final String _database = Platform.environment['DB_NAME'] ?? '';
-  final String _username = Platform.environment['DB_USER'] ?? '';
-  final String _password = Platform.environment['DB_PASSWORD'] ?? '';
+      const int.fromEnvironment('DB_PORT', defaultValue: 0);
+  final String _database =
+      const String.fromEnvironment('DB_NAME', defaultValue: '');
+  final String _username =
+      const String.fromEnvironment('DB_USER', defaultValue: '');
+  final String _password =
+      const String.fromEnvironment('DB_PASSWORD', defaultValue: '');
 
   late PostgreSQLConnection _connection = PostgreSQLConnection(
     _host,

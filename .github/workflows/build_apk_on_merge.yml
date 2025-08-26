@@ -24,7 +24,33 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       - name: Build APK
-        run: flutter build apk --release
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+        run: |
+          missing=0
+          for var in DB_HOST DB_PORT DB_NAME DB_USER DB_PASSWORD SENDER_EMAIL BREVO_API_KEY; do
+            if [ -z "${!var}" ]; then
+              echo "Missing required secret: $var" >&2
+              missing=1
+            fi
+          done
+          if [ $missing -ne 0 ]; then
+            exit 1
+          fi
+          flutter build apk --release \
+            --dart-define=DB_HOST=$DB_HOST \
+            --dart-define=DB_PORT=$DB_PORT \
+            --dart-define=DB_NAME=$DB_NAME \
+            --dart-define=DB_USER=$DB_USER \
+            --dart-define=DB_PASSWORD=$DB_PASSWORD \
+            --dart-define=SENDER_EMAIL=$SENDER_EMAIL \
+            --dart-define=BREVO_API_KEY=$BREVO_API_KEY
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:async';
-import 'dart:io';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -387,7 +386,9 @@ class AppState extends ChangeNotifier {
       'to': [
         {'email': recipientEmail},
       ],
-      'sender': {'email': Platform.environment['SENDER_EMAIL']},
+      'sender': {
+        'email': const String.fromEnvironment('SENDER_EMAIL'),
+      },
       'subject': 'Dein Bestätigungscode',
       'htmlContent':
           '<h3>Hallo!</h3><p>Dein Code lautet: <b>$code</b>.</p><p>Gib diesen Code in der App ein, um dein Konto zu aktivieren.</p>',
@@ -397,7 +398,7 @@ class AppState extends ChangeNotifier {
         Uri.parse(endpoint),
         headers: {
           'accept': 'application/json',
-          'api-key': Platform.environment['BREVO_API_KEY'] ?? '',
+          'api-key': const String.fromEnvironment('BREVO_API_KEY'),
           'content-type': 'application/json',
         },
         body: jsonEncode(body),
