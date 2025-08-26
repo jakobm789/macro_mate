@@ -35,6 +35,16 @@ export PATH="$(pwd)/flutter_sdk/bin:$PATH"
 flutter test
 ```
 
+## Secret scanning
+
+Run a secret scan before pushing changes:
+
+```bash
+./scripts/scan_secrets.sh
+```
+
+The script runs TruffleHog in a Docker container and fails if a potential secret is detected.
+
 ## Building for iOS (free provisioning)
 
 To run the app on an iOS device without a paid developer account, follow these steps:
