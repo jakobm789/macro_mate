@@ -14,16 +14,16 @@ MacroMate ist eine Flutter-App zum Tracken von Kalorien und Makronährstoffen. S
 Platziere deine Screenshots im Ordner `docs/screenshots` und verlinke sie wie unten gezeigt.
 
 ### Dashboard und Tagesübersicht
-![Dashboard](docs/screenshots/dashboard.png)
+![Dashboard](docs/screenshots/dashboard.jpeg)
 
 ### Lebensmittel hinzufügen & Barcode-Scan
-![Lebensmittel hinzufügen](docs/screenshots/add_food.png)
+![Lebensmittel hinzufügen](docs/screenshots/add_food.jpeg)
 
 ### Gewichtsverlauf
-![Gewichtsverlauf](docs/screenshots/weight.png)
+![Gewichtsverlauf](docs/screenshots/weight.jpeg)
 
 ### Einstellungen
-![Einstellungen](docs/screenshots/settings.png)
+![Einstellungen](docs/screenshots/settings.jpeg)
 
 **Empfohlene Screenshots:**
 - Startbildschirm mit Makrofortschritt
