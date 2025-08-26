@@ -123,3 +123,4 @@ web/build/
 *.tmp
 *.swp
 flutter_sdk/
+.env

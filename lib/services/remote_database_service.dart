@@ -1,25 +1,33 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:postgres/postgres.dart';
 import '../models/food_item.dart';
 
 class RemoteDatabaseService {
-  PostgreSQLConnection _connection = PostgreSQLConnection(
-    'dpg-ctp7b5dds78s73cvr410-a.frankfurt-postgres.render.com',
-    5432,
-    'food_363y',
-    username: 'food_363y_user',
-    password: 'GkKhVuknoNDhSMtkR1uUYx3MD0u4EgHX',
+  final String _host = Platform.environment['DB_HOST'] ?? '';
+  final int _port =
+      int.tryParse(Platform.environment['DB_PORT'] ?? '') ?? 0;
+  final String _database = Platform.environment['DB_NAME'] ?? '';
+  final String _username = Platform.environment['DB_USER'] ?? '';
+  final String _password = Platform.environment['DB_PASSWORD'] ?? '';
+
+  late PostgreSQLConnection _connection = PostgreSQLConnection(
+    _host,
+    _port,
+    _database,
+    username: _username,
+    password: _password,
     useSSL: true,
   );
 
   Future<void> _init() async {
     if (_connection.isClosed) {
       _connection = PostgreSQLConnection(
-        'dpg-ctp7b5dds78s73cvr410-a.frankfurt-postgres.render.com',
-        5432,
-        'food_363y',
-        username: 'food_363y_user',
-        password: 'GkKhVuknoNDhSMtkR1uUYx3MD0u4EgHX',
+        _host,
+        _port,
+        _database,
+        username: _username,
+        password: _password,
         useSSL: true,
       );
       await _connection.open();
