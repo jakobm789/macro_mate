@@ -25,16 +25,16 @@ jobs:
         run: flutter pub get
       - name: Build APK
         env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
         run: |
           missing=0
-          for var in DB_HOST DB_PORT DB_NAME DB_USER DB_PASSWORD SENDER_EMAIL BREVO_API_KEY; do
+          for var in POSTGRES_HOST POSTGRES_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD SENDER_EMAIL BREVO_API_KEY; do
             if [ -z "${!var}" ]; then
               echo "Missing required secret: $var" >&2
               missing=1
@@ -44,11 +44,11 @@ jobs:
             exit 1
           fi
           flutter build apk --release \
-            --dart-define=DB_HOST=$DB_HOST \
-            --dart-define=DB_PORT=$DB_PORT \
-            --dart-define=DB_NAME=$DB_NAME \
-            --dart-define=DB_USER=$DB_USER \
-            --dart-define=DB_PASSWORD=$DB_PASSWORD \
+            --dart-define=POSTGRES_HOST=$POSTGRES_HOST \
+            --dart-define=POSTGRES_PORT=$POSTGRES_PORT \
+            --dart-define=POSTGRES_DB=$POSTGRES_DB \
+            --dart-define=POSTGRES_USER=$POSTGRES_USER \
+            --dart-define=POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
             --dart-define=SENDER_EMAIL=$SENDER_EMAIL \
             --dart-define=BREVO_API_KEY=$BREVO_API_KEY
       - name: Upload artifact

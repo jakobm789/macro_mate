@@ -4,15 +4,15 @@ import '../models/food_item.dart';
 
 class RemoteDatabaseService {
   final String _host =
-      const String.fromEnvironment('DB_HOST', defaultValue: '');
+      const String.fromEnvironment('POSTGRES_HOST', defaultValue: '');
   final int _port =
-      const int.fromEnvironment('DB_PORT', defaultValue: 0);
+      const int.fromEnvironment('POSTGRES_PORT', defaultValue: 0);
   final String _database =
-      const String.fromEnvironment('DB_NAME', defaultValue: '');
+      const String.fromEnvironment('POSTGRES_DB', defaultValue: '');
   final String _username =
-      const String.fromEnvironment('DB_USER', defaultValue: '');
+      const String.fromEnvironment('POSTGRES_USER', defaultValue: '');
   final String _password =
-      const String.fromEnvironment('DB_PASSWORD', defaultValue: '');
+      const String.fromEnvironment('POSTGRES_PASSWORD', defaultValue: '');
 
   late PostgreSQLConnection _connection = PostgreSQLConnection(
     _host,
