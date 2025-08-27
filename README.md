@@ -1,11 +1,6 @@
 # MacroMate
 
-<p align="center">
-  <video src="docs/screenshots/output_blurred_cut.mp4" width="640" controls muted playsinline></video>
-  <br/>
-  <a href="docs/screenshots/output_blurred_cut.mp4">Video ansehen</a>
-  
-</p>
+
 
 MacroMate ist eine Flutter-App zum Tracken von Kalorien und Makronährstoffen. Sie bietet Barcode-Scanning, Gewichtserfassung und Erinnerungen, damit du deine Ernährungsziele im Blick behältst.
 
