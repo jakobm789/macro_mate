@@ -6,12 +6,14 @@ class MealSection extends StatelessWidget {
   final String mealName;
   final List<ConsumedFoodItem> foods;
   final VoidCallback onAdd;
+  final VoidCallback? onSaveMeal;
 
   const MealSection({
     Key? key,
     required this.mealName,
     required this.foods,
     required this.onAdd,
+    this.onSaveMeal,
   }) : super(key: key);
 
   double _calculateMealCalories(List<ConsumedFoodItem> items) {
@@ -35,7 +37,10 @@ class MealSection extends StatelessWidget {
               Expanded(
                 child: Text(
                   mealName,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const Text(
@@ -67,7 +72,10 @@ class MealSection extends StatelessWidget {
             Expanded(
               child: Text(
                 mealName,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             Text(
@@ -84,7 +92,8 @@ class MealSection extends StatelessWidget {
             itemBuilder: (context, index) {
               final consumedFood = foods[index];
               final double itemCalories =
-                  (consumedFood.food.caloriesPer100g * consumedFood.quantity) / 100.0;
+                  (consumedFood.food.caloriesPer100g * consumedFood.quantity) /
+                  100.0;
 
               return ListTile(
                 key: ValueKey(consumedFood.id),
@@ -96,7 +105,10 @@ class MealSection extends StatelessWidget {
                 ),
                 trailing: Text(
                   '${itemCalories.toStringAsFixed(0)} kcal',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 onLongPress: () {
                   showModalBottomSheet(
@@ -116,6 +128,12 @@ class MealSection extends StatelessWidget {
             title: const Text('Lebensmittel hinzufügen'),
             onTap: onAdd,
           ),
+          if (onSaveMeal != null)
+            ListTile(
+              leading: const Icon(Icons.bookmark_add_outlined),
+              title: const Text('Mahlzeit speichern'),
+              onTap: onSaveMeal,
+            ),
         ],
       ),
     );

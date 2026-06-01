@@ -11,6 +11,7 @@ import '../services/remote_database_service.dart';
 import '../services/database_helper.dart';
 import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
+import '../models/saved_meal.dart';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:http/http.dart' as http;
 import '../services/shared_preferences_helper.dart';
@@ -32,9 +33,11 @@ class WeightEntry {
   }
 }
 
-enum Gender           { male, female }
-enum BmrFormula       { mifflin, harris }
-enum AutoCalorieMode  { off, diet, bulk, custom, maintain }  
+enum Gender { male, female }
+
+enum BmrFormula { mifflin, harris }
+
+enum AutoCalorieMode { off, diet, bulk, custom, maintain }
 
 class AppState extends ChangeNotifier {
   Gender userGender = Gender.male;
@@ -56,6 +59,8 @@ class AppState extends ChangeNotifier {
   int dailySugarGoalPercentage = 20;
   bool isDarkMode = false;
   List<FoodItem> last20FoodItems = [];
+  int recentFoodLimit = 20;
+  List<SavedMeal> savedMeals = [];
   final RemoteDatabaseService _remoteService = RemoteDatabaseService();
   bool isLoggedIn = false;
   List<WeightEntry> _weightEntries = [];
@@ -90,17 +95,16 @@ class AppState extends ChangeNotifier {
   Future<void> initializeCompletely() async {
     final prefs = await SharedPreferences.getInstance();
     if (!prefs.containsKey('user_gender')) {
-      await prefs.setString('user_gender', 'male');              // Default
+      await prefs.setString('user_gender', 'male'); // Default
     }
     if (!prefs.containsKey('bmr_formula')) {
       await prefs.setInt('bmr_formula', BmrFormula.mifflin.index); // Default
     }
 
     userGender = (prefs.getString('user_gender') == 'male')
-      ? Gender.male
-      : Gender.female;
+        ? Gender.male
+        : Gender.female;
     bmrFormula = BmrFormula.values[prefs.getInt('bmr_formula')!];
-
 
     Timer.periodic(Duration(hours: 6), (timer) {
       _checkMondayAndAutoAdjustIfNeeded();
@@ -109,7 +113,8 @@ class AppState extends ChangeNotifier {
     await loadGoals();
     await loadDarkMode();
     await loadNotificationSettings();
-    await loadLast20FoodItems();
+    await loadRecentFoodItems();
+    await loadSavedMeals();
     await loadConsumedFoods();
     await loadWeightEntries();
     await _tryAutoLogin();
@@ -137,14 +142,14 @@ class AppState extends ChangeNotifier {
         );
         reminderSupplementEnabled =
             dbSettings['reminder_supplement_enabled'] == 1;
-        List<String> suppTimeParts =
-            dbSettings['reminder_supplement_time'].split(':');
+        List<String> suppTimeParts = dbSettings['reminder_supplement_time']
+            .split(':');
         reminderSupplementTime = TimeOfDay(
           hour: int.parse(suppTimeParts[0]),
           minute: int.parse(suppTimeParts[1]),
         );
-        List<String> suppTime2Parts =
-            dbSettings['reminder_supplement_time2'].split(':');
+        List<String> suppTime2Parts = dbSettings['reminder_supplement_time2']
+            .split(':');
         reminderSupplementTimeSecond = TimeOfDay(
           hour: int.parse(suppTime2Parts[0]),
           minute: int.parse(suppTime2Parts[1]),
@@ -386,9 +391,7 @@ class AppState extends ChangeNotifier {
       'to': [
         {'email': recipientEmail},
       ],
-      'sender': {
-        'email': const String.fromEnvironment('SENDER_EMAIL'),
-      },
+      'sender': {'email': const String.fromEnvironment('SENDER_EMAIL')},
       'subject': 'Dein Bestätigungscode',
       'htmlContent':
           '<h3>Hallo!</h3><p>Dein Code lautet: <b>$code</b>.</p><p>Gib diesen Code in der App ein, um dein Konto zu aktivieren.</p>',
@@ -448,9 +451,67 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> loadLast20FoodItems() async {
+    await loadRecentFoodItems();
+  }
+
+  Future<void> loadRecentFoodItems({int? limit}) async {
     try {
-      last20FoodItems = await _remoteService.getLastAddedFoodItems(20);
+      if (limit != null) {
+        recentFoodLimit = limit;
+      }
+      last20FoodItems = await _remoteService.getRecentlyUsedFoodItems(
+        recentFoodLimit,
+      );
+      notifyListeners();
     } catch (e) {}
+  }
+
+  Future<void> loadSavedMeals() async {
+    try {
+      savedMeals = await DatabaseHelper().getSavedMeals(
+        (foodId) => _remoteService.getFoodItemById(foodId),
+      );
+      notifyListeners();
+    } catch (e) {}
+  }
+
+  Future<void> saveMealTemplate(
+    String name,
+    String defaultMealName,
+    List<ConsumedFoodItem> ingredients,
+  ) async {
+    final persistableIngredients = ingredients
+        .where((ingredient) => ingredient.food.id != null)
+        .toList();
+    if (persistableIngredients.isEmpty) {
+      throw Exception('Diese Mahlzeit enthält keine speicherbaren Zutaten.');
+    }
+    await DatabaseHelper().insertSavedMeal(
+      name,
+      defaultMealName,
+      persistableIngredients,
+    );
+    await loadSavedMeals();
+    notifyListeners();
+  }
+
+  Future<void> addSavedMealToDay(SavedMeal savedMeal, String mealName) async {
+    for (final ingredient in savedMeal.ingredients) {
+      await addOrUpdateFood(
+        mealName,
+        ingredient.food,
+        ingredient.quantity,
+        currentDate,
+      );
+    }
+    await loadRecentFoodItems();
+    notifyListeners();
+  }
+
+  Future<void> deleteSavedMeal(int id) async {
+    await DatabaseHelper().deleteSavedMeal(id);
+    await loadSavedMeals();
+    notifyListeners();
   }
 
   Future<void> loadConsumedFoods() async {
@@ -469,8 +530,9 @@ class AppState extends ChangeNotifier {
           }
         }
       }
-      breakfast =
-          consumedFoods.where((f) => f.mealName == 'Frühstück').toList();
+      breakfast = consumedFoods
+          .where((f) => f.mealName == 'Frühstück')
+          .toList();
       lunch = consumedFoods.where((f) => f.mealName == 'Mittagessen').toList();
       dinner = consumedFoods.where((f) => f.mealName == 'Abendessen').toList();
       snacks = consumedFoods.where((f) => f.mealName == 'Snacks').toList();
@@ -581,7 +643,8 @@ class AppState extends ChangeNotifier {
     if (autoMode == AutoCalorieMode.off) return;
     final now = DateTime.now();
     if (now.weekday == DateTime.monday &&
-        lastMondayCheck != "${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}") {
+        lastMondayCheck !=
+            "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}") {
       await recalculateGoals(fromBmr: false);
     }
   }
@@ -589,8 +652,9 @@ class AppState extends ChangeNotifier {
   double computeWeightChangeInLastWeek() {
     DateTime now = DateTime.now();
     DateTime oneWeekAgo = now.subtract(Duration(days: 7));
-    List<WeightEntry> lastWeek =
-        _weightEntries.where((e) => e.date.isAfter(oneWeekAgo)).toList();
+    List<WeightEntry> lastWeek = _weightEntries
+        .where((e) => e.date.isAfter(oneWeekAgo))
+        .toList();
     if (lastWeek.isEmpty) return 0.0;
     double avgNow =
         lastWeek.map((e) => e.weight).reduce((a, b) => a + b) / lastWeek.length;
@@ -599,7 +663,8 @@ class AppState extends ChangeNotifier {
         .where((e) => e.date.isAfter(weekBefore) && e.date.isBefore(oneWeekAgo))
         .toList();
     if (priorWeek.isEmpty) return 0.0;
-    double avgPast = priorWeek.map((e) => e.weight).reduce((a, b) => a + b) /
+    double avgPast =
+        priorWeek.map((e) => e.weight).reduce((a, b) => a + b) /
         priorWeek.length;
     return avgNow - avgPast;
   }
@@ -613,7 +678,8 @@ class AppState extends ChangeNotifier {
     if (lastTwoWeeks.isEmpty) {
       return 0.0;
     }
-    double avgNow = lastTwoWeeks.map((e) => e.weight).reduce((a, b) => a + b) /
+    double avgNow =
+        lastTwoWeeks.map((e) => e.weight).reduce((a, b) => a + b) /
         lastTwoWeeks.length;
     DateTime twoWeeksBeforeThat = now.subtract(Duration(days: 28));
     List<WeightEntry> priorTwoWeeks = _weightEntries
@@ -628,7 +694,7 @@ class AppState extends ChangeNotifier {
     }
     double avgPast =
         priorTwoWeeks.map((e) => e.weight).reduce((a, b) => a + b) /
-            priorTwoWeeks.length;
+        priorTwoWeeks.length;
     return avgNow - avgPast;
   }
 
@@ -639,8 +705,11 @@ class AppState extends ChangeNotifier {
     DateTime date,
   ) async {
     try {
-      final newRemoteId = await _remoteService.insertOrUpdateFoodItem(food);
-      FoodItem foodWithId = food.copyWith(id: newRemoteId);
+      final trackedFood = food.copyWith(lastUsedQuantity: quantity);
+      final newRemoteId = await _remoteService.insertOrUpdateFoodItem(
+        trackedFood,
+      );
+      FoodItem foodWithId = trackedFood.copyWith(id: newRemoteId);
       List<ConsumedFoodItem> mealList = _getMealList(mealName);
       int index = mealList.indexWhere((item) => item.food.id == foodWithId.id);
       if (index != -1) {
@@ -654,6 +723,7 @@ class AppState extends ChangeNotifier {
           newQuantity,
         );
         ConsumedFoodItem updatedItem = existingItem.copyWith(
+          food: foodWithId,
           quantity: newQuantity,
         );
         mealList[index] = updatedItem;
@@ -674,7 +744,7 @@ class AppState extends ChangeNotifier {
         mealList.add(newConsumedFood);
       }
       _calculateConsumedMacros();
-      await loadLast20FoodItems();
+      await loadRecentFoodItems();
       notifyListeners();
     } catch (e) {
       rethrow;
@@ -694,16 +764,21 @@ class AppState extends ChangeNotifier {
         updatedQuantity,
         newMealName: updatedMealName,
       );
+      final updatedFood = consumedFood.food.copyWith(
+        lastUsedQuantity: updatedQuantity,
+      );
+      await _remoteService.insertOrUpdateFoodItem(updatedFood);
       List<ConsumedFoodItem> oldMealList = _getMealList(consumedFood.mealName);
       oldMealList.removeWhere((item) => item.id == consumedFood.id);
       List<ConsumedFoodItem> newMealList = _getMealList(updatedMealName);
       ConsumedFoodItem updatedConsumedFood = consumedFood.copyWith(
+        food: updatedFood,
         quantity: updatedQuantity,
         mealName: updatedMealName,
       );
       newMealList.add(updatedConsumedFood);
       _calculateConsumedMacros();
-      await loadLast20FoodItems();
+      await loadRecentFoodItems();
       notifyListeners();
     } catch (e) {
       rethrow;
@@ -820,11 +895,12 @@ class AppState extends ChangeNotifier {
       List<FoodItem> results = await _remoteService.searchFoodItems(query);
       results = results
           .where(
-            (f) => !(f.caloriesPer100g == 0 &&
-                f.fatPer100g == 0 &&
-                f.carbsPer100g == 0 &&
-                f.sugarPer100g == 0 &&
-                f.proteinPer100g == 0),
+            (f) =>
+                !(f.caloriesPer100g == 0 &&
+                    f.fatPer100g == 0 &&
+                    f.carbsPer100g == 0 &&
+                    f.sugarPer100g == 0 &&
+                    f.proteinPer100g == 0),
           )
           .toList();
       return results;
@@ -920,8 +996,9 @@ class AppState extends ChangeNotifier {
           List<FoodItem> results = [];
           for (var p in products) {
             final nutriments = p['nutriments'] ?? {};
-            final calories =
-                (nutriments['energy-kcal_100g'] ?? 0).toDouble().round();
+            final calories = (nutriments['energy-kcal_100g'] ?? 0)
+                .toDouble()
+                .round();
             final fat = (nutriments['fat_100g'] ?? 0).toDouble();
             final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
             final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
@@ -990,15 +1067,17 @@ class AppState extends ChangeNotifier {
 
   Future<void> recalculateGoals({required bool fromBmr}) async {
     // ───── 0) Hilfsfunktion  ───────────────────────────────────────────────
-    bool _isCutMode() =>                       //  ➡️  NEU
+    bool _isCutMode() => //  ➡️  NEU
         autoMode == AutoCalorieMode.diet ||
         (autoMode == AutoCalorieMode.custom && customPercentPerMonth < 0);
 
     // 1. Gemeinsame Hilfswerte
-    double weight = _weightEntries.isNotEmpty ? _weightEntries.last.weight : 80.0;
-    double carbPerc    = (dailyCarbGoal    * 4) / dailyCalorieGoal * 100;
+    double weight = _weightEntries.isNotEmpty
+        ? _weightEntries.last.weight
+        : 80.0;
+    double carbPerc = (dailyCarbGoal * 4) / dailyCalorieGoal * 100;
     double proteinPerc = (dailyProteinGoal * 4) / dailyCalorieGoal * 100;
-    double fatPerc     = (dailyFatGoal     * 9) / dailyCalorieGoal * 100;
+    double fatPerc = (dailyFatGoal * 9) / dailyCalorieGoal * 100;
 
     // ───── A) Initial-/Reset-Berechnung ────────────────────────────────────
     if (fromBmr) {
@@ -1009,13 +1088,16 @@ class AppState extends ChangeNotifier {
         double bmr;
         switch (bmrFormula) {
           case BmrFormula.mifflin:
-            bmr = 10 * weight + 6.25 * userHeight - 5 * userAge +
-                  (userGender == Gender.male ? 5 : -161);
+            bmr =
+                10 * weight +
+                6.25 * userHeight -
+                5 * userAge +
+                (userGender == Gender.male ? 5 : -161);
             break;
           case BmrFormula.harris:
             bmr = (userGender == Gender.male)
                 ? 66.47 + 13.7 * weight + 5.0 * userHeight - 6.8 * userAge
-                : 655.1 +  9.6 * weight + 1.8 * userHeight - 4.7 * userAge;
+                : 655.1 + 9.6 * weight + 1.8 * userHeight - 4.7 * userAge;
             break;
         }
         int baseCal = (bmr * userActivityLevel).round();
@@ -1032,8 +1114,8 @@ class AppState extends ChangeNotifier {
             break;
           case AutoCalorieMode.custom:
             //   ➡️  Negatives Prozent = Cut   |  Positives = Bulk
-            dailyCalorieGoal =
-                (baseCal * (1 + customPercentPerMonth / 100)).round();
+            dailyCalorieGoal = (baseCal * (1 + customPercentPerMonth / 100))
+                .round();
             break;
           default:
             dailyCalorieGoal = baseCal;
@@ -1041,7 +1123,6 @@ class AppState extends ChangeNotifier {
       }
       firstWeekInitialized = true;
     }
-
     // ───── B) Montag-Feintuning ────────────────────────────────────────────
     else {
       double weeklyChange = computeWeightChangeInLastWeek();
@@ -1053,18 +1134,21 @@ class AppState extends ChangeNotifier {
       int delta = 0;
       if (_isCutMode()) {
         // Diet-Logik (-100/ +50)
-        if (weeklyChange > targetWeekly)      delta = -100; // zu langsam
-        else if (weeklyChange < targetWeekly) delta =  50;  // zu schnell
+        if (weeklyChange > targetWeekly)
+          delta = -100; // zu langsam
+        else if (weeklyChange < targetWeekly)
+          delta = 50; // zu schnell
       } else if (autoMode == AutoCalorieMode.bulk ||
-                (autoMode == AutoCalorieMode.custom && customPercentPerMonth > 0))
-      {
+          (autoMode == AutoCalorieMode.custom && customPercentPerMonth > 0)) {
         // Bulk-Logik (+100/ -50)
-        if (weeklyChange < targetWeekly)      delta =  100; // zu langsam
-        else if (weeklyChange > targetWeekly) delta = -50;  // zu schnell
+        if (weeklyChange < targetWeekly)
+          delta = 100; // zu langsam
+        else if (weeklyChange > targetWeekly)
+          delta = -50; // zu schnell
       } else if (autoMode == AutoCalorieMode.maintain) {
-        const double tol = 0.15;              // ±150 g Toleranz
-        if (weeklyChange >  tol) delta = -100;
-        if (weeklyChange < -tol) delta =  100;
+        const double tol = 0.15; // ±150 g Toleranz
+        if (weeklyChange > tol) delta = -100;
+        if (weeklyChange < -tol) delta = 100;
       }
 
       dailyCalorieGoal += delta;
@@ -1072,15 +1156,16 @@ class AppState extends ChangeNotifier {
           "Gewichtsveränderung: ${weeklyChange.toStringAsFixed(1)} kg "
           "(Ziel ${targetWeekly.toStringAsFixed(1)} kg). "
           "Kalorien ${(delta >= 0) ? '+' : ''}$delta ⇒ $dailyCalorieGoal";
-      lastMondayCheck = DateTime.now()
-          .toIso8601String()
-          .substring(0, 10); // yyyy-MM-dd
+      lastMondayCheck = DateTime.now().toIso8601String().substring(
+        0,
+        10,
+      ); // yyyy-MM-dd
     }
 
     // ───── C) Makroziele aus Kalorien ──────────────────────────────────────
-    dailyCarbGoal    = (dailyCalorieGoal * carbPerc)    / 400;
+    dailyCarbGoal = (dailyCalorieGoal * carbPerc) / 400;
     dailyProteinGoal = (dailyCalorieGoal * proteinPerc) / 400;
-    dailyFatGoal     = (dailyCalorieGoal * fatPerc)     / 900;
+    dailyFatGoal = (dailyCalorieGoal * fatPerc) / 900;
 
     // ───── D) Persistenz & Notify ──────────────────────────────────────────
     await DatabaseHelper().saveGoalsExtended(

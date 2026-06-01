@@ -26,19 +26,30 @@ class _MyHomePageState extends State<MyHomePage> {
       _showMondayPopupIfNeeded();
     });
   }
-  double _calorieProgress(AppState state) => state.consumedCalories / state.dailyCalorieGoal;
-  double _carbProgress(AppState state) => state.consumedCarbs / state.dailyCarbGoal;
-  double _proteinProgress(AppState state) => state.consumedProtein / state.dailyProteinGoal;
+
+  double _calorieProgress(AppState state) =>
+      state.consumedCalories / state.dailyCalorieGoal;
+  double _carbProgress(AppState state) =>
+      state.consumedCarbs / state.dailyCarbGoal;
+  double _proteinProgress(AppState state) =>
+      state.consumedProtein / state.dailyProteinGoal;
   double _fatProgress(AppState state) => state.consumedFat / state.dailyFatGoal;
-  double _sugarProgress(AppState state) => state.consumedSugar / state.dailySugarGoalGrams;
-  void _scanBarcode(BuildContext parentContext, AppState state, String mealName) async {
+  double _sugarProgress(AppState state) =>
+      state.consumedSugar / state.dailySugarGoalGrams;
+  void _scanBarcode(
+    BuildContext parentContext,
+    AppState state,
+    String mealName,
+  ) async {
     try {
       var result = await BarcodeScanner.scan();
       if (!mounted) return;
       if (result.type == ResultType.Barcode) {
         String barcode = result.rawContent.trim().toLowerCase();
         if (barcode.isEmpty) {
-          ScaffoldMessenger.of(parentContext).showSnackBar(SnackBar(content: Text('Kein Barcode gefunden.')));
+          ScaffoldMessenger.of(
+            parentContext,
+          ).showSnackBar(SnackBar(content: Text('Kein Barcode gefunden.')));
           return;
         }
         FoodItem? food = await state.loadFoodItemByBarcode(barcode);
@@ -56,19 +67,31 @@ class _MyHomePageState extends State<MyHomePage> {
               builder: (context) {
                 return AlertDialog(
                   title: Text('Lebensmittel nicht gefunden'),
-                  content: Text('Der gescannte Barcode wurde weder in der eigenen noch in der Open Food Facts Datenbank gefunden. Möchtest du ein neues Lebensmittel erstellen oder den Barcode einem bestehenden Lebensmittel zuordnen?'),
+                  content: Text(
+                    'Der gescannte Barcode wurde weder in der eigenen noch in der Open Food Facts Datenbank gefunden. Möchtest du ein neues Lebensmittel erstellen oder den Barcode einem bestehenden Lebensmittel zuordnen?',
+                  ),
                   actions: [
                     TextButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        _addNewFoodWithBarcode(parentContext, state, mealName, barcode);
+                        _addNewFoodWithBarcode(
+                          parentContext,
+                          state,
+                          mealName,
+                          barcode,
+                        );
                       },
                       child: Text('Neues Lebensmittel erstellen'),
                     ),
                     TextButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        _assignBarcodeToExistingFood(parentContext, state, mealName, barcode);
+                        _assignBarcodeToExistingFood(
+                          parentContext,
+                          state,
+                          mealName,
+                          barcode,
+                        );
                       },
                       child: Text('Barcode zuordnen'),
                     ),
@@ -87,10 +110,17 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(parentContext).showSnackBar(SnackBar(content: Text('Fehler beim Scannen des Barcodes: $e')));
+      ScaffoldMessenger.of(parentContext).showSnackBar(
+        SnackBar(content: Text('Fehler beim Scannen des Barcodes: $e')),
+      );
     }
   }
-  void _showAddQuantityDialog(BuildContext parentContext, String mealName, FoodItem foundFood) {
+
+  void _showAddQuantityDialog(
+    BuildContext parentContext,
+    String mealName,
+    FoodItem foundFood,
+  ) {
     showDialog(
       context: parentContext,
       builder: (context) {
@@ -104,7 +134,13 @@ class _MyHomePageState extends State<MyHomePage> {
       },
     );
   }
-  Future<void> _addNewFoodWithBarcode(BuildContext parentContext, AppState state, String mealName, String barcode) async {
+
+  Future<void> _addNewFoodWithBarcode(
+    BuildContext parentContext,
+    AppState state,
+    String mealName,
+    String barcode,
+  ) async {
     await showModalBottomSheet(
       context: parentContext,
       isScrollControlled: true,
@@ -116,18 +152,32 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
     );
   }
-  Future<void> _assignBarcodeToExistingFood(BuildContext parentContext, AppState state, String mealName, String barcode) async {
+
+  Future<void> _assignBarcodeToExistingFood(
+    BuildContext parentContext,
+    AppState state,
+    String mealName,
+    String barcode,
+  ) async {
     List<FoodItem> existingFoods = await state.loadAllFoodItems();
     showModalBottomSheet(
       context: parentContext,
       isScrollControlled: true,
       builder: (context) {
         return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(padding: EdgeInsets.all(16.0), child: Text('Barcode einem bestehenden Lebensmittel zuordnen', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+              Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'Barcode einem bestehenden Lebensmittel zuordnen',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
               Divider(),
               SizedBox(
                 height: 300,
@@ -137,17 +187,37 @@ class _MyHomePageState extends State<MyHomePage> {
                     final food = existingFoods[index];
                     return ListTile(
                       title: Text(food.name),
-                      subtitle: Text('Barcode: ${food.barcode ?? 'Nicht zugeordnet'}'),
+                      subtitle: Text(
+                        'Barcode: ${food.barcode ?? 'Nicht zugeordnet'}',
+                      ),
                       trailing: food.barcode == null
                           ? IconButton(
                               icon: Icon(Icons.link, color: Colors.blue),
                               onPressed: () async {
-                                FoodItem updatedFood = await state.updateBarcodeForFood(food, barcode);
-                                await Provider.of<AppState>(context, listen: false).addOrUpdateFood(mealName, updatedFood, 100, state.currentDate);
+                                FoodItem updatedFood = await state
+                                    .updateBarcodeForFood(food, barcode);
+                                await Provider.of<AppState>(
+                                  context,
+                                  listen: false,
+                                ).addOrUpdateFood(
+                                  mealName,
+                                  updatedFood,
+                                  100,
+                                  state.currentDate,
+                                );
                                 if (!mounted) return;
                                 Navigator.pop(context);
-                                Navigator.popUntil(context, ModalRoute.withName('/'));
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Barcode zu ${food.name} zugeordnet und hinzugefügt.')));
+                                Navigator.popUntil(
+                                  context,
+                                  ModalRoute.withName('/'),
+                                );
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Barcode zu ${food.name} zugeordnet und hinzugefügt.',
+                                    ),
+                                  ),
+                                );
                               },
                             )
                           : null,
@@ -162,7 +232,12 @@ class _MyHomePageState extends State<MyHomePage> {
       },
     );
   }
-  void _showAddFoodOptions(BuildContext context, AppState state, String mealName) {
+
+  void _showAddFoodOptions(
+    BuildContext context,
+    AppState state,
+    String mealName,
+  ) {
     showModalBottomSheet(
       context: context,
       builder: (BuildContext bottomSheetContext) {
@@ -185,12 +260,21 @@ class _MyHomePageState extends State<MyHomePage> {
                   _scanBarcode(context, state, mealName);
                 },
               ),
+              ListTile(
+                leading: Icon(Icons.restaurant_menu),
+                title: Text('Gespeicherte Mahlzeit'),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _showSavedMeals(context, state, mealName);
+                },
+              ),
             ],
           ),
         );
       },
     );
   }
+
   void _searchFood(BuildContext context, AppState state, String mealName) {
     showModalBottomSheet(
       context: context,
@@ -206,17 +290,158 @@ class _MyHomePageState extends State<MyHomePage> {
       },
     );
   }
+
+  void _showSavedMeals(BuildContext context, AppState state, String mealName) {
+    state.loadSavedMeals();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Consumer<AppState>(
+          builder: (context, appState, _) {
+            final meals = appState.savedMeals;
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: SizedBox(
+                  height: 420,
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text(
+                          'Gespeicherte Mahlzeiten',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Divider(height: 1),
+                      Expanded(
+                        child: meals.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'Noch keine Mahlzeiten gespeichert.',
+                                ),
+                              )
+                            : ListView.builder(
+                                itemCount: meals.length,
+                                itemBuilder: (context, index) {
+                                  final savedMeal = meals[index];
+                                  return ListTile(
+                                    leading: Icon(Icons.restaurant),
+                                    title: Text(savedMeal.name),
+                                    subtitle: Text(
+                                      '${savedMeal.ingredients.length} Zutaten, '
+                                      '${savedMeal.totalQuantity} g, '
+                                      '${savedMeal.calories.toStringAsFixed(0)} kcal',
+                                    ),
+                                    trailing: IconButton(
+                                      icon: Icon(Icons.delete_outline),
+                                      onPressed: savedMeal.id == null
+                                          ? null
+                                          : () => appState.deleteSavedMeal(
+                                              savedMeal.id!,
+                                            ),
+                                    ),
+                                    onTap: () async {
+                                      await appState.addSavedMealToDay(
+                                        savedMeal,
+                                        mealName,
+                                      );
+                                      if (!mounted) return;
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '${savedMeal.name} hinzugefügt.',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _saveMealTemplate(
+    BuildContext context,
+    AppState state,
+    String mealName,
+    List<ConsumedFoodItem> foods,
+  ) async {
+    final controller = TextEditingController(text: mealName);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Mahlzeit speichern'),
+          content: TextField(
+            controller: controller,
+            decoration: InputDecoration(labelText: 'Name'),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Abbrechen'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: Text('Speichern'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (name == null || name.isEmpty) {
+      return;
+    }
+    try {
+      await state.saveMealTemplate(name, mealName, foods);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$name gespeichert.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Fehler beim Speichern: $e')));
+    }
+  }
+
   void _goToPreviousDay(AppState state) {
     state.previousDay();
   }
+
   void _goToNextDay(AppState state) {
     state.nextDay();
   }
-  bool _isSameDate(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+  bool _isSameDate(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
   }
+
   void _showMondayPopupIfNeeded() {
     final state = Provider.of<AppState>(context, listen: false);
     if (!_hasShownMondayPopup &&
@@ -240,6 +465,7 @@ class _MyHomePageState extends State<MyHomePage> {
       state.mondayPopupMessage = null;
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AppState>(
@@ -266,11 +492,17 @@ class _MyHomePageState extends State<MyHomePage> {
             title: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                IconButton(icon: Icon(Icons.arrow_back), onPressed: () => _goToPreviousDay(state)),
+                IconButton(
+                  icon: Icon(Icons.arrow_back),
+                  onPressed: () => _goToPreviousDay(state),
+                ),
                 SizedBox(width: 8),
                 Text('MacroMate - $formattedDate'),
                 SizedBox(width: 8),
-                IconButton(icon: Icon(Icons.arrow_forward), onPressed: () => _goToNextDay(state)),
+                IconButton(
+                  icon: Icon(Icons.arrow_forward),
+                  onPressed: () => _goToNextDay(state),
+                ),
               ],
             ),
             backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -295,12 +527,18 @@ class _MyHomePageState extends State<MyHomePage> {
                             Text(
                               '${(state.dailyCalorieGoal - state.consumedCalories).toStringAsFixed(0)} kcal',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             Text(
                               'Verbleibend',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
@@ -317,18 +555,36 @@ class _MyHomePageState extends State<MyHomePage> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('\nGrundziel:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text(
+                                '\nGrundziel:',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                               SizedBox(height: 4),
-                              Text('${state.dailyCalorieGoal.toStringAsFixed(0)} kcal', style: TextStyle(fontSize: 16)),
+                              Text(
+                                '${state.dailyCalorieGoal.toStringAsFixed(0)} kcal',
+                                style: TextStyle(fontSize: 16),
+                              ),
                             ],
                           ),
                           SizedBox(height: 16),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Gegessen:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text(
+                                'Gegessen:',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                               SizedBox(height: 4),
-                              Text('${state.consumedCalories.toStringAsFixed(0)} kcal', style: TextStyle(fontSize: 16)),
+                              Text(
+                                '${state.consumedCalories.toStringAsFixed(0)} kcal',
+                                style: TextStyle(fontSize: 16),
+                              ),
                             ],
                           ),
                         ],
@@ -343,8 +599,17 @@ class _MyHomePageState extends State<MyHomePage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Kohlenhydrate (g)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        Text('${state.consumedCarbs.toStringAsFixed(0)} / ${state.dailyCarbGoal.toStringAsFixed(0)} g', style: TextStyle(fontSize: 14)),
+                        Text(
+                          'Kohlenhydrate (g)',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '${state.consumedCarbs.toStringAsFixed(0)} / ${state.dailyCarbGoal.toStringAsFixed(0)} g',
+                          style: TextStyle(fontSize: 14),
+                        ),
                       ],
                     ),
                     SizedBox(height: 4),
@@ -360,8 +625,17 @@ class _MyHomePageState extends State<MyHomePage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Zucker (g)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        Text('${state.consumedSugar.toStringAsFixed(0)} / ${state.dailySugarGoalGrams.toStringAsFixed(0)} g', style: TextStyle(fontSize: 14)),
+                        Text(
+                          'Zucker (g)',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '${state.consumedSugar.toStringAsFixed(0)} / ${state.dailySugarGoalGrams.toStringAsFixed(0)} g',
+                          style: TextStyle(fontSize: 14),
+                        ),
                       ],
                     ),
                     SizedBox(height: 4),
@@ -377,8 +651,17 @@ class _MyHomePageState extends State<MyHomePage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Proteine (g)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        Text('${state.consumedProtein.toStringAsFixed(0)} / ${state.dailyProteinGoal.toStringAsFixed(0)} g', style: TextStyle(fontSize: 14)),
+                        Text(
+                          'Proteine (g)',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '${state.consumedProtein.toStringAsFixed(0)} / ${state.dailyProteinGoal.toStringAsFixed(0)} g',
+                          style: TextStyle(fontSize: 14),
+                        ),
                       ],
                     ),
                     SizedBox(height: 4),
@@ -394,8 +677,17 @@ class _MyHomePageState extends State<MyHomePage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Fette (g)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        Text('${state.consumedFat.toStringAsFixed(0)} / ${state.dailyFatGoal.toStringAsFixed(0)} g', style: TextStyle(fontSize: 14)),
+                        Text(
+                          'Fette (g)',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '${state.consumedFat.toStringAsFixed(0)} / ${state.dailyFatGoal.toStringAsFixed(0)} g',
+                          style: TextStyle(fontSize: 14),
+                        ),
                       ],
                     ),
                     SizedBox(height: 4),
@@ -419,6 +711,14 @@ class _MyHomePageState extends State<MyHomePage> {
                       onAdd: () {
                         _showAddFoodOptions(context, state, 'Frühstück');
                       },
+                      onSaveMeal: state.breakfast.isEmpty
+                          ? null
+                          : () => _saveMealTemplate(
+                              context,
+                              state,
+                              'Frühstück',
+                              state.breakfast,
+                            ),
                     ),
                     SizedBox(height: 8),
                     MealSection(
@@ -427,6 +727,14 @@ class _MyHomePageState extends State<MyHomePage> {
                       onAdd: () {
                         _showAddFoodOptions(context, state, 'Mittagessen');
                       },
+                      onSaveMeal: state.lunch.isEmpty
+                          ? null
+                          : () => _saveMealTemplate(
+                              context,
+                              state,
+                              'Mittagessen',
+                              state.lunch,
+                            ),
                     ),
                     SizedBox(height: 8),
                     MealSection(
@@ -435,6 +743,14 @@ class _MyHomePageState extends State<MyHomePage> {
                       onAdd: () {
                         _showAddFoodOptions(context, state, 'Abendessen');
                       },
+                      onSaveMeal: state.dinner.isEmpty
+                          ? null
+                          : () => _saveMealTemplate(
+                              context,
+                              state,
+                              'Abendessen',
+                              state.dinner,
+                            ),
                     ),
                     SizedBox(height: 8),
                     MealSection(
@@ -443,6 +759,14 @@ class _MyHomePageState extends State<MyHomePage> {
                       onAdd: () {
                         _showAddFoodOptions(context, state, 'Snacks');
                       },
+                      onSaveMeal: state.snacks.isEmpty
+                          ? null
+                          : () => _saveMealTemplate(
+                              context,
+                              state,
+                              'Snacks',
+                              state.snacks,
+                            ),
                     ),
                   ],
                 ),

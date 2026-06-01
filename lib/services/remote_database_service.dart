@@ -3,16 +3,23 @@ import 'package:postgres/postgres.dart';
 import '../models/food_item.dart';
 
 class RemoteDatabaseService {
-  final String _host =
-      const String.fromEnvironment('POSTGRES_HOST', defaultValue: '');
-  final int _port =
-      const int.fromEnvironment('POSTGRES_PORT', defaultValue: 0);
-  final String _database =
-      const String.fromEnvironment('POSTGRES_DB', defaultValue: '');
-  final String _username =
-      const String.fromEnvironment('POSTGRES_USER', defaultValue: '');
-  final String _password =
-      const String.fromEnvironment('POSTGRES_PASSWORD', defaultValue: '');
+  final String _host = const String.fromEnvironment(
+    'POSTGRES_HOST',
+    defaultValue: '',
+  );
+  final int _port = const int.fromEnvironment('POSTGRES_PORT', defaultValue: 0);
+  final String _database = const String.fromEnvironment(
+    'POSTGRES_DB',
+    defaultValue: '',
+  );
+  final String _username = const String.fromEnvironment(
+    'POSTGRES_USER',
+    defaultValue: '',
+  );
+  final String _password = const String.fromEnvironment(
+    'POSTGRES_PASSWORD',
+    defaultValue: '',
+  );
 
   late PostgreSQLConnection _connection = PostgreSQLConnection(
     _host,
@@ -34,19 +41,30 @@ class RemoteDatabaseService {
         useSSL: true,
       );
       await _connection.open();
+      await _ensureSchema();
     }
+  }
+
+  Future<void> _ensureSchema() async {
+    try {
+      await _connection.query('''
+        ALTER TABLE fooditems
+        ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ
+      ''');
+    } catch (_) {}
   }
 
   Future<Map<String, dynamic>?> getUserByEmail(String email) async {
     await _init();
-    final results = await _connection.query('''
+    final results = await _connection.query(
+      '''
       SELECT id, email, password_hash, verification_code, is_verified
       FROM users
       WHERE LOWER(email) = LOWER(@em)
       LIMIT 1
-    ''', substitutionValues: {
-      'em': email,
-    });
+    ''',
+      substitutionValues: {'em': email},
+    );
 
     if (results.isEmpty) {
       return null;
@@ -62,59 +80,70 @@ class RemoteDatabaseService {
   }
 
   Future<void> insertUserWithVerification(
-      String email, String passwordHash, String verificationCode) async {
+    String email,
+    String passwordHash,
+    String verificationCode,
+  ) async {
     await _init();
-    final result = await _connection.query('''
+    final result = await _connection.query(
+      '''
       INSERT INTO users (email, password_hash, verification_code, is_verified)
       VALUES (@em, @pwHash, @vCode, false)
       RETURNING id
-    ''', substitutionValues: {
-      'em': email,
-      'pwHash': passwordHash,
-      'vCode': verificationCode,
-    });
+    ''',
+      substitutionValues: {
+        'em': email,
+        'pwHash': passwordHash,
+        'vCode': verificationCode,
+      },
+    );
 
     if (result.isEmpty) {
       throw Exception(
-          'Fehler beim INSERT in users (Kein Datensatz zurückgegeben).');
+        'Fehler beim INSERT in users (Kein Datensatz zurückgegeben).',
+      );
     }
   }
 
   Future<void> insertUser(String email, String passwordHash) async {
     await _init();
-    final result = await _connection.query('''
+    final result = await _connection.query(
+      '''
       INSERT INTO users (email, password_hash)
       VALUES (@em, @pwHash)
       RETURNING id
-    ''', substitutionValues: {
-      'em': email,
-      'pwHash': passwordHash,
-    });
+    ''',
+      substitutionValues: {'em': email, 'pwHash': passwordHash},
+    );
 
     if (result.isEmpty) {
-      throw Exception('Fehler beim INSERT in users (Kein Datensatz zurückgegeben).');
+      throw Exception(
+        'Fehler beim INSERT in users (Kein Datensatz zurückgegeben).',
+      );
     }
   }
 
   Future<void> verifyUser(String email) async {
     await _init();
-    await _connection.query('''
+    await _connection.query(
+      '''
       UPDATE users
       SET is_verified = true
       WHERE LOWER(email) = LOWER(@em)
-    ''', substitutionValues: {
-      'em': email,
-    });
+    ''',
+      substitutionValues: {'em': email},
+    );
   }
 
   Future<void> deleteUserByEmail(String email) async {
     await _init();
-    await _connection.query('''
+    await _connection.query(
+      '''
       DELETE FROM users
       WHERE LOWER(email) = LOWER(@em)
-    ''', substitutionValues: {
-      'em': email,
-    });
+    ''',
+      substitutionValues: {'em': email},
+    );
   }
 
   Map<String, dynamic> _rowToMap(List<dynamic> row) {
@@ -159,8 +188,9 @@ class RemoteDatabaseService {
     }
 
     final dynamic createdAtVal = row[9];
-    String createdAtString =
-        createdAtVal is DateTime ? createdAtVal.toIso8601String() : '';
+    String createdAtString = createdAtVal is DateTime
+        ? createdAtVal.toIso8601String()
+        : '';
 
     final dynamic lastUsed = row[10];
     int lastUsedInt = 100;
@@ -187,7 +217,8 @@ class RemoteDatabaseService {
 
   Future<FoodItem?> getFoodItemById(int foodId) async {
     await _init();
-    final results = await _connection.query('''
+    final results = await _connection.query(
+      '''
       SELECT
         id,
         name,
@@ -203,9 +234,9 @@ class RemoteDatabaseService {
       FROM fooditems
       WHERE id = @id
       LIMIT 1
-    ''', substitutionValues: {
-      'id': foodId,
-    });
+    ''',
+      substitutionValues: {'id': foodId},
+    );
     if (results.isEmpty) {
       return null;
     }
@@ -229,14 +260,15 @@ class RemoteDatabaseService {
         created_at,
         last_used_quantity
       FROM fooditems
-      ORDER BY created_at DESC
+      ORDER BY COALESCE(last_used_at, created_at) DESC
     ''');
     return results.map((row) => FoodItem.fromMap(_rowToMap(row))).toList();
   }
 
-  Future<List<FoodItem>> getLastAddedFoodItems(int limit) async {
+  Future<List<FoodItem>> getRecentlyUsedFoodItems(int limit) async {
     await _init();
-    final results = await _connection.query('''
+    final results = await _connection.query(
+      '''
       SELECT 
         id,
         name,
@@ -250,17 +282,23 @@ class RemoteDatabaseService {
         created_at,
         last_used_quantity
       FROM fooditems
-      ORDER BY created_at DESC
+      WHERE last_used_at IS NOT NULL
+      ORDER BY last_used_at DESC, created_at DESC
       LIMIT @limit
-    ''', substitutionValues: {
-      'limit': limit,
-    });
+    ''',
+      substitutionValues: {'limit': limit},
+    );
     return results.map((row) => FoodItem.fromMap(_rowToMap(row))).toList();
+  }
+
+  Future<List<FoodItem>> getLastAddedFoodItems(int limit) async {
+    return getRecentlyUsedFoodItems(limit);
   }
 
   Future<List<FoodItem>> searchFoodItems(String query) async {
     await _init();
-    final results = await _connection.query('''
+    final results = await _connection.query(
+      '''
       SELECT 
         id,
         name,
@@ -276,16 +314,17 @@ class RemoteDatabaseService {
       FROM fooditems
       WHERE LOWER(name) LIKE @pattern
          OR LOWER(barcode) LIKE @pattern
-      ORDER BY created_at DESC
-    ''', substitutionValues: {
-      'pattern': '%${query.toLowerCase()}%',
-    });
+      ORDER BY COALESCE(last_used_at, created_at) DESC
+    ''',
+      substitutionValues: {'pattern': '%${query.toLowerCase()}%'},
+    );
     return results.map((row) => FoodItem.fromMap(_rowToMap(row))).toList();
   }
 
   Future<FoodItem?> getFoodItemByBarcode(String barcode) async {
     await _init();
-    final results = await _connection.query('''
+    final results = await _connection.query(
+      '''
       SELECT
         id,
         name,
@@ -301,9 +340,9 @@ class RemoteDatabaseService {
       FROM fooditems
       WHERE LOWER(barcode) = @bc
       LIMIT 1
-    ''', substitutionValues: {
-      'bc': barcode.toLowerCase(),
-    });
+    ''',
+      substitutionValues: {'bc': barcode.toLowerCase()},
+    );
 
     if (results.isEmpty) {
       return null;
@@ -316,7 +355,8 @@ class RemoteDatabaseService {
     await _init();
 
     if (foodItem.id == null) {
-      final result = await _connection.query('''
+      final result = await _connection.query(
+        '''
         INSERT INTO fooditems (
           name,
           brand,
@@ -327,7 +367,8 @@ class RemoteDatabaseService {
           sugar_per_100g,
           protein_per_100g,
           created_at,
-          last_used_quantity
+          last_used_quantity,
+          last_used_at
         )
         VALUES (
           @name,
@@ -339,21 +380,25 @@ class RemoteDatabaseService {
           @sugar,
           @protein,
           @createdAt,
-          @lastUsed
+          @lastUsed,
+          @lastUsedAt
         )
         RETURNING id
-      ''', substitutionValues: {
-        'name': foodItem.name,
-        'brand': foodItem.brand,
-        'barcode': foodItem.barcode,
-        'calories': foodItem.caloriesPer100g,
-        'fat': foodItem.fatPer100g,
-        'carbs': foodItem.carbsPer100g,
-        'sugar': foodItem.sugarPer100g,
-        'protein': foodItem.proteinPer100g,
-        'createdAt': foodItem.createdAt.toUtc(),
-        'lastUsed': foodItem.lastUsedQuantity,
-      });
+      ''',
+        substitutionValues: {
+          'name': foodItem.name,
+          'brand': foodItem.brand,
+          'barcode': foodItem.barcode,
+          'calories': foodItem.caloriesPer100g,
+          'fat': foodItem.fatPer100g,
+          'carbs': foodItem.carbsPer100g,
+          'sugar': foodItem.sugarPer100g,
+          'protein': foodItem.proteinPer100g,
+          'createdAt': foodItem.createdAt.toUtc(),
+          'lastUsed': foodItem.lastUsedQuantity,
+          'lastUsedAt': DateTime.now().toUtc(),
+        },
+      );
 
       if (result.isEmpty) {
         throw Exception('Fehler beim INSERT in fooditems');
@@ -361,7 +406,8 @@ class RemoteDatabaseService {
       return result.first[0] as int;
     } else {
       await _init();
-      await _connection.query('''
+      await _connection.query(
+        '''
         UPDATE fooditems
         SET
           name = @name,
@@ -372,43 +418,48 @@ class RemoteDatabaseService {
           carbs_per_100g = @carbs,
           sugar_per_100g = @sugar,
           protein_per_100g = @protein,
-          last_used_quantity = @lastUsed
+          last_used_quantity = @lastUsed,
+          last_used_at = @lastUsedAt
         WHERE id = @id
-      ''', substitutionValues: {
-        'id': foodItem.id,
-        'name': foodItem.name,
-        'brand': foodItem.brand,
-        'barcode': foodItem.barcode,
-        'calories': foodItem.caloriesPer100g,
-        'fat': foodItem.fatPer100g,
-        'carbs': foodItem.carbsPer100g,
-        'sugar': foodItem.sugarPer100g,
-        'protein': foodItem.proteinPer100g,
-        'lastUsed': foodItem.lastUsedQuantity,
-      });
+      ''',
+        substitutionValues: {
+          'id': foodItem.id,
+          'name': foodItem.name,
+          'brand': foodItem.brand,
+          'barcode': foodItem.barcode,
+          'calories': foodItem.caloriesPer100g,
+          'fat': foodItem.fatPer100g,
+          'carbs': foodItem.carbsPer100g,
+          'sugar': foodItem.sugarPer100g,
+          'protein': foodItem.proteinPer100g,
+          'lastUsed': foodItem.lastUsedQuantity,
+          'lastUsedAt': DateTime.now().toUtc(),
+        },
+      );
       return foodItem.id!;
     }
   }
 
   Future<void> updateBarcode(int foodId, String? barcode) async {
     await _init();
-    await _connection.query('''
+    await _connection.query(
+      '''
       UPDATE fooditems
       SET barcode = @barcode
       WHERE id = @id
-    ''', substitutionValues: {
-      'id': foodId,
-      'barcode': barcode ?? '',
-    });
+    ''',
+      substitutionValues: {'id': foodId, 'barcode': barcode ?? ''},
+    );
   }
 
   Future<void> deleteFoodItem(int id) async {
     await _init();
-    await _connection.query('''
+    await _connection.query(
+      '''
       DELETE FROM fooditems
       WHERE id = @id
-    ''', substitutionValues: {
-      'id': id,
-    });
+    ''',
+      substitutionValues: {'id': id},
+    );
   }
 }
