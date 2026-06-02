@@ -7,12 +7,14 @@ class MealSection extends StatelessWidget {
   final List<ConsumedFoodItem> foods;
   final VoidCallback onAdd;
   final VoidCallback? onSaveMeal;
+  final VoidCallback onCopyYesterday;
 
   const MealSection({
     Key? key,
     required this.mealName,
     required this.foods,
     required this.onAdd,
+    required this.onCopyYesterday,
     this.onSaveMeal,
   }) : super(key: key);
 
@@ -58,6 +60,11 @@ class MealSection extends StatelessWidget {
               leading: const Icon(Icons.add),
               title: const Text('Lebensmittel hinzufügen'),
               onTap: onAdd,
+            ),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('Gestern übernehmen'),
+              onTap: onCopyYesterday,
             ),
           ],
         ),
@@ -127,6 +134,11 @@ class MealSection extends StatelessWidget {
             leading: const Icon(Icons.add),
             title: const Text('Lebensmittel hinzufügen'),
             onTap: onAdd,
+          ),
+          ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text('Gestern übernehmen'),
+            onTap: onCopyYesterday,
           ),
           if (onSaveMeal != null)
             ListTile(

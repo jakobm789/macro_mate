@@ -51,6 +51,14 @@ class RemoteDatabaseService {
         ALTER TABLE fooditems
         ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ
       ''');
+      await _connection.query('''
+        ALTER TABLE fooditems
+        ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'own'
+      ''');
+      await _connection.query('''
+        ALTER TABLE fooditems
+        ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT false
+      ''');
     } catch (_) {}
   }
 
@@ -212,6 +220,8 @@ class RemoteDatabaseService {
       'protein_per_100g': proteinDouble,
       'created_at': createdAtString,
       'last_used_quantity': lastUsedInt,
+      'source': row.length > 11 ? row[11] ?? 'own' : 'own',
+      'is_verified': row.length > 12 ? row[12] == true : false,
     };
   }
 
@@ -230,7 +240,9 @@ class RemoteDatabaseService {
         sugar_per_100g,
         protein_per_100g,
         created_at,
-        last_used_quantity
+        last_used_quantity,
+        source,
+        is_verified
       FROM fooditems
       WHERE id = @id
       LIMIT 1
@@ -258,7 +270,9 @@ class RemoteDatabaseService {
         sugar_per_100g,
         protein_per_100g,
         created_at,
-        last_used_quantity
+        last_used_quantity,
+        source,
+        is_verified
       FROM fooditems
       ORDER BY COALESCE(last_used_at, created_at) DESC
     ''');
@@ -280,7 +294,9 @@ class RemoteDatabaseService {
         sugar_per_100g,
         protein_per_100g,
         created_at,
-        last_used_quantity
+        last_used_quantity,
+        source,
+        is_verified
       FROM fooditems
       WHERE last_used_at IS NOT NULL
       ORDER BY last_used_at DESC, created_at DESC
@@ -310,7 +326,9 @@ class RemoteDatabaseService {
         sugar_per_100g,
         protein_per_100g,
         created_at,
-        last_used_quantity
+        last_used_quantity,
+        source,
+        is_verified
       FROM fooditems
       WHERE LOWER(name) LIKE @pattern
          OR LOWER(barcode) LIKE @pattern
@@ -336,7 +354,9 @@ class RemoteDatabaseService {
         sugar_per_100g,
         protein_per_100g,
         created_at,
-        last_used_quantity
+        last_used_quantity,
+        source,
+        is_verified
       FROM fooditems
       WHERE LOWER(barcode) = @bc
       LIMIT 1
@@ -368,7 +388,9 @@ class RemoteDatabaseService {
           protein_per_100g,
           created_at,
           last_used_quantity,
-          last_used_at
+          last_used_at,
+          source,
+          is_verified
         )
         VALUES (
           @name,
@@ -381,7 +403,9 @@ class RemoteDatabaseService {
           @protein,
           @createdAt,
           @lastUsed,
-          @lastUsedAt
+          @lastUsedAt,
+          @source,
+          @isVerified
         )
         RETURNING id
       ''',
@@ -397,6 +421,8 @@ class RemoteDatabaseService {
           'createdAt': foodItem.createdAt.toUtc(),
           'lastUsed': foodItem.lastUsedQuantity,
           'lastUsedAt': DateTime.now().toUtc(),
+          'source': foodItem.source,
+          'isVerified': foodItem.isVerified,
         },
       );
 
@@ -419,7 +445,9 @@ class RemoteDatabaseService {
           sugar_per_100g = @sugar,
           protein_per_100g = @protein,
           last_used_quantity = @lastUsed,
-          last_used_at = @lastUsedAt
+          last_used_at = @lastUsedAt,
+          source = @source,
+          is_verified = @isVerified
         WHERE id = @id
       ''',
         substitutionValues: {
@@ -434,6 +462,8 @@ class RemoteDatabaseService {
           'protein': foodItem.proteinPer100g,
           'lastUsed': foodItem.lastUsedQuantity,
           'lastUsedAt': DateTime.now().toUtc(),
+          'source': foodItem.source,
+          'isVerified': foodItem.isVerified,
         },
       );
       return foodItem.id!;

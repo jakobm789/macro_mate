@@ -12,7 +12,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-final FlutterLocalNotificationsPlugin notificationsPlugin = FlutterLocalNotificationsPlugin();
+final FlutterLocalNotificationsPlugin notificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 
 class LoadingScreen extends StatelessWidget {
   const LoadingScreen({Key? key}) : super(key: key);
@@ -32,17 +33,27 @@ class LoadingScreen extends StatelessWidget {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+  final initializationSettingsAndroid = AndroidInitializationSettings(
+    '@mipmap/ic_launcher',
+  );
   final initializationSettingsIOS = DarwinInitializationSettings();
-  final initializationSettings = InitializationSettings(android: initializationSettingsAndroid, iOS: initializationSettingsIOS);
+  final initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+    iOS: initializationSettingsIOS,
+  );
   await notificationsPlugin.initialize(initializationSettings);
   await _checkNotificationPermission();
   String initialFilePath = PlatformDispatcher.instance.defaultRouteName;
   final appState = AppState();
   runApp(MaterialApp(home: const LoadingScreen()));
   await appState.initializeCompletely();
-  appState.scheduleAllNotifications();
-  runApp(ChangeNotifierProvider.value(value: appState, child: MyApp(initialFilePath: initialFilePath)));
+  await appState.scheduleAllNotifications();
+  runApp(
+    ChangeNotifierProvider.value(
+      value: appState,
+      child: MyApp(initialFilePath: initialFilePath),
+    ),
+  );
 }
 
 Future<void> _checkNotificationPermission() async {
@@ -50,6 +61,12 @@ Future<void> _checkNotificationPermission() async {
     final status = await Permission.notification.status;
     if (!status.isGranted) {
       await Permission.notification.request();
+    }
+    if (Platform.isAndroid) {
+      final exactAlarmStatus = await Permission.scheduleExactAlarm.status;
+      if (!exactAlarmStatus.isGranted) {
+        await Permission.scheduleExactAlarm.request();
+      }
     }
   }
 }
@@ -71,6 +88,7 @@ class _MyAppState extends State<MyApp> {
       _handleIncomingFile();
     }
   }
+
   Future<void> _handleIncomingFile() async {
     final appState = Provider.of<AppState>(context, listen: false);
     if (widget.initialFilePath == '/' || widget.initialFilePath.isEmpty) {
@@ -83,52 +101,85 @@ class _MyAppState extends State<MyApp> {
         if (await file.exists()) {
           String jsonData = await file.readAsString();
           await appState.importDatabase(jsonData);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Daten aus macro_mate_export.json erfolgreich importiert.')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Daten aus macro_mate_export.json erfolgreich importiert.',
+              ),
+            ),
+          );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Die angegebene Datei existiert nicht.')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Die angegebene Datei existiert nicht.'),
+            ),
+          );
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler beim Importieren der Daten: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler beim Importieren der Daten: $e')),
+        );
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Die gewählte Datei ist nicht macro_mate_export.json. Kein Import.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Die gewählte Datei ist nicht macro_mate_export.json. Kein Import.',
+          ),
+        ),
+      );
     }
   }
+
   @override
   Widget build(BuildContext context) {
-    return Consumer<AppState>(builder: (context, appState, child) {
-      if (!appState.isLoggedIn) {
+    return Consumer<AppState>(
+      builder: (context, appState, child) {
+        if (!appState.isLoggedIn) {
+          return MaterialApp(
+            title: 'MacroMate',
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.lightBlueAccent,
+                brightness: Brightness.light,
+              ),
+              useMaterial3: true,
+            ),
+            darkTheme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.lightBlueAccent,
+                brightness: Brightness.dark,
+              ),
+              useMaterial3: true,
+            ),
+            themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            home: const LoginPage(),
+          );
+        }
         return MaterialApp(
           title: 'MacroMate',
           theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightBlueAccent, brightness: Brightness.light),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.lightBlueAccent,
+              brightness: Brightness.light,
+            ),
             useMaterial3: true,
           ),
           darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightBlueAccent, brightness: Brightness.dark),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.lightBlueAccent,
+              brightness: Brightness.dark,
+            ),
             useMaterial3: true,
           ),
           themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-          home: const LoginPage(),
+          home: const MyHomePage(title: 'MacroMate'),
+          routes: {
+            '/settings': (context) => const SettingsPage(),
+            '/weight': (context) => const WeightPage(),
+          },
         );
-      }
-      return MaterialApp(
-        title: 'MacroMate',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightBlueAccent, brightness: Brightness.light),
-          useMaterial3: true,
-        ),
-        darkTheme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightBlueAccent, brightness: Brightness.dark),
-          useMaterial3: true,
-        ),
-        themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-        home: const MyHomePage(title: 'MacroMate'),
-        routes: {
-          '/settings': (context) => const SettingsPage(),
-          '/weight': (context) => const WeightPage(),
-        },
-      );
-    });
+      },
+    );
   }
 }

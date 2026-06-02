@@ -60,12 +60,137 @@ class _WeightPageState extends State<WeightPage> {
       _weightController.clear();
       setState(() => _selectedDate = DateTime.now());
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Speichern: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Fehler beim Speichern: $e')));
     } finally {
       setState(() => _isAdding = false);
     }
+  }
+
+  Future<void> _editWeight(BuildContext context, WeightEntry entry) async {
+    if (entry.id == null) return;
+    final controller = TextEditingController(
+      text: entry.weight.toStringAsFixed(1),
+    );
+    var selectedDate = entry.date;
+    final result = await showDialog<({DateTime date, double weight})>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Gewicht bearbeiten'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Gewicht (kg)',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Text(DateFormat('dd.MM.yyyy').format(selectedDate)),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () async {
+                          final now = DateTime.now();
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDate,
+                            firstDate: DateTime(now.year - 5),
+                            lastDate: DateTime(now.year + 1),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => selectedDate = picked);
+                          }
+                        },
+                        child: const Text('Datum ändern'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Abbrechen'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final weight = double.tryParse(
+                      controller.text.trim().replaceAll(',', '.'),
+                    );
+                    if (weight == null || weight <= 0) return;
+                    Navigator.of(
+                      dialogContext,
+                    ).pop((date: selectedDate, weight: weight));
+                  },
+                  child: const Text('Speichern'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+    if (result == null) return;
+    try {
+      await Provider.of<AppState>(
+        context,
+        listen: false,
+      ).updateWeightEntry(entry.id!, result.date, result.weight);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Gewicht aktualisiert.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Fehler beim Aktualisieren: $e')));
+    }
+  }
+
+  Future<void> _deleteWeight(BuildContext context, WeightEntry entry) async {
+    if (entry.id == null) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Gewicht löschen'),
+        content: const Text('Möchtest du diesen Gewichtseintrag löschen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    final appState = Provider.of<AppState>(context, listen: false);
+    await appState.deleteWeightEntry(entry.id!);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Eintrag geloescht.'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () => appState.addWeightEntry(entry.date, entry.weight),
+        ),
+      ),
+    );
   }
 
   List<WeightEntry> _getEntriesForRange(BuildContext context) {
@@ -85,12 +210,10 @@ class _WeightPageState extends State<WeightPage> {
       return [];
     }
     final baseDate = filtered.first.date;
-    return filtered
-        .map((entry) {
-          final diff = entry.date.difference(baseDate).inDays.toDouble();
-          return FlSpot(diff, entry.weight);
-        })
-        .toList();
+    return filtered.map((entry) {
+      final diff = entry.date.difference(baseDate).inDays.toDouble();
+      return FlSpot(diff, entry.weight);
+    }).toList();
   }
 
   Widget _rangeButton(String label, int days) {
@@ -101,7 +224,9 @@ class _WeightPageState extends State<WeightPage> {
         });
       },
       style: ElevatedButton.styleFrom(
-        backgroundColor: _selectedRangeInDays == days ? Colors.lightBlueAccent : Colors.white,
+        backgroundColor: _selectedRangeInDays == days
+            ? Colors.lightBlueAccent
+            : Colors.white,
       ),
       child: Text(label),
     );
@@ -152,7 +277,10 @@ class _WeightPageState extends State<WeightPage> {
                           showTitles: true,
                           reservedSize: 40,
                           getTitlesWidget: (value, meta) {
-                            return Text('${value.toStringAsFixed(1)} kg', style: const TextStyle(fontSize: 10));
+                            return Text(
+                              '${value.toStringAsFixed(1)} kg',
+                              style: const TextStyle(fontSize: 10),
+                            );
                           },
                         ),
                       ),
@@ -167,7 +295,9 @@ class _WeightPageState extends State<WeightPage> {
                               return const SizedBox();
                             }
                             final baseDate = entries.first.date;
-                            final date = baseDate.add(Duration(days: value.toInt()));
+                            final date = baseDate.add(
+                              Duration(days: value.toInt()),
+                            );
                             return Padding(
                               padding: const EdgeInsets.only(top: 4.0),
                               child: Text(
@@ -200,7 +330,9 @@ class _WeightPageState extends State<WeightPage> {
                   children: [
                     TextField(
                       controller: _weightController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: const InputDecoration(
                         labelText: 'Gewicht (kg)',
                         hintText: 'z.B. 80.5',
@@ -209,7 +341,9 @@ class _WeightPageState extends State<WeightPage> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        Text('Datum: ${DateFormat('dd.MM.yyyy').format(_selectedDate)}'),
+                        Text(
+                          'Datum: ${DateFormat('dd.MM.yyyy').format(_selectedDate)}',
+                        ),
                         const Spacer(),
                         TextButton(
                           onPressed: () => _pickDate(context),
@@ -243,25 +377,40 @@ class _WeightPageState extends State<WeightPage> {
                 itemBuilder: (context, index) {
                   final entry = entries[index];
                   return Dismissible(
-                    key: ValueKey(entry.id),
+                    key: ValueKey(
+                      entry.id ??
+                          '${entry.date.toIso8601String()}-${entry.weight}',
+                    ),
                     direction: DismissDirection.endToStart,
+                    confirmDismiss: (_) async {
+                      await _deleteWeight(context, entry);
+                      return false;
+                    },
                     background: Container(
                       color: Colors.red,
                       alignment: Alignment.centerRight,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: const Icon(Icons.delete, color: Colors.white),
                     ),
-                    onDismissed: (_) async {
-                      await Provider.of<AppState>(context, listen: false)
-                          .deleteWeightEntry(entry.id!);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Eintrag gelöscht.')),
-                      );
-                    },
                     child: ListTile(
                       title: Text('${entry.weight.toStringAsFixed(1)} kg'),
-                      subtitle:
-                          Text(DateFormat('dd.MM.yyyy').format(entry.date)),
+                      subtitle: Text(
+                        DateFormat('dd.MM.yyyy').format(entry.date),
+                      ),
+                      onTap: () => _editWeight(context, entry),
+                      trailing: Wrap(
+                        spacing: 4,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit),
+                            onPressed: () => _editWeight(context, entry),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _deleteWeight(context, entry),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },

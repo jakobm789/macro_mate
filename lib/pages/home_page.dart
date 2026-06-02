@@ -62,6 +62,17 @@ class _MyHomePageState extends State<MyHomePage> {
           if (offItem != null) {
             _showAddQuantityDialog(parentContext, mealName, offItem);
           } else {
+            final similar = await state.searchOpenFoodFacts(barcode);
+            if (!mounted) return;
+            if (similar.isNotEmpty) {
+              await _showSimilarBarcodeProducts(
+                parentContext,
+                mealName,
+                barcode,
+                similar,
+              );
+              return;
+            }
             await showDialog(
               context: parentContext,
               builder: (context) {
@@ -114,6 +125,60 @@ class _MyHomePageState extends State<MyHomePage> {
         SnackBar(content: Text('Fehler beim Scannen des Barcodes: $e')),
       );
     }
+  }
+
+  Future<void> _showSimilarBarcodeProducts(
+    BuildContext parentContext,
+    String mealName,
+    String barcode,
+    List<FoodItem> products,
+  ) async {
+    await showModalBottomSheet(
+      context: parentContext,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('Aehnliche Produkte zu $barcode'),
+            ),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: products.length,
+                itemBuilder: (context, index) {
+                  final food = products[index];
+                  return ListTile(
+                    title: Text(food.name),
+                    subtitle: Text(
+                      '${food.brand} · ${food.caloriesPer100g} kcal',
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showAddQuantityDialog(parentContext, mealName, food);
+                    },
+                  );
+                },
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.add),
+              title: Text('Trotzdem neu anlegen'),
+              onTap: () {
+                Navigator.pop(context);
+                _addNewFoodWithBarcode(
+                  parentContext,
+                  Provider.of<AppState>(parentContext, listen: false),
+                  mealName,
+                  barcode,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showAddQuantityDialog(
@@ -337,15 +402,110 @@ class _MyHomePageState extends State<MyHomePage> {
                                     subtitle: Text(
                                       '${savedMeal.ingredients.length} Zutaten, '
                                       '${savedMeal.totalQuantity} g, '
-                                      '${savedMeal.calories.toStringAsFixed(0)} kcal',
+                                      '${savedMeal.calories.toStringAsFixed(0)} kcal'
+                                      '${savedMeal.isRecipe ? ', Rezept ${savedMeal.recipeTotalWeight} g' : ''}',
                                     ),
-                                    trailing: IconButton(
-                                      icon: Icon(Icons.delete_outline),
-                                      onPressed: savedMeal.id == null
-                                          ? null
-                                          : () => appState.deleteSavedMeal(
-                                              savedMeal.id!,
-                                            ),
+                                    trailing: Wrap(
+                                      spacing: 4,
+                                      children: [
+                                        PopupMenuButton<double>(
+                                          icon: Icon(Icons.scale),
+                                          onSelected: (factor) async {
+                                            await appState.addSavedMealToDay(
+                                              savedMeal,
+                                              mealName,
+                                              factor: factor,
+                                            );
+                                            if (!mounted) return;
+                                            Navigator.pop(context);
+                                          },
+                                          itemBuilder: (context) =>
+                                              [0.5, 1.0, 1.5, 2.0]
+                                                  .map(
+                                                    (factor) =>
+                                                        PopupMenuItem<double>(
+                                                          value: factor,
+                                                          child: Text(
+                                                            '${factor}x',
+                                                          ),
+                                                        ),
+                                                  )
+                                                  .toList(),
+                                        ),
+                                        if (savedMeal.isRecipe)
+                                          IconButton(
+                                            icon: Icon(Icons.restaurant_menu),
+                                            onPressed: () async {
+                                              final controller =
+                                                  TextEditingController();
+                                              final grams = await showDialog<int>(
+                                                context: context,
+                                                builder: (dialogContext) =>
+                                                    AlertDialog(
+                                                      title: Text(
+                                                        'Portion tracken',
+                                                      ),
+                                                      content: TextField(
+                                                        controller: controller,
+                                                        keyboardType:
+                                                            TextInputType
+                                                                .number,
+                                                        decoration:
+                                                            InputDecoration(
+                                                              labelText:
+                                                                  'Portion',
+                                                              suffixText: 'g',
+                                                            ),
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                dialogContext,
+                                                              ),
+                                                          child: Text(
+                                                            'Abbrechen',
+                                                          ),
+                                                        ),
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                dialogContext,
+                                                                int.tryParse(
+                                                                  controller
+                                                                      .text,
+                                                                ),
+                                                              ),
+                                                          child: Text(
+                                                            'Hinzufuegen',
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                              );
+                                              controller.dispose();
+                                              if (grams == null || grams <= 0) {
+                                                return;
+                                              }
+                                              await appState
+                                                  .addRecipePortionToDay(
+                                                    savedMeal,
+                                                    mealName,
+                                                    grams,
+                                                  );
+                                              if (!mounted) return;
+                                              Navigator.pop(context);
+                                            },
+                                          ),
+                                        IconButton(
+                                          icon: Icon(Icons.delete_outline),
+                                          onPressed: savedMeal.id == null
+                                              ? null
+                                              : () => appState.deleteSavedMeal(
+                                                  savedMeal.id!,
+                                                ),
+                                        ),
+                                      ],
                                     ),
                                     onTap: () async {
                                       await appState.addSavedMealToDay(
@@ -386,15 +546,30 @@ class _MyHomePageState extends State<MyHomePage> {
     List<ConsumedFoodItem> foods,
   ) async {
     final controller = TextEditingController(text: mealName);
-    final name = await showDialog<String>(
+    final recipeWeightController = TextEditingController();
+    final result = await showDialog<({String name, int? recipeWeight})>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text('Mahlzeit speichern'),
-          content: TextField(
-            controller: controller,
-            decoration: InputDecoration(labelText: 'Name'),
-            autofocus: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                decoration: InputDecoration(labelText: 'Name'),
+                autofocus: true,
+              ),
+              SizedBox(height: 12),
+              TextField(
+                controller: recipeWeightController,
+                decoration: InputDecoration(
+                  labelText: 'Gesamtgewicht Rezept/Meal Prep (optional)',
+                  suffixText: 'g',
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -402,7 +577,12 @@ class _MyHomePageState extends State<MyHomePage> {
               child: Text('Abbrechen'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              onPressed: () {
+                Navigator.pop(context, (
+                  name: controller.text.trim(),
+                  recipeWeight: int.tryParse(recipeWeightController.text),
+                ));
+              },
               child: Text('Speichern'),
             ),
           ],
@@ -410,11 +590,13 @@ class _MyHomePageState extends State<MyHomePage> {
       },
     );
     controller.dispose();
+    recipeWeightController.dispose();
+    final name = result?.name;
     if (name == null || name.isEmpty) {
       return;
     }
     try {
-      await state.saveMealTemplate(name, mealName, foods);
+      await state.saveMealTemplate(name, mealName, foods, result?.recipeWeight);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -424,6 +606,66 @@ class _MyHomePageState extends State<MyHomePage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Fehler beim Speichern: $e')));
+    }
+  }
+
+  Future<void> _copyMealFromYesterday(
+    BuildContext context,
+    AppState state,
+    String mealName,
+  ) async {
+    final snapshot = await state.getCurrentDaySnapshot();
+    try {
+      final copiedCount = await state.copyMealFromYesterday(mealName);
+      if (!mounted) return;
+      final message = copiedCount == 0
+          ? 'Gestern wurden keine Einträge für $mealName gefunden.'
+          : '$mealName von gestern übernommen.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          action: copiedCount == 0
+              ? null
+              : SnackBarAction(
+                  label: 'Undo',
+                  onPressed: () => state.restoreCurrentDaySnapshot(snapshot),
+                ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Übernehmen von gestern: $e')),
+      );
+    }
+  }
+
+  Future<void> _copyDayFromYesterday(
+    BuildContext context,
+    AppState state,
+  ) async {
+    final snapshot = await state.getCurrentDaySnapshot();
+    try {
+      final copiedCount = await state.copyDayFromYesterday();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            copiedCount == 0
+                ? 'Gestern wurden keine Eintraege gefunden.'
+                : 'Kompletter Tag von gestern uebernommen.',
+          ),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => state.restoreCurrentDaySnapshot(snapshot),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Fehler beim Kopieren: $e')));
     }
   }
 
@@ -464,6 +706,74 @@ class _MyHomePageState extends State<MyHomePage> {
       _hasShownMondayPopup = true;
       state.mondayPopupMessage = null;
     }
+  }
+
+  Widget _weeklySummaryCard(AppState state) {
+    return FutureBuilder<WeeklyNutritionSummary>(
+      future: state.calculateWeeklySummary(),
+      builder: (context, snapshot) {
+        final summary = snapshot.data;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.calendar_view_week),
+                    SizedBox(width: 8),
+                    Text(
+                      'Woche',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    if (snapshot.connectionState == ConnectionState.waiting)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8.0),
+                        child: SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                if (summary == null)
+                  Text('Wochenwerte werden geladen...')
+                else
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      Chip(
+                        label: Text(
+                          '${summary.averageCalories.toStringAsFixed(0)} kcal Ø',
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          '${summary.remainingCalories.toStringAsFixed(0)} kcal Rest',
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          '${summary.macroAdherence.toStringAsFixed(0)}% Makros',
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          '${summary.weightTrend >= 0 ? '+' : ''}${summary.weightTrend.toStringAsFixed(1)} kg',
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -507,6 +817,13 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             backgroundColor: Theme.of(context).colorScheme.inversePrimary,
             centerTitle: true,
+            actions: [
+              IconButton(
+                tooltip: 'Tag von gestern uebernehmen',
+                icon: Icon(Icons.restore),
+                onPressed: () => _copyDayFromYesterday(context, state),
+              ),
+            ],
           ),
           body: SingleChildScrollView(
             padding: EdgeInsets.all(16.0),
@@ -593,6 +910,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
                 SizedBox(height: 24),
+                _weeklySummaryCard(state),
+                SizedBox(height: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -711,6 +1030,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       onAdd: () {
                         _showAddFoodOptions(context, state, 'Frühstück');
                       },
+                      onCopyYesterday: () =>
+                          _copyMealFromYesterday(context, state, 'Frühstück'),
                       onSaveMeal: state.breakfast.isEmpty
                           ? null
                           : () => _saveMealTemplate(
@@ -727,6 +1048,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       onAdd: () {
                         _showAddFoodOptions(context, state, 'Mittagessen');
                       },
+                      onCopyYesterday: () =>
+                          _copyMealFromYesterday(context, state, 'Mittagessen'),
                       onSaveMeal: state.lunch.isEmpty
                           ? null
                           : () => _saveMealTemplate(
@@ -743,6 +1066,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       onAdd: () {
                         _showAddFoodOptions(context, state, 'Abendessen');
                       },
+                      onCopyYesterday: () =>
+                          _copyMealFromYesterday(context, state, 'Abendessen'),
                       onSaveMeal: state.dinner.isEmpty
                           ? null
                           : () => _saveMealTemplate(
@@ -759,6 +1084,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       onAdd: () {
                         _showAddFoodOptions(context, state, 'Snacks');
                       },
+                      onCopyYesterday: () =>
+                          _copyMealFromYesterday(context, state, 'Snacks'),
                       onSaveMeal: state.snacks.isEmpty
                           ? null
                           : () => _saveMealTemplate(

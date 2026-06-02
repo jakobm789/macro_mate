@@ -34,6 +34,7 @@ class SavedMeal {
   final String defaultMealName;
   final DateTime createdAt;
   final List<SavedMealIngredient> ingredients;
+  final int? recipeTotalWeight;
 
   SavedMeal({
     this.id,
@@ -41,6 +42,7 @@ class SavedMeal {
     required this.defaultMealName,
     DateTime? createdAt,
     this.ingredients = const [],
+    this.recipeTotalWeight,
   }) : createdAt = createdAt ?? DateTime.now();
 
   int get totalQuantity =>
@@ -51,4 +53,6 @@ class SavedMeal {
     (sum, ingredient) =>
         sum + (ingredient.food.caloriesPer100g * ingredient.quantity) / 100.0,
   );
+
+  bool get isRecipe => recipeTotalWeight != null && recipeTotalWeight! > 0;
 }

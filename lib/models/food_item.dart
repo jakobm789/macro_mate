@@ -11,6 +11,8 @@ class FoodItem {
   final double proteinPer100g;
   final DateTime createdAt;
   final int lastUsedQuantity;
+  final String source;
+  final bool isVerified;
 
   FoodItem({
     this.id,
@@ -24,6 +26,8 @@ class FoodItem {
     required this.proteinPer100g,
     DateTime? createdAt,
     this.lastUsedQuantity = 100,
+    this.source = 'own',
+    this.isVerified = false,
   }) : createdAt = createdAt ?? DateTime.now();
 
   FoodItem copyWith({
@@ -38,12 +42,14 @@ class FoodItem {
     double? proteinPer100g,
     DateTime? createdAt,
     int? lastUsedQuantity,
+    String? source,
+    bool? isVerified,
   }) {
     return FoodItem(
       id: id ?? this.id,
       name: name ?? this.name,
       brand: brand ?? this.brand,
-      barcode: barcode?.toLowerCase(),
+      barcode: barcode != null ? barcode.toLowerCase() : this.barcode,
       caloriesPer100g: caloriesPer100g ?? this.caloriesPer100g,
       fatPer100g: fatPer100g ?? this.fatPer100g,
       carbsPer100g: carbsPer100g ?? this.carbsPer100g,
@@ -51,6 +57,8 @@ class FoodItem {
       proteinPer100g: proteinPer100g ?? this.proteinPer100g,
       createdAt: createdAt ?? this.createdAt,
       lastUsedQuantity: lastUsedQuantity ?? this.lastUsedQuantity,
+      source: source ?? this.source,
+      isVerified: isVerified ?? this.isVerified,
     );
   }
 
@@ -67,6 +75,8 @@ class FoodItem {
       proteinPer100g: json['protein_per_100g'].toDouble(),
       createdAt: DateTime.parse(json['created_at']),
       lastUsedQuantity: json['last_used_quantity'] ?? 100,
+      source: json['source'] ?? 'own',
+      isVerified: json['is_verified'] == true || json['is_verified'] == 1,
     );
   }
 
@@ -83,6 +93,8 @@ class FoodItem {
       'protein_per_100g': proteinPer100g,
       'created_at': createdAt.toIso8601String(),
       'last_used_quantity': lastUsedQuantity,
+      'source': source,
+      'is_verified': isVerified ? 1 : 0,
     };
   }
 
@@ -99,6 +111,8 @@ class FoodItem {
       proteinPer100g: map['protein_per_100g'].toDouble(),
       createdAt: DateTime.parse(map['created_at']),
       lastUsedQuantity: map['last_used_quantity'] ?? 100,
+      source: map['source'] ?? 'own',
+      isVerified: map['is_verified'] == true || map['is_verified'] == 1,
     );
   }
 
@@ -115,6 +129,8 @@ class FoodItem {
       'protein_per_100g': proteinPer100g,
       'created_at': createdAt.toIso8601String(),
       'last_used_quantity': lastUsedQuantity,
+      'source': source,
+      'is_verified': isVerified ? 1 : 0,
     };
   }
 }
