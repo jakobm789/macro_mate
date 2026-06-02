@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'dart:math';
@@ -1569,7 +1570,7 @@ class AppState extends ChangeNotifier {
       proteinPerKg: proteinPerKg,
       targetWeight: targetWeight,
       targetDate: targetDate?.toIso8601String(),
-      targetWeeklyChange: targetWeeklyChange,
+      targetWeeklyChange: this.targetWeeklyChange,
     );
     await _updateMacroWidget();
     notifyListeners();

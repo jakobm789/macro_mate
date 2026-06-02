@@ -234,7 +234,6 @@ class _WeightPageState extends State<WeightPage> {
 
   @override
   Widget build(BuildContext context) {
-    final appState = Provider.of<AppState>(context);
     final spots = _generateSpotsForRange(context);
     final entries = _getEntriesForRange(context);
 
