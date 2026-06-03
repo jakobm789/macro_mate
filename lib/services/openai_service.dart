@@ -206,7 +206,7 @@ class OpenAIService {
               'model': _visionModel,
               'messages': messages,
               'response_format': {'type': 'json_object'},
-              'max_tokens': 500,
+              'max_completion_tokens': 500,
               'temperature': 0.3,
             }),
           )

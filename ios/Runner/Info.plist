@@ -51,5 +51,7 @@
 	<string>Wir benötigen Zugriff auf dein Mikrofon für die Spracheingabe.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Wir benötigen Zugriff auf deine Fotomediathek, um Mahlzeiten-Bilder auszuwählen.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Wir benötigen Zugriff auf die Spracherkennung, um gesprochene Beschreibungen in Text umzuwandeln.</string>
 </dict>
 </plist>

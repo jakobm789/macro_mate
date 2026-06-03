@@ -5,8 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../models/ai_food_analysis_state.dart';
 import '../models/app_state.dart';
@@ -19,7 +18,7 @@ import '../services/openai_service.dart';
 /// 1. Nur Foto (Kamera oder Galerie)
 /// 2. Foto + Textbeschreibung
 /// 3. Nur Text
-/// 4. Sprachaufnahme → Whisper-Transkription → Text-Analyse
+/// 4. Sprachaufnahme → Lokale Spracherkennung → Text-Analyse
 class AiFoodSheet extends StatefulWidget {
   final String mealName;
 
@@ -34,7 +33,8 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   // --- Services ---
   OpenAIService? _openAiService;
   final ImagePicker _imagePicker = ImagePicker();
-  final AudioRecorder _audioRecorder = AudioRecorder();
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _speechInitialized = false;
 
   // --- State ---
   AiFoodAnalysisState _analysisState = AiFoodAnalysisState.idle();
@@ -57,13 +57,13 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   // --- Animation ---
   late AnimationController _pulseController;
 
-  // --- Farben ---
-  static const _accentColor = Color(0xFF64FFDA);
-  static const _recordingColor = Color(0xFFFF5252);
-  static const _successColor = Color(0xFF69F0AE);
-  static const _warningColor = Color(0xFFFFD740);
-  static const _errorColor = Color(0xFFFF5252);
-  static const _cardColor = Color(0xFF2A2A2A);
+  // --- Farben (Dynamische Theme-Zuweisung) ---
+  Color get _accentColor => Theme.of(context).colorScheme.primary;
+  Color get _recordingColor => const Color(0xFFFF5252);
+  Color get _successColor => const Color(0xFF4CAF50);
+  Color get _warningColor => const Color(0xFFFF9800);
+  Color get _errorColor => const Color(0xFFFF5252);
+  Color get _cardColor => Theme.of(context).colorScheme.surfaceContainerHighest;
 
   @override
   void initState() {
@@ -74,10 +74,45 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     } catch (e) {
       _analysisState = AiFoodAnalysisState.error(_humanReadableError(e));
     }
+    _initSpeech();
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     );
+  }
+
+  Future<void> _initSpeech() async {
+    try {
+      final available = await _speech.initialize(
+        onStatus: (val) {
+          debugPrint('[Speech] onStatus: $val');
+          if (val == 'done' || val == 'notListening') {
+            if (_analysisState.status == AiFoodAnalysisStatus.recording) {
+              _stopRecording();
+            }
+          }
+        },
+        onError: (val) {
+          debugPrint('[Speech] onError: $val');
+          if (_analysisState.status == AiFoodAnalysisStatus.recording) {
+            setState(() {
+              _analysisState = AiFoodAnalysisState.error(
+                'Spracherkennungsfehler: ${val.errorMsg} (permanent: ${val.permanent})',
+              );
+            });
+            _recordingTimer?.cancel();
+            _pulseController.stop();
+          }
+        },
+      );
+      if (mounted) {
+        setState(() {
+          _speechInitialized = available;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Speech] Init error: $e');
+    }
   }
 
   @override
@@ -94,7 +129,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     _sugarController.dispose();
     _pulseController.dispose();
     _openAiService?.dispose();
-    _audioRecorder.dispose();
+    _speech.stop();
     super.dispose();
   }
 
@@ -129,23 +164,18 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   // ──────────────────────────────────────────────
-  // Audio-Aufnahme
+  // Spracherkennung (On-Device Speech-to-Text)
   // ──────────────────────────────────────────────
 
   Future<void> _startRecording() async {
     try {
-      if (!await _audioRecorder.hasPermission()) {
-        _showSnackBar('Mikrofon-Berechtigung nicht erteilt.');
-        return;
+      if (!_speechInitialized) {
+        await _initSpeech();
+        if (!_speechInitialized) {
+          _showSnackBar('Spracherkennung konnte auf diesem Gerät nicht initialisiert werden.');
+          return;
+        }
       }
-
-      final dir = await getTemporaryDirectory();
-      final path = '${dir.path}/ai_food_recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
-
-      await _audioRecorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc),
-        path: path,
-      );
 
       _recordingDuration = Duration.zero;
 
@@ -163,8 +193,21 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       setState(() {
         _analysisState = AiFoodAnalysisState.recording(Duration.zero);
       });
+
+      await _speech.listen(
+        onResult: (result) {
+          if (mounted) {
+            setState(() {
+              _descriptionController.text = result.recognizedWords;
+            });
+          }
+        },
+        localeId: 'de_DE',
+        listenMode: stt.ListenMode.dictation,
+        cancelOnError: true,
+      );
     } catch (e) {
-      _showSnackBar('Fehler beim Starten der Aufnahme: $e');
+      _showSnackBar('Fehler beim Starten der Spracherkennung: $e');
     }
   }
 
@@ -174,32 +217,17 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     _pulseController.reset();
 
     try {
-      final path = await _audioRecorder.stop();
-      if (path == null || !mounted) return;
-
-      // Automatisch transkribieren
       setState(() {
         _analysisState = AiFoodAnalysisState.transcribing();
       });
 
-      try {
-        if (_openAiService == null) {
-          throw OpenAIAuthenticationError(
-            'OPENAI_API_KEY ist nicht gesetzt. Bitte als --dart-define übergeben.',
-          );
-        }
-        final text = await _openAiService!.transcribeAudio(path);
-        if (!mounted) return;
+      await _speech.stop();
+      await Future.delayed(const Duration(milliseconds: 500));
 
+      if (mounted) {
         setState(() {
-          _descriptionController.text = text;
-          _analysisState = AiFoodAnalysisState.idle(transcribedText: text);
-        });
-      } catch (e) {
-        if (!mounted) return;
-        setState(() {
-          _analysisState = AiFoodAnalysisState.error(
-            _humanReadableError(e),
+          _analysisState = AiFoodAnalysisState.idle(
+            transcribedText: _descriptionController.text,
           );
         });
       }
@@ -207,7 +235,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       if (mounted) {
         setState(() {
           _analysisState = AiFoodAnalysisState.error(
-            'Fehler beim Stoppen der Aufnahme: $e',
+            'Fehler beim Stoppen der Spracherkennung: $e',
           );
         });
       }
@@ -220,7 +248,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     _pulseController.reset();
 
     try {
-      await _audioRecorder.stop();
+      await _speech.cancel();
     } catch (_) {}
 
     if (mounted) {
@@ -357,7 +385,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     } else if (error is OpenAIRateLimitError) {
       return 'Zu viele Anfragen. Bitte warte einen Moment.';
     } else if (error is OpenAIServerError) {
-      return 'Server nicht erreichbar. Bitte prüfe deine Internetverbindung.';
+      return 'API-Fehler (${error.statusCode}): ${error.message}';
     } else if (error is OpenAIJsonParseError) {
       return 'Die Antwort konnte nicht verarbeitet werden. Bitte versuche es erneut.';
     } else if (error is OpenAIInputValidationError) {
@@ -391,6 +419,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -410,7 +439,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: Colors.white24,
+                    color: theme.colorScheme.onSurfaceVariant.withOpacity(0.4),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -426,7 +455,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -471,6 +500,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   // ──────────────────────────────────────────────
 
   Widget _buildImageSection() {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -482,12 +512,12 @@ class _AiFoodSheetState extends State<AiFoodSheet>
         children: [
           Row(
             children: [
-              Icon(Icons.photo_camera, color: Colors.white70, size: 20),
+              Icon(Icons.photo_camera, color: theme.colorScheme.onSurfaceVariant, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Foto',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: theme.colorScheme.onSurfaceVariant,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -516,11 +546,11 @@ class _AiFoodSheetState extends State<AiFoodSheet>
                     onTap: _removeImage,
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: Colors.black54,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.close,
                         color: Colors.white,
                         size: 20,
@@ -559,30 +589,24 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   Widget _buildDescriptionField() {
+    final theme = Theme.of(context);
     return Semantics(
       label: 'Textbeschreibung des Lebensmittels',
       child: TextField(
         controller: _descriptionController,
         maxLines: 2,
         maxLength: 1000,
-        style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           labelText: 'Beschreibung (optional)',
           hintText: 'z.B. 200g Spaghetti Bolognese',
-          hintStyle: TextStyle(color: Colors.white30),
-          labelStyle: TextStyle(color: Colors.white70),
-          prefixIcon: Icon(Icons.edit_note, color: Colors.white54),
-          filled: true,
-          fillColor: _cardColor,
+          prefixIcon: const Icon(Icons.edit_note),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: _accentColor, width: 1.5),
+            borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
           ),
-          counterStyle: TextStyle(color: Colors.white38),
         ),
       ),
     );
@@ -593,6 +617,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
         _analysisState.status == AiFoodAnalysisStatus.recording;
     final isTranscribing =
         _analysisState.status == AiFoodAnalysisStatus.transcribing;
+    final theme = Theme.of(context);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -604,12 +629,12 @@ class _AiFoodSheetState extends State<AiFoodSheet>
         children: [
           Row(
             children: [
-              Icon(Icons.mic, color: Colors.white70, size: 20),
+              Icon(Icons.mic, color: theme.colorScheme.onSurfaceVariant, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Spracheingabe',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: theme.colorScheme.onSurfaceVariant,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -635,7 +660,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
                   style: TextStyle(
                     color: _recordingColor,
                     fontWeight: FontWeight.w600,
-                    fontFeatures: [FontFeature.tabularFigures()],
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ],
@@ -697,6 +722,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   Widget _buildAnalyzeButton() {
     final hasInput = _selectedImage != null ||
         _descriptionController.text.trim().isNotEmpty;
+    final theme = Theme.of(context);
 
     return Semantics(
       label: 'Lebensmittel analysieren',
@@ -709,16 +735,16 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           height: 52,
           child: ElevatedButton.icon(
             onPressed: hasInput ? _startAnalysis : null,
-            icon: Icon(Icons.search, size: 20),
-            label: Text(
+            icon: const Icon(Icons.search, size: 20),
+            label: const Text(
               'Analysieren',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: _accentColor,
-              foregroundColor: Colors.black,
-              disabledBackgroundColor: Colors.white12,
-              disabledForegroundColor: Colors.white38,
+              foregroundColor: theme.colorScheme.onPrimary,
+              disabledBackgroundColor: theme.colorScheme.onSurface.withOpacity(0.12),
+              disabledForegroundColor: theme.colorScheme.onSurface.withOpacity(0.38),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -760,6 +786,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   Widget _buildAnalyzingState() {
+    final theme = Theme.of(context);
     return Container(
       key: const ValueKey('analyzing'),
       padding: const EdgeInsets.symmetric(vertical: 32),
@@ -777,14 +804,14 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           Text(
             'Bild/Text wird analysiert...',
             style: TextStyle(
-              color: Colors.white70,
+              color: theme.colorScheme.onSurface,
               fontSize: 16,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Dies kann einige Sekunden dauern',
-            style: TextStyle(color: Colors.white38, fontSize: 13),
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
           ),
         ],
       ),
@@ -792,6 +819,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   Widget _buildErrorState() {
+    final theme = Theme.of(context);
     return Container(
       key: const ValueKey('error'),
       padding: const EdgeInsets.all(16),
@@ -808,15 +836,15 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           Text(
             _analysisState.errorMessage ?? 'Ein Fehler ist aufgetreten.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white, fontSize: 14),
+            style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14),
           ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: _resetToIdle,
-              icon: Icon(Icons.refresh, size: 18),
-              label: Text('Erneut versuchen'),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Erneut versuchen'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: _errorColor,
                 side: BorderSide(color: _errorColor.withOpacity(0.5)),
@@ -833,6 +861,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   Widget _buildResultCard({required bool isLowConfidence}) {
+    final theme = Theme.of(context);
     // Live-Vorschau berechnen
     final grams = int.tryParse(_quantityController.text) ?? 0;
     final calPer100 = int.tryParse(_caloriesController.text) ?? 0;
@@ -843,7 +872,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
-        color: _cardColor,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isLowConfidence
@@ -902,7 +931,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           // Mahlzeit-Dropdown
           DropdownButtonFormField<String>(
             value: _selectedMeal,
-            dropdownColor: const Color(0xFF3A3A3A),
+            dropdownColor: theme.cardColor,
             decoration: _inputDecoration('Mahlzeit'),
             items: ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks']
                 .map((meal) => DropdownMenuItem(
@@ -913,14 +942,12 @@ class _AiFoodSheetState extends State<AiFoodSheet>
             onChanged: (value) {
               if (value != null) setState(() => _selectedMeal = value);
             },
-            style: TextStyle(color: Colors.white),
           ),
           const SizedBox(height: 12),
 
           // Name
           TextFormField(
             controller: _nameController,
-            style: TextStyle(color: Colors.white),
             decoration: _inputDecoration('Name'),
           ),
           const SizedBox(height: 12),
@@ -928,7 +955,6 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           // Marke
           TextFormField(
             controller: _brandController,
-            style: TextStyle(color: Colors.white),
             decoration: _inputDecoration('Marke'),
           ),
           const SizedBox(height: 12),
@@ -936,7 +962,6 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           // Menge
           TextFormField(
             controller: _quantityController,
-            style: TextStyle(color: Colors.white),
             keyboardType: TextInputType.number,
             decoration: _inputDecoration('Geschätzte Menge (g)'),
             onChanged: (_) => setState(() {}),
@@ -947,7 +972,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           Text(
             'Nährwerte pro 100g',
             style: TextStyle(
-              color: Colors.white54,
+              color: theme.colorScheme.onSurfaceVariant,
               fontSize: 12,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.5,
@@ -961,7 +986,6 @@ class _AiFoodSheetState extends State<AiFoodSheet>
               Expanded(
                 child: TextFormField(
                   controller: _caloriesController,
-                  style: TextStyle(color: Colors.white),
                   keyboardType: TextInputType.number,
                   decoration: _inputDecoration('Kalorien (kcal)'),
                   onChanged: (_) => setState(() {}),
@@ -971,9 +995,8 @@ class _AiFoodSheetState extends State<AiFoodSheet>
               Expanded(
                 child: TextFormField(
                   controller: _proteinController,
-                  style: TextStyle(color: Colors.white),
                   keyboardType:
-                      TextInputType.numberWithOptions(decimal: true),
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration: _inputDecoration('Protein (g)'),
                 ),
               ),
@@ -985,9 +1008,8 @@ class _AiFoodSheetState extends State<AiFoodSheet>
               Expanded(
                 child: TextFormField(
                   controller: _carbsController,
-                  style: TextStyle(color: Colors.white),
                   keyboardType:
-                      TextInputType.numberWithOptions(decimal: true),
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration: _inputDecoration('Kohlenhydrate (g)'),
                 ),
               ),
@@ -995,9 +1017,8 @@ class _AiFoodSheetState extends State<AiFoodSheet>
               Expanded(
                 child: TextFormField(
                   controller: _fatController,
-                  style: TextStyle(color: Colors.white),
                   keyboardType:
-                      TextInputType.numberWithOptions(decimal: true),
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration: _inputDecoration('Fett (g)'),
                 ),
               ),
@@ -1006,9 +1027,8 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           const SizedBox(height: 12),
           TextFormField(
             controller: _sugarController,
-            style: TextStyle(color: Colors.white),
             keyboardType:
-                TextInputType.numberWithOptions(decimal: true),
+                const TextInputType.numberWithOptions(decimal: true),
             decoration: _inputDecoration('Zucker (g)'),
           ),
           const SizedBox(height: 16),
@@ -1018,13 +1038,13 @@ class _AiFoodSheetState extends State<AiFoodSheet>
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: theme.colorScheme.onSurface.withOpacity(0.05),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               'Vorschau: ${previewCalories.toStringAsFixed(0)} kcal bei ${_quantityController.text} g',
               style: TextStyle(
-                color: Colors.white54,
+                color: theme.colorScheme.onSurfaceVariant,
                 fontSize: 13,
               ),
             ),
@@ -1037,7 +1057,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
             Text(
               _analysisState.result!.notes!,
               style: TextStyle(
-                color: Colors.white38,
+                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
                 fontSize: 12,
                 fontStyle: FontStyle.italic,
               ),
@@ -1052,14 +1072,14 @@ class _AiFoodSheetState extends State<AiFoodSheet>
             height: 52,
             child: ElevatedButton.icon(
               onPressed: _addToMeal,
-              icon: Icon(Icons.check, size: 20),
-              label: Text(
+              icon: const Icon(Icons.check, size: 20),
+              label: const Text(
                 'Zur Mahlzeit hinzufügen',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _accentColor,
-                foregroundColor: Colors.black,
+                foregroundColor: theme.colorScheme.onPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -1076,7 +1096,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
               onPressed: _resetToIdle,
               child: Text(
                 'Neuer Versuch',
-                style: TextStyle(color: Colors.white54),
+                style: TextStyle(color: theme.colorScheme.secondary),
               ),
             ),
           ),
@@ -1095,6 +1115,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     required VoidCallback onTap,
     Color? color,
   }) {
+    final theme = Theme.of(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1103,18 +1124,18 @@ class _AiFoodSheetState extends State<AiFoodSheet>
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            border: Border.all(color: color?.withOpacity(0.4) ?? Colors.white24),
+            border: Border.all(color: color?.withOpacity(0.4) ?? theme.colorScheme.outline.withOpacity(0.3)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color ?? Colors.white70, size: 20),
+              Icon(icon, color: color ?? theme.colorScheme.onSurfaceVariant, size: 20),
               const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
-                  color: color ?? Colors.white70,
+                  color: color ?? theme.colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -1126,6 +1147,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   Widget _buildProcessingIndicator(String text) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -1142,7 +1164,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           const SizedBox(width: 10),
           Text(
             text,
-            style: TextStyle(color: Colors.white54, fontSize: 14),
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 14),
           ),
         ],
       ),
@@ -1150,19 +1172,16 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   InputDecoration _inputDecoration(String label) {
+    final theme = Theme.of(context);
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: Colors.white54, fontSize: 13),
-      filled: true,
-      fillColor: Colors.white.withOpacity(0.05),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: _accentColor, width: 1),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
       ),
       isDense: true,
     );

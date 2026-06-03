@@ -40,9 +40,10 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           missing=0
-          for var in POSTGRES_HOST POSTGRES_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD SENDER_EMAIL BREVO_API_KEY; do
+          for var in POSTGRES_HOST POSTGRES_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD SENDER_EMAIL BREVO_API_KEY OPENAI_API_KEY; do
             if [ -z "${!var}" ]; then
               echo "Missing required secret: $var" >&2
               missing=1
@@ -58,7 +59,8 @@ jobs:
             --dart-define=POSTGRES_USER=$POSTGRES_USER \
             --dart-define=POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
             --dart-define=SENDER_EMAIL=$SENDER_EMAIL \
-            --dart-define=BREVO_API_KEY=$BREVO_API_KEY
+            --dart-define=BREVO_API_KEY=$BREVO_API_KEY \
+            --dart-define=OPENAI_API_KEY=$OPENAI_API_KEY
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
