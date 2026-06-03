@@ -24,6 +24,13 @@ jobs:
           cache: true
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test
+        run: flutter test
+
       - name: Build APK
         env:
           POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
