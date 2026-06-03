@@ -7,6 +7,7 @@ import 'pages/home_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/login_page.dart';
 import 'pages/weight_page.dart';
+import 'pages/weekly_dashboard_page.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -92,7 +93,7 @@ class AppDiagnosticsBanner extends StatelessWidget {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final initializationSettingsAndroid = AndroidInitializationSettings(
-    '@mipmap/ic_launcher',
+    '@mipmap/launcher_icon',
   );
   final initializationSettingsIOS = DarwinInitializationSettings();
   final initializationSettings = InitializationSettings(
@@ -100,20 +101,11 @@ void main() async {
     iOS: initializationSettingsIOS,
   );
   await notificationsPlugin.initialize(initializationSettings);
-  await _checkNotificationPermission();
   String initialFilePath = PlatformDispatcher.instance.defaultRouteName;
   final appState = AppState();
-  runApp(MaterialApp(home: const LoadingScreen()));
-  await appState.initializeCompletely();
-  try {
-    await appState.scheduleAllNotifications().timeout(
-          const Duration(seconds: 8),
-        );
-  } catch (e, st) {
-    appState.reportUiError('scheduleAllNotifications', e, st);
-  }
+  
   runApp(
-    ChangeNotifierProvider.value(
+    ChangeNotifierProvider<AppState>.value(
       value: appState,
       child: MyApp(initialFilePath: initialFilePath),
     ),
@@ -144,6 +136,8 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   bool _importAttempted = false;
+  bool _initializationStarted = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -151,6 +145,34 @@ class _MyAppState extends State<MyApp> {
       _importAttempted = true;
       _handleIncomingFile();
     }
+    if (!_initializationStarted) {
+      _initializationStarted = true;
+      _initialize();
+    }
+  }
+
+  Future<void> _initialize() async {
+    final appState = Provider.of<AppState>(context, listen: false);
+    // Yield to let Flutter draw the first frame (LoadingScreen) and remove the native splash screen
+    await Future.delayed(Duration.zero);
+    try {
+      await _checkNotificationPermission();
+    } catch (e, st) {
+      appState.reportUiError('checkNotificationPermission', e, st);
+    }
+    try {
+      await appState.initializeCompletely();
+    } catch (e, st) {
+      appState.reportUiError('initializeCompletely', e, st);
+    }
+    try {
+      await appState.scheduleAllNotifications().timeout(
+            const Duration(seconds: 8),
+          );
+    } catch (e, st) {
+      appState.reportUiError('scheduleAllNotifications', e, st);
+    }
+    appState.markInitialized();
   }
 
   Future<void> _handleIncomingFile() async {
@@ -199,7 +221,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, appState, child) {
-        if (!appState.isLoggedIn) {
+        if (!appState.isInitialized) {
           return MaterialApp(
             title: 'MacroMate',
             theme: ThemeData(
@@ -217,6 +239,40 @@ class _MyAppState extends State<MyApp> {
               useMaterial3: true,
             ),
             themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            home: const LoadingScreen(),
+          );
+        }
+        
+        if (!appState.isLoggedIn) {
+          return MaterialApp(
+            title: 'MacroMate',
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.lightBlueAccent,
+                brightness: Brightness.light,
+              ),
+              useMaterial3: true,
+              pageTransitionsTheme: const PageTransitionsTheme(
+                builders: {
+                  TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+                  TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                },
+              ),
+            ),
+            darkTheme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.lightBlueAccent,
+                brightness: Brightness.dark,
+              ),
+              useMaterial3: true,
+              pageTransitionsTheme: const PageTransitionsTheme(
+                builders: {
+                  TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+                  TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                },
+              ),
+            ),
+            themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
             home: const AppDiagnosticsBanner(child: LoginPage()),
           );
         }
@@ -228,6 +284,12 @@ class _MyAppState extends State<MyApp> {
               brightness: Brightness.light,
             ),
             useMaterial3: true,
+            pageTransitionsTheme: const PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+              },
+            ),
           ),
           darkTheme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
@@ -235,6 +297,12 @@ class _MyAppState extends State<MyApp> {
               brightness: Brightness.dark,
             ),
             useMaterial3: true,
+            pageTransitionsTheme: const PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+              },
+            ),
           ),
           themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           home: const AppDiagnosticsBanner(
@@ -245,6 +313,8 @@ class _MyAppState extends State<MyApp> {
                 const AppDiagnosticsBanner(child: SettingsPage()),
             '/weight': (context) =>
                 const AppDiagnosticsBanner(child: WeightPage()),
+            '/weekly_dashboard': (context) =>
+                const AppDiagnosticsBanner(child: WeeklyDashboardPage()),
           },
         );
       },

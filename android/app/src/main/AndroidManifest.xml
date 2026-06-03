@@ -29,6 +29,11 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
+        <!-- Disable Impeller to fallback to Skia and prevent release-mode Vulkan/shader driver deadlocks/black screen -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
+
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
             android:exported="true"/>

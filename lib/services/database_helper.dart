@@ -19,7 +19,7 @@ class DatabaseHelper {
     return _database!;
   }
 
-  static const int _dbVersion = 23;
+  static const int _dbVersion = 24;
   Future<Database> _initDatabase() async {
     try {
       Directory documentsDirectory = await getApplicationDocumentsDirectory();
@@ -44,6 +44,7 @@ class DatabaseHelper {
     );
     await _createSavedMealTables(db);
     await _createFavoriteTables(db);
+    await _createFoodUsageTable(db);
     await _createOfflineQueueTable(db);
     await db.execute(
       'CREATE TABLE Settings(id INTEGER PRIMARY KEY AUTOINCREMENT, dark_mode INTEGER NOT NULL DEFAULT 0, reminder_weigh_enabled INTEGER NOT NULL DEFAULT 0, reminder_weigh_time TEXT NOT NULL DEFAULT \'08:00\', reminder_weigh_time2 TEXT NOT NULL DEFAULT \'09:00\', reminder_supplement_enabled INTEGER NOT NULL DEFAULT 0, reminder_supplement_time TEXT NOT NULL DEFAULT \'10:00\', reminder_supplement_time2 TEXT NOT NULL DEFAULT \'11:00\', reminder_meals_enabled INTEGER NOT NULL DEFAULT 0, reminder_breakfast TEXT NOT NULL DEFAULT \'07:00\', reminder_lunch TEXT NOT NULL DEFAULT \'12:30\', reminder_dinner TEXT NOT NULL DEFAULT \'19:00\')',
@@ -138,6 +139,9 @@ class DatabaseHelper {
         );
       } catch (_) {}
     }
+    if (oldVersion < 24) {
+      await _createFoodUsageTable(db);
+    }
   }
 
   Future<void> _createSavedMealTables(Database db) async {
@@ -152,6 +156,12 @@ class DatabaseHelper {
   Future<void> _createFavoriteTables(Database db) async {
     await db.execute(
       'CREATE TABLE IF NOT EXISTS FavoriteFoods(food_id INTEGER PRIMARY KEY, created_at TEXT NOT NULL)',
+    );
+  }
+
+  Future<void> _createFoodUsageTable(Database db) async {
+    await db.execute(
+      'CREATE TABLE IF NOT EXISTS FoodUsage(food_id INTEGER PRIMARY KEY, last_used_quantity INTEGER NOT NULL, last_used_at TEXT NOT NULL, use_count INTEGER NOT NULL DEFAULT 0)',
     );
   }
 
@@ -180,9 +190,8 @@ class DatabaseHelper {
   }) async {
     final db = await database;
     final existingRows = await db.query('Goals', limit: 1);
-    final existing = existingRows.isNotEmpty
-        ? existingRows.first
-        : <String, dynamic>{};
+    final existing =
+        existingRows.isNotEmpty ? existingRows.first : <String, dynamic>{};
     final values = {
       ...existing,
       'daily_calories': dailyCalories,
@@ -285,12 +294,15 @@ class DatabaseHelper {
     int quantity,
   ) async {
     final db = await database;
-    return await db.insert('ConsumedFoods', {
-      'date': DateFormat('yyyy-MM-dd').format(date),
-      'meal_name': mealName,
-      'food_id': foodId,
-      'quantity': quantity,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+        'ConsumedFoods',
+        {
+          'date': DateFormat('yyyy-MM-dd').format(date),
+          'meal_name': mealName,
+          'food_id': foodId,
+          'quantity': quantity,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<List<ConsumedFoodItem>> getConsumedFoodsBetween(
@@ -485,10 +497,13 @@ class DatabaseHelper {
   Future<void> setFavoriteFood(int foodId, bool isFavorite) async {
     final db = await database;
     if (isFavorite) {
-      await db.insert('FavoriteFoods', {
-        'food_id': foodId,
-        'created_at': DateTime.now().toIso8601String(),
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      await db.insert(
+          'FavoriteFoods',
+          {
+            'food_id': foodId,
+            'created_at': DateTime.now().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
     } else {
       await db.delete(
         'FavoriteFoods',
@@ -502,6 +517,54 @@ class DatabaseHelper {
     final db = await database;
     final rows = await db.query('FavoriteFoods', orderBy: 'created_at DESC');
     return rows.map((row) => row['food_id'] as int).toSet();
+  }
+
+  Future<void> upsertFoodUsage(int foodId, int quantity) async {
+    final db = await database;
+    final existing = await db.query(
+      'FoodUsage',
+      columns: ['use_count'],
+      where: 'food_id = ?',
+      whereArgs: [foodId],
+      limit: 1,
+    );
+    final useCount =
+        existing.isEmpty ? 1 : (existing.first['use_count'] as int? ?? 0) + 1;
+    await db.insert(
+        'FoodUsage',
+        {
+          'food_id': foodId,
+          'last_used_quantity': quantity,
+          'last_used_at': DateTime.now().toIso8601String(),
+          'use_count': useCount,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<Map<int, int>> getFoodUsageQuantities(Iterable<int> foodIds) async {
+    final ids = foodIds.toSet().toList();
+    if (ids.isEmpty) return {};
+    final db = await database;
+    final placeholders = List.filled(ids.length, '?').join(',');
+    final rows = await db.query(
+      'FoodUsage',
+      columns: ['food_id', 'last_used_quantity'],
+      where: 'food_id IN ($placeholders)',
+      whereArgs: ids,
+    );
+    return {
+      for (final row in rows)
+        row['food_id'] as int: row['last_used_quantity'] as int,
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> getRecentFoodUsage(int limit) async {
+    final db = await database;
+    return await db.query(
+      'FoodUsage',
+      orderBy: 'last_used_at DESC',
+      limit: limit,
+    );
   }
 
   Future<void> enqueueOfflineAction(
@@ -542,9 +605,12 @@ class DatabaseHelper {
 
   Future<void> saveDarkMode(bool isDarkMode) async {
     final db = await database;
-    await db.update('Settings', {
-      'dark_mode': isDarkMode ? 1 : 0,
-    }, where: 'id = 1');
+    await db.update(
+        'Settings',
+        {
+          'dark_mode': isDarkMode ? 1 : 0,
+        },
+        where: 'id = 1');
   }
 
   Future<bool> getDarkMode() async {
@@ -573,18 +639,21 @@ class DatabaseHelper {
     required String reminderDinner,
   }) async {
     final db = await database;
-    await db.update('Settings', {
-      'reminder_weigh_enabled': reminderWeighEnabled ? 1 : 0,
-      'reminder_weigh_time': reminderWeighTime,
-      'reminder_weigh_time2': reminderWeighTime2,
-      'reminder_supplement_enabled': reminderSupplementEnabled ? 1 : 0,
-      'reminder_supplement_time': reminderSupplementTime,
-      'reminder_supplement_time2': reminderSupplementTime2,
-      'reminder_meals_enabled': reminderMealsEnabled ? 1 : 0,
-      'reminder_breakfast': reminderBreakfast,
-      'reminder_lunch': reminderLunch,
-      'reminder_dinner': reminderDinner,
-    }, where: 'id = 1');
+    await db.update(
+        'Settings',
+        {
+          'reminder_weigh_enabled': reminderWeighEnabled ? 1 : 0,
+          'reminder_weigh_time': reminderWeighTime,
+          'reminder_weigh_time2': reminderWeighTime2,
+          'reminder_supplement_enabled': reminderSupplementEnabled ? 1 : 0,
+          'reminder_supplement_time': reminderSupplementTime,
+          'reminder_supplement_time2': reminderSupplementTime2,
+          'reminder_meals_enabled': reminderMealsEnabled ? 1 : 0,
+          'reminder_breakfast': reminderBreakfast,
+          'reminder_lunch': reminderLunch,
+          'reminder_dinner': reminderDinner,
+        },
+        where: 'id = 1');
   }
 
   Future<Map<String, dynamic>?> getNotificationSettings() async {
@@ -756,10 +825,13 @@ class DatabaseHelper {
 
   Future<int> insertWeightEntry(DateTime date, double weight) async {
     final db = await database;
-    return await db.insert('WeightEntries', {
-      'date': DateFormat('yyyy-MM-dd').format(date),
-      'weight': weight,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+        'WeightEntries',
+        {
+          'date': DateFormat('yyyy-MM-dd').format(date),
+          'weight': weight,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> updateWeightEntry(int id, DateTime date, double weight) async {

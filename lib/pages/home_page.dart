@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../models/app_state.dart';
 import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
@@ -424,11 +427,11 @@ class _MyHomePageState extends State<MyHomePage> {
                                                   .map(
                                                     (factor) =>
                                                         PopupMenuItem<double>(
-                                                          value: factor,
-                                                          child: Text(
-                                                            '${factor}x',
-                                                          ),
-                                                        ),
+                                                      value: factor,
+                                                      child: Text(
+                                                        '${factor}x',
+                                                      ),
+                                                    ),
                                                   )
                                                   .toList(),
                                         ),
@@ -438,50 +441,47 @@ class _MyHomePageState extends State<MyHomePage> {
                                             onPressed: () async {
                                               final controller =
                                                   TextEditingController();
-                                              final grams = await showDialog<int>(
+                                              final grams =
+                                                  await showDialog<int>(
                                                 context: context,
                                                 builder: (dialogContext) =>
                                                     AlertDialog(
-                                                      title: Text(
-                                                        'Portion tracken',
-                                                      ),
-                                                      content: TextField(
-                                                        controller: controller,
-                                                        keyboardType:
-                                                            TextInputType
-                                                                .number,
-                                                        decoration:
-                                                            InputDecoration(
-                                                              labelText:
-                                                                  'Portion',
-                                                              suffixText: 'g',
-                                                            ),
-                                                      ),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                dialogContext,
-                                                              ),
-                                                          child: Text(
-                                                            'Abbrechen',
-                                                          ),
-                                                        ),
-                                                        TextButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                dialogContext,
-                                                                int.tryParse(
-                                                                  controller
-                                                                      .text,
-                                                                ),
-                                                              ),
-                                                          child: Text(
-                                                            'Hinzufuegen',
-                                                          ),
-                                                        ),
-                                                      ],
+                                                  title: Text(
+                                                    'Portion tracken',
+                                                  ),
+                                                  content: TextField(
+                                                    controller: controller,
+                                                    keyboardType:
+                                                        TextInputType.number,
+                                                    decoration: InputDecoration(
+                                                      labelText: 'Portion',
+                                                      suffixText: 'g',
                                                     ),
+                                                  ),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                        dialogContext,
+                                                      ),
+                                                      child: Text(
+                                                        'Abbrechen',
+                                                      ),
+                                                    ),
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                        dialogContext,
+                                                        int.tryParse(
+                                                          controller.text,
+                                                        ),
+                                                      ),
+                                                      child: Text(
+                                                        'Hinzufuegen',
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               );
                                               controller.dispose();
                                               if (grams == null || grams <= 0) {
@@ -489,10 +489,10 @@ class _MyHomePageState extends State<MyHomePage> {
                                               }
                                               await appState
                                                   .addRecipePortionToDay(
-                                                    savedMeal,
-                                                    mealName,
-                                                    grams,
-                                                  );
+                                                savedMeal,
+                                                mealName,
+                                                grams,
+                                              );
                                               if (!mounted) return;
                                               Navigator.pop(context);
                                             },
@@ -502,8 +502,8 @@ class _MyHomePageState extends State<MyHomePage> {
                                           onPressed: savedMeal.id == null
                                               ? null
                                               : () => appState.deleteSavedMeal(
-                                                  savedMeal.id!,
-                                                ),
+                                                    savedMeal.id!,
+                                                  ),
                                         ),
                                       ],
                                     ),
@@ -545,8 +545,8 @@ class _MyHomePageState extends State<MyHomePage> {
     String mealName,
     List<ConsumedFoodItem> foods,
   ) async {
-    final controller = TextEditingController(text: mealName);
-    final recipeWeightController = TextEditingController();
+    var templateName = mealName;
+    var recipeWeightText = '';
     final result = await showDialog<({String name, int? recipeWeight})>(
       context: context,
       builder: (context) {
@@ -555,14 +555,15 @@ class _MyHomePageState extends State<MyHomePage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: controller,
+              TextFormField(
+                initialValue: templateName,
+                onChanged: (value) => templateName = value,
                 decoration: InputDecoration(labelText: 'Name'),
                 autofocus: true,
               ),
               SizedBox(height: 12),
-              TextField(
-                controller: recipeWeightController,
+              TextFormField(
+                onChanged: (value) => recipeWeightText = value,
                 decoration: InputDecoration(
                   labelText: 'Gesamtgewicht Rezept/Meal Prep (optional)',
                   suffixText: 'g',
@@ -579,8 +580,8 @@ class _MyHomePageState extends State<MyHomePage> {
             TextButton(
               onPressed: () {
                 Navigator.pop(context, (
-                  name: controller.text.trim(),
-                  recipeWeight: int.tryParse(recipeWeightController.text),
+                  name: templateName.trim(),
+                  recipeWeight: int.tryParse(recipeWeightText),
                 ));
               },
               child: Text('Speichern'),
@@ -589,8 +590,6 @@ class _MyHomePageState extends State<MyHomePage> {
         );
       },
     );
-    controller.dispose();
-    recipeWeightController.dispose();
     final name = result?.name;
     if (name == null || name.isEmpty) {
       return;
@@ -637,6 +636,77 @@ class _MyHomePageState extends State<MyHomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler beim Übernehmen von gestern: $e')),
       );
+    }
+  }
+
+  Future<void> _showMealQr(
+    BuildContext context,
+    AppState state,
+    String mealName,
+  ) async {
+    final payload = state.buildMealSharePayload(mealName);
+    final decoded = jsonDecode(payload) as Map<String, dynamic>;
+    final items = decoded['items'] as List<dynamic>;
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$mealName enthält keine teilbaren Einträge.')),
+      );
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$mealName teilen'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              QrImageView(
+                data: payload,
+                version: QrVersions.auto,
+                size: 240,
+                backgroundColor: Colors.white,
+              ),
+              SizedBox(height: 12),
+              Text(
+                '${items.length} Einträge. Auf dem anderen Gerät QR importieren.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Schließen'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _scanMealQr(
+    BuildContext context,
+    AppState state,
+    String mealName,
+  ) async {
+    try {
+      final result = await BarcodeScanner.scan();
+      if (!mounted || result.rawContent.trim().isEmpty) return;
+      final count = await state.importMealSharePayload(
+        result.rawContent,
+        mealName,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$count Einträge in $mealName importiert.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('QR-Import fehlgeschlagen: $e')));
     }
   }
 
@@ -708,73 +778,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  Widget _weeklySummaryCard(AppState state) {
-    return FutureBuilder<WeeklyNutritionSummary>(
-      future: state.calculateWeeklySummary(),
-      builder: (context, snapshot) {
-        final summary = snapshot.data;
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.calendar_view_week),
-                    SizedBox(width: 8),
-                    Text(
-                      'Woche',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    if (snapshot.connectionState == ConnectionState.waiting)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8.0),
-                        child: SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                if (summary == null)
-                  Text('Wochenwerte werden geladen...')
-                else
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 8,
-                    children: [
-                      Chip(
-                        label: Text(
-                          '${summary.averageCalories.toStringAsFixed(0)} kcal Ø',
-                        ),
-                      ),
-                      Chip(
-                        label: Text(
-                          '${summary.remainingCalories.toStringAsFixed(0)} kcal Rest',
-                        ),
-                      ),
-                      Chip(
-                        label: Text(
-                          '${summary.macroAdherence.toStringAsFixed(0)}% Makros',
-                        ),
-                      ),
-                      Chip(
-                        label: Text(
-                          '${summary.weightTrend >= 0 ? '+' : ''}${summary.weightTrend.toStringAsFixed(1)} kg',
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -807,7 +811,13 @@ class _MyHomePageState extends State<MyHomePage> {
                   onPressed: () => _goToPreviousDay(state),
                 ),
                 SizedBox(width: 8),
-                Text('MacroMate - $formattedDate'),
+                Expanded(
+                  child: Text(
+                    formattedDate,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
                 SizedBox(width: 8),
                 IconButton(
                   icon: Icon(Icons.arrow_forward),
@@ -817,13 +827,6 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             backgroundColor: Theme.of(context).colorScheme.inversePrimary,
             centerTitle: true,
-            actions: [
-              IconButton(
-                tooltip: 'Tag von gestern uebernehmen',
-                icon: Icon(Icons.restore),
-                onPressed: () => _copyDayFromYesterday(context, state),
-              ),
-            ],
           ),
           body: SingleChildScrollView(
             padding: EdgeInsets.all(16.0),
@@ -910,8 +913,6 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
                 SizedBox(height: 24),
-                _weeklySummaryCard(state),
-                SizedBox(height: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1032,14 +1033,22 @@ class _MyHomePageState extends State<MyHomePage> {
                       },
                       onCopyYesterday: () =>
                           _copyMealFromYesterday(context, state, 'Frühstück'),
+                      onImportQr: () => _scanMealQr(
+                        context,
+                        state,
+                        'Frühstück',
+                      ),
+                      onShareQr: state.breakfast.isEmpty
+                          ? null
+                          : () => _showMealQr(context, state, 'Frühstück'),
                       onSaveMeal: state.breakfast.isEmpty
                           ? null
                           : () => _saveMealTemplate(
-                              context,
-                              state,
-                              'Frühstück',
-                              state.breakfast,
-                            ),
+                                context,
+                                state,
+                                'Frühstück',
+                                state.breakfast,
+                              ),
                     ),
                     SizedBox(height: 8),
                     MealSection(
@@ -1050,14 +1059,22 @@ class _MyHomePageState extends State<MyHomePage> {
                       },
                       onCopyYesterday: () =>
                           _copyMealFromYesterday(context, state, 'Mittagessen'),
+                      onImportQr: () => _scanMealQr(
+                        context,
+                        state,
+                        'Mittagessen',
+                      ),
+                      onShareQr: state.lunch.isEmpty
+                          ? null
+                          : () => _showMealQr(context, state, 'Mittagessen'),
                       onSaveMeal: state.lunch.isEmpty
                           ? null
                           : () => _saveMealTemplate(
-                              context,
-                              state,
-                              'Mittagessen',
-                              state.lunch,
-                            ),
+                                context,
+                                state,
+                                'Mittagessen',
+                                state.lunch,
+                              ),
                     ),
                     SizedBox(height: 8),
                     MealSection(
@@ -1068,14 +1085,22 @@ class _MyHomePageState extends State<MyHomePage> {
                       },
                       onCopyYesterday: () =>
                           _copyMealFromYesterday(context, state, 'Abendessen'),
+                      onImportQr: () => _scanMealQr(
+                        context,
+                        state,
+                        'Abendessen',
+                      ),
+                      onShareQr: state.dinner.isEmpty
+                          ? null
+                          : () => _showMealQr(context, state, 'Abendessen'),
                       onSaveMeal: state.dinner.isEmpty
                           ? null
                           : () => _saveMealTemplate(
-                              context,
-                              state,
-                              'Abendessen',
-                              state.dinner,
-                            ),
+                                context,
+                                state,
+                                'Abendessen',
+                                state.dinner,
+                              ),
                     ),
                     SizedBox(height: 8),
                     MealSection(
@@ -1086,14 +1111,18 @@ class _MyHomePageState extends State<MyHomePage> {
                       },
                       onCopyYesterday: () =>
                           _copyMealFromYesterday(context, state, 'Snacks'),
+                      onImportQr: () => _scanMealQr(context, state, 'Snacks'),
+                      onShareQr: state.snacks.isEmpty
+                          ? null
+                          : () => _showMealQr(context, state, 'Snacks'),
                       onSaveMeal: state.snacks.isEmpty
                           ? null
                           : () => _saveMealTemplate(
-                              context,
-                              state,
-                              'Snacks',
-                              state.snacks,
-                            ),
+                                context,
+                                state,
+                                'Snacks',
+                                state.snacks,
+                              ),
                     ),
                   ],
                 ),
@@ -1103,34 +1132,122 @@ class _MyHomePageState extends State<MyHomePage> {
           floatingActionButton: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_fabExpanded)
-                Container(
-                  margin: EdgeInsets.only(bottom: 8),
-                  child: FloatingActionButton(
-                    heroTag: 'weightFab',
-                    mini: true,
-                    onPressed: () {
-                      setState(() => _fabExpanded = false);
-                      Navigator.pushNamed(context, '/weight');
-                    },
-                    tooltip: 'Gewicht tracken',
-                    child: Icon(Icons.monitor_weight),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                height: _fabExpanded ? 196.0 : 0.0,
+                curve: Curves.fastOutSlowIn,
+                child: SingleChildScrollView(
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: Column(
+                    children: [
+                      IgnorePointer(
+                        ignoring: !_fabExpanded,
+                        child: AnimatedOpacity(
+                          opacity: _fabExpanded ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          child: AnimatedScale(
+                            scale: _fabExpanded ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeOutBack,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: FloatingActionButton(
+                                heroTag: 'yesterdayFab',
+                                mini: true,
+                                onPressed: () {
+                                  setState(() => _fabExpanded = false);
+                                  _copyDayFromYesterday(context, state);
+                                },
+                                tooltip: 'Gestern übernehmen',
+                                child: const Icon(Icons.restore),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      IgnorePointer(
+                        ignoring: !_fabExpanded,
+                        child: AnimatedOpacity(
+                          opacity: _fabExpanded ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          child: AnimatedScale(
+                            scale: _fabExpanded ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeOutBack,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: FloatingActionButton(
+                                heroTag: 'dashboardFab',
+                                mini: true,
+                                onPressed: () {
+                                  setState(() => _fabExpanded = false);
+                                  Navigator.pushNamed(context, '/weekly_dashboard');
+                                },
+                                tooltip: 'Wochen-Dashboard',
+                                child: const Icon(Icons.analytics),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      IgnorePointer(
+                        ignoring: !_fabExpanded,
+                        child: AnimatedOpacity(
+                          opacity: _fabExpanded ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          child: AnimatedScale(
+                            scale: _fabExpanded ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeOutBack,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: FloatingActionButton(
+                                heroTag: 'weightFab',
+                                mini: true,
+                                onPressed: () {
+                                  setState(() => _fabExpanded = false);
+                                  Navigator.pushNamed(context, '/weight');
+                                },
+                                tooltip: 'Gewicht tracken',
+                                child: const Icon(Icons.monitor_weight),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      IgnorePointer(
+                        ignoring: !_fabExpanded,
+                        child: AnimatedOpacity(
+                          opacity: _fabExpanded ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          child: AnimatedScale(
+                            scale: _fabExpanded ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeOutBack,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: FloatingActionButton(
+                                heroTag: 'settingsFab',
+                                mini: true,
+                                onPressed: () {
+                                  setState(() => _fabExpanded = false);
+                                  Navigator.pushNamed(context, '/settings');
+                                },
+                                tooltip: 'Einstellungen',
+                                child: const Icon(Icons.settings),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              if (_fabExpanded)
-                Container(
-                  margin: EdgeInsets.only(bottom: 8),
-                  child: FloatingActionButton(
-                    heroTag: 'settingsFab',
-                    mini: true,
-                    onPressed: () {
-                      setState(() => _fabExpanded = false);
-                      Navigator.pushNamed(context, '/settings');
-                    },
-                    tooltip: 'Einstellungen',
-                    child: Icon(Icons.settings),
-                  ),
-                ),
+              ),
               FloatingActionButton(
                 heroTag: 'mainFab',
                 onPressed: () {

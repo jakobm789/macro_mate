@@ -25,7 +25,8 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
   bool _isLoadingOwnDatabase = false;
   bool _isLoadingExternalApi = false;
   List<FoodItem> _offResults = [];
-  Timer? _debounce;
+  Timer? _ownDatabaseDebounce;
+  Timer? _externalApiDebounce;
   int _searchGeneration = 0;
   @override
   void initState() {
@@ -34,23 +35,10 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
   }
 
   void _onSearchChanged() {
-    if (_debounce?.isActive ?? false) {
-      _debounce!.cancel();
-    }
-    _debounce = Timer(const Duration(seconds: 1), () {
-      _searchFoods(_searchController.text);
-    });
-  }
+    _ownDatabaseDebounce?.cancel();
+    _externalApiDebounce?.cancel();
 
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _searchFoods(String query) async {
-    final trimmedQuery = query.trim();
+    final trimmedQuery = _searchController.text.trim();
     final searchGeneration = ++_searchGeneration;
     if (trimmedQuery.isEmpty) {
       setState(() {
@@ -61,17 +49,37 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
       });
       return;
     }
+
     setState(() {
       _isLoadingOwnDatabase = true;
       _isLoadingExternalApi = true;
       _searchResults = [];
       _offResults = [];
     });
+
+    _ownDatabaseDebounce = Timer(const Duration(milliseconds: 500), () {
+      _searchOwnDatabase(trimmedQuery, searchGeneration);
+    });
+    _externalApiDebounce = Timer(const Duration(seconds: 1), () {
+      _searchExternalApi(trimmedQuery, searchGeneration);
+    });
+  }
+
+  @override
+  void dispose() {
+    _ownDatabaseDebounce?.cancel();
+    _externalApiDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _searchOwnDatabase(
+      String trimmedQuery, int searchGeneration) async {
     final appState = Provider.of<AppState>(context, listen: false);
-    final ownDatabaseSearch = appState.searchFoodItemsRemote(trimmedQuery);
-    final externalApiSearch = appState.searchOpenFoodFacts(trimmedQuery);
     try {
-      List<FoodItem> results = await ownDatabaseSearch;
+      List<FoodItem> results = await appState.searchFoodItemsRemote(
+        trimmedQuery,
+      );
       if (!mounted) return;
       if (searchGeneration != _searchGeneration) return;
       setState(() {
@@ -88,9 +96,15 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
         context,
       ).showSnackBar(SnackBar(content: Text('Fehler bei der Suche: $e')));
     }
+  }
 
+  Future<void> _searchExternalApi(
+      String trimmedQuery, int searchGeneration) async {
+    final appState = Provider.of<AppState>(context, listen: false);
     try {
-      List<FoodItem> offResults = await externalApiSearch;
+      List<FoodItem> offResults = await appState.searchOpenFoodFacts(
+        trimmedQuery,
+      );
       if (!mounted) return;
       if (searchGeneration != _searchGeneration) return;
       setState(() {
@@ -137,14 +151,30 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
   }
 
   Widget _foodTile(BuildContext context, AppState appState, FoodItem food) {
-    final sourceLabel = food.isVerified
-        ? 'verifiziert'
-        : food.source == 'openfoodfacts'
-        ? 'OpenFoodFacts'
-        : 'eigen';
+    final isOpenFoodFacts = food.source == 'openfoodfacts';
+    final sourceIcon = isOpenFoodFacts ? Icons.public : Icons.storage;
+    final sourceTooltip = isOpenFoodFacts ? 'OpenFoodFacts' : 'Eigene DB';
     return ListTile(
       key: ValueKey('${food.id}-${food.barcode}-${food.name}'),
-      title: Text(food.name),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              food.name,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          SizedBox(width: 6),
+          Tooltip(
+            message: sourceTooltip,
+            child: Icon(
+              sourceIcon,
+              size: 18,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
+          ),
+        ],
+      ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -154,12 +184,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
             '${food.carbsPer100g.toStringAsFixed(1)}g KH, '
             '${food.proteinPer100g.toStringAsFixed(1)}g Protein, '
             '${food.fatPer100g.toStringAsFixed(1)}g Fett',
-          ),
-          SizedBox(height: 4),
-          Chip(
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            label: Text(sourceLabel),
           ),
         ],
       ),
@@ -332,39 +356,40 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                     child: CircularProgressIndicator(),
                   )
                 : combinedList.isNotEmpty
-                ? Container(
-                    height: 300,
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: combinedList.length + 1,
-                      itemBuilder: (context, index) {
-                        if (index == 0) {
-                          return ListTile(
+                    ? Container(
+                        height: 300,
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: combinedList.length + 1,
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return ListTile(
+                                leading: Icon(Icons.add),
+                                title: Text('Neues Lebensmittel hinzufügen'),
+                                onTap: _addNewFood,
+                              );
+                            }
+                            FoodItem food = combinedList[index - 1];
+                            return _foodTile(context, appState, food);
+                          },
+                        ),
+                      )
+                    : _searchController.text.isEmpty
+                        ? Container()
+                        : ListTile(
                             leading: Icon(Icons.add),
                             title: Text('Neues Lebensmittel hinzufügen'),
-                            onTap: _addNewFood,
-                          );
-                        }
-                        FoodItem food = combinedList[index - 1];
-                        return _foodTile(context, appState, food);
-                      },
-                    ),
-                  )
-                : _searchController.text.isEmpty
-                ? Container()
-                : ListTile(
-                    leading: Icon(Icons.add),
-                    title: Text('Neues Lebensmittel hinzufügen'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      if (widget.barcode != null &&
-                          widget.barcode!.isNotEmpty) {
-                        _addNewFoodWithBarcode(context, widget.barcode!);
-                      } else {
-                        _addNewFood();
-                      }
-                    },
-                  ),
+                            onTap: () {
+                              Navigator.pop(context);
+                              if (widget.barcode != null &&
+                                  widget.barcode!.isNotEmpty) {
+                                _addNewFoodWithBarcode(
+                                    context, widget.barcode!);
+                              } else {
+                                _addNewFood();
+                              }
+                            },
+                          ),
           ],
         ),
       ),
@@ -505,13 +530,6 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
     }
   }
 
-  void _setGrams(int grams) {
-    _gramController.text = grams.clamp(1, 99999).toString();
-  }
-
-  int get _currentGrams =>
-      int.tryParse(_gramController.text) ?? widget.food.lastUsedQuantity;
-
   @override
   void dispose() {
     _gramController.removeListener(_updateMacros);
@@ -534,29 +552,6 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
                 controller: _gramController,
                 decoration: InputDecoration(labelText: 'Menge in Gramm'),
                 keyboardType: TextInputType.number,
-              ),
-              SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  ActionChip(
-                    label: Text('+10g'),
-                    onPressed: () => _setGrams(_currentGrams + 10),
-                  ),
-                  ActionChip(
-                    label: Text('-10g'),
-                    onPressed: () => _setGrams(_currentGrams - 10),
-                  ),
-                  ActionChip(
-                    label: Text('Halbe Portion'),
-                    onPressed: () => _setGrams((_currentGrams / 2).round()),
-                  ),
-                  ActionChip(
-                    label: Text('Wie letztes Mal'),
-                    onPressed: () => _setGrams(widget.food.lastUsedQuantity),
-                  ),
-                ],
               ),
               SizedBox(height: 16),
               Padding(
@@ -612,7 +607,7 @@ class AddNewFoodSheet extends StatefulWidget {
   final Function(ConsumedFoodItem) onFoodAdded;
   final String? barcode;
   const AddNewFoodSheet({Key? key, required this.onFoodAdded, this.barcode})
-    : super(key: key);
+      : super(key: key);
   @override
   _AddNewFoodSheetState createState() => _AddNewFoodSheetState();
 }

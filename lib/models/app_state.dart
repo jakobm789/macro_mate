@@ -55,6 +55,24 @@ class WeeklyNutritionSummary {
   });
 }
 
+class WeeklyDaySummary {
+  final DateTime date;
+  final String dayName;
+  final double calories;
+  final double carbs;
+  final double protein;
+  final double fat;
+
+  WeeklyDaySummary({
+    required this.date,
+    required this.dayName,
+    required this.calories,
+    required this.carbs,
+    required this.protein,
+    required this.fat,
+  });
+}
+
 class AppState extends ChangeNotifier {
   static const MethodChannel _widgetChannel = MethodChannel(
     'macro_mate/widget',
@@ -114,6 +132,13 @@ class AppState extends ChangeNotifier {
   DateTime? targetDate;
   double? targetWeeklyChange;
   String? mondayPopupMessage;
+  bool isInitialized = false;
+
+  void markInitialized() {
+    isInitialized = true;
+    notifyListeners();
+  }
+
   AppState();
 
   void _logError(String context, Object error, [StackTrace? stackTrace]) {
@@ -132,6 +157,26 @@ class AppState extends ChangeNotifier {
   void clearUiError() {
     lastUiError = null;
     notifyListeners();
+  }
+
+  Future<FoodItem> _applyLocalUsage(FoodItem food) async {
+    final foodId = food.id;
+    if (foodId == null) return food;
+    final quantities = await DatabaseHelper().getFoodUsageQuantities([foodId]);
+    final quantity = quantities[foodId];
+    return quantity == null ? food : food.copyWith(lastUsedQuantity: quantity);
+  }
+
+  Future<List<FoodItem>> _applyLocalUsageToFoods(List<FoodItem> foods) async {
+    final ids = foods.map((food) => food.id).whereType<int>();
+    final quantities = await DatabaseHelper().getFoodUsageQuantities(ids);
+    return foods.map((food) {
+      final foodId = food.id;
+      final quantity = foodId == null ? null : quantities[foodId];
+      return quantity == null
+          ? food
+          : food.copyWith(lastUsedQuantity: quantity);
+    }).toList();
   }
 
   Future<void> _configureLocalTimezone() async {
@@ -565,9 +610,21 @@ class AppState extends ChangeNotifier {
       if (limit != null) {
         recentFoodLimit = limit;
       }
-      last20FoodItems = await _remoteService.getRecentlyUsedFoodItems(
+      final usageRows = await DatabaseHelper().getRecentFoodUsage(
         recentFoodLimit,
       );
+      final items = <FoodItem>[];
+      for (final row in usageRows) {
+        final foodId = row['food_id'] as int;
+        final food = await _remoteService.getFoodItemById(foodId);
+        if (food == null) continue;
+        items.add(
+          food.copyWith(
+            lastUsedQuantity: row['last_used_quantity'] as int,
+          ),
+        );
+      }
+      last20FoodItems = items;
       await _updateMacroWidget();
       notifyListeners();
     } catch (e, st) {
@@ -583,7 +640,7 @@ class AppState extends ChangeNotifier {
         final food = await _remoteService.getFoodItemById(id);
         if (food != null) items.add(food);
       }
-      favoriteFoodItems = items;
+      favoriteFoodItems = await _applyLocalUsageToFoods(items);
       notifyListeners();
     } catch (e, st) {
       _logError('loadFavoriteFoods', e, st);
@@ -726,6 +783,55 @@ class AppState extends ChangeNotifier {
     return copiedCount;
   }
 
+  String buildMealSharePayload(String mealName) {
+    final items = _getMealList(mealName)
+        .where((item) => item.food.id != null)
+        .map(
+          (item) => {
+            'food_id': item.food.id,
+            'quantity': item.quantity,
+          },
+        )
+        .toList();
+    return jsonEncode({
+      'type': 'macro_mate_meal',
+      'version': 1,
+      'meal_name': mealName,
+      'items': items,
+    });
+  }
+
+  Future<int> importMealSharePayload(String payload, String mealName) async {
+    final decoded = jsonDecode(payload);
+    if (decoded is! Map<String, dynamic> ||
+        decoded['type'] != 'macro_mate_meal') {
+      throw Exception('Kein gültiger MacroMate-Mahlzeit-QR.');
+    }
+    final items = decoded['items'];
+    if (items is! List || items.isEmpty) {
+      throw Exception('Der QR-Code enthält keine Lebensmittel.');
+    }
+
+    var importedCount = 0;
+    for (final item in items) {
+      if (item is! Map) continue;
+      final foodIdValue = item['food_id'];
+      final quantityValue = item['quantity'];
+      final foodId = foodIdValue is int
+          ? foodIdValue
+          : int.tryParse(foodIdValue?.toString() ?? '');
+      final quantity = quantityValue is int
+          ? quantityValue
+          : int.tryParse(quantityValue?.toString() ?? '');
+      if (foodId == null || quantity == null || quantity <= 0) continue;
+      final food = await _remoteService.getFoodItemById(foodId);
+      if (food == null) continue;
+      await addOrUpdateFood(mealName, food, quantity, currentDate);
+      importedCount++;
+    }
+    return importedCount;
+  }
+
   Future<void> deleteSavedMeal(int id) async {
     await DatabaseHelper().deleteSavedMeal(id);
     await loadSavedMeals();
@@ -744,7 +850,9 @@ class AppState extends ChangeNotifier {
         if (remoteId != null) {
           final remoteFood = await _remoteService.getFoodItemById(remoteId);
           if (remoteFood != null) {
-            consumedFoods[i] = cItem.copyWith(food: remoteFood);
+            consumedFoods[i] = cItem.copyWith(
+              food: await _applyLocalUsage(remoteFood),
+            );
           }
         }
       }
@@ -829,6 +937,64 @@ class AppState extends ChangeNotifier {
       macroAdherence: macroScore * 100,
       weightTrend: computeWeightChangeInLastWeek(),
     );
+  }
+
+  Future<List<WeeklyDaySummary>> calculateWeeklyDayBreakdown() async {
+    final start = currentDate.subtract(Duration(days: currentDate.weekday - 1));
+    final end = start.add(const Duration(days: 6));
+    final entries = await DatabaseHelper().getConsumedFoodsBetween(start, end);
+
+    final Map<int, List<ConsumedFoodItem>> entriesByDay = {};
+    for (var i = 1; i <= 7; i++) {
+      entriesByDay[i] = [];
+    }
+    for (final entry in entries) {
+      final weekday = entry.date.weekday;
+      entriesByDay[weekday]?.add(entry);
+    }
+
+    final List<WeeklyDaySummary> list = [];
+    final weekdayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    final Map<int, FoodItem> resolvedFoods = {};
+
+    for (var i = 1; i <= 7; i++) {
+      final date = start.add(Duration(days: i - 1));
+      final dayEntries = entriesByDay[i] ?? [];
+      var calories = 0.0;
+      var carbs = 0.0;
+      var protein = 0.0;
+      var fat = 0.0;
+
+      for (final entry in dayEntries) {
+        final foodId = entry.food.id;
+        if (foodId == null) continue;
+
+        FoodItem? food = resolvedFoods[foodId];
+        if (food == null) {
+          food = await _remoteService.getFoodItemById(foodId);
+          if (food != null) {
+            resolvedFoods[foodId] = food;
+          }
+        }
+
+        if (food != null) {
+          calories += food.caloriesPer100g * entry.quantity / 100.0;
+          carbs += food.carbsPer100g * entry.quantity / 100.0;
+          protein += food.proteinPer100g * entry.quantity / 100.0;
+          fat += food.fatPer100g * entry.quantity / 100.0;
+        }
+      }
+
+      list.add(WeeklyDaySummary(
+        date: date,
+        dayName: weekdayNames[i - 1],
+        calories: calories,
+        carbs: carbs,
+        protein: protein,
+        fat: fat,
+      ));
+    }
+    return list;
   }
 
   Future<void> loadGoals() async {
@@ -1019,21 +1185,22 @@ class AppState extends ChangeNotifier {
     DateTime date,
   ) async {
     try {
-      final trackedFood = food.copyWith(lastUsedQuantity: quantity);
       int newRemoteId;
-      try {
-        newRemoteId = await _remoteService.insertOrUpdateFoodItem(trackedFood);
-      } catch (e, st) {
-        _logError('remote food upsert queued', e, st);
-        if (trackedFood.id == null) rethrow;
-        newRemoteId = trackedFood.id!;
-        await DatabaseHelper().enqueueOfflineAction(
-          'food_upsert',
-          trackedFood.toJson(),
-          e.toString(),
-        );
+      if (food.id == null) {
+        try {
+          newRemoteId = await _remoteService.insertOrUpdateFoodItem(food);
+        } catch (e, st) {
+          _logError('remote food insert failed', e, st);
+          rethrow;
+        }
+      } else {
+        newRemoteId = food.id!;
       }
-      FoodItem foodWithId = trackedFood.copyWith(id: newRemoteId);
+      await DatabaseHelper().upsertFoodUsage(newRemoteId, quantity);
+      FoodItem foodWithId = food.copyWith(
+        id: newRemoteId,
+        lastUsedQuantity: quantity,
+      );
       List<ConsumedFoodItem> mealList = _getMealList(mealName);
       int index = mealList.indexWhere((item) => item.food.id == foodWithId.id);
       if (index != -1) {
@@ -1088,10 +1255,13 @@ class AppState extends ChangeNotifier {
         updatedQuantity,
         newMealName: updatedMealName,
       );
+      final foodId = consumedFood.food.id;
+      if (foodId != null) {
+        await DatabaseHelper().upsertFoodUsage(foodId, updatedQuantity);
+      }
       final updatedFood = consumedFood.food.copyWith(
         lastUsedQuantity: updatedQuantity,
       );
-      await _remoteService.insertOrUpdateFoodItem(updatedFood);
       List<ConsumedFoodItem> oldMealList = _getMealList(consumedFood.mealName);
       oldMealList.removeWhere((item) => item.id == consumedFood.id);
       List<ConsumedFoodItem> newMealList = _getMealList(updatedMealName);
@@ -1226,7 +1396,7 @@ class AppState extends ChangeNotifier {
                 f.proteinPer100g == 0),
           )
           .toList();
-      return results;
+      return await _applyLocalUsageToFoods(results);
     } catch (e) {
       return [];
     }
