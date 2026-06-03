@@ -10,6 +10,7 @@ import '../models/app_state.dart';
 import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
 import '../widgets/add_food_sheet.dart';
+import '../widgets/ai_food_sheet.dart';
 import '../widgets/meal_section.dart';
 
 class MyHomePage extends StatefulWidget {
@@ -336,6 +337,15 @@ class _MyHomePageState extends State<MyHomePage> {
                   _showSavedMeals(context, state, mealName);
                 },
               ),
+              ListTile(
+                leading: Icon(Icons.auto_awesome, color: Color(0xFF64FFDA)),
+                title: Text('AI Erkennung'),
+                subtitle: Text('Foto, Text oder Sprache'),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _showAiFoodSheet(context, mealName);
+                },
+              ),
             ],
           ),
         );
@@ -355,6 +365,16 @@ class _MyHomePageState extends State<MyHomePage> {
           mealName: mealName,
           barcode: null,
         );
+      },
+    );
+  }
+
+  void _showAiFoodSheet(BuildContext context, String mealName) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return AiFoodSheet(mealName: mealName);
       },
     );
   }

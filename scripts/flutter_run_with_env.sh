@@ -28,6 +28,7 @@ required=(
   POSTGRES_PASSWORD
   SENDER_EMAIL
   BREVO_API_KEY
+  OPENAI_API_KEY
 )
 
 missing=0
@@ -49,4 +50,5 @@ flutter run -d "$DEVICE_ID" "$@" \
   --dart-define=POSTGRES_USER="$POSTGRES_USER" \
   --dart-define=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
   --dart-define=SENDER_EMAIL="$SENDER_EMAIL" \
-  --dart-define=BREVO_API_KEY="$BREVO_API_KEY"
+  --dart-define=BREVO_API_KEY="$BREVO_API_KEY" \
+  --dart-define=OPENAI_API_KEY="$OPENAI_API_KEY"
