@@ -30,6 +30,65 @@ class LoadingScreen extends StatelessWidget {
   }
 }
 
+class AppDiagnosticsBanner extends StatelessWidget {
+  final Widget child;
+  const AppDiagnosticsBanner({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AppState>(
+      builder: (context, appState, _) {
+        final error = appState.lastUiError;
+        if (error == null || error.isEmpty) {
+          return child;
+        }
+
+        return Stack(
+          children: [
+            child,
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Material(
+                  color: Colors.red.shade800,
+                  elevation: 6,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Diagnose: $error',
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Ausblenden',
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: appState.clearUiError,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final initializationSettingsAndroid = AndroidInitializationSettings(
@@ -152,7 +211,7 @@ class _MyAppState extends State<MyApp> {
               useMaterial3: true,
             ),
             themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-            home: const LoginPage(),
+            home: const AppDiagnosticsBanner(child: LoginPage()),
           );
         }
         return MaterialApp(
@@ -172,10 +231,14 @@ class _MyAppState extends State<MyApp> {
             useMaterial3: true,
           ),
           themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-          home: const MyHomePage(title: 'MacroMate'),
+          home: const AppDiagnosticsBanner(
+            child: MyHomePage(title: 'MacroMate'),
+          ),
           routes: {
-            '/settings': (context) => const SettingsPage(),
-            '/weight': (context) => const WeightPage(),
+            '/settings': (context) =>
+                const AppDiagnosticsBanner(child: SettingsPage()),
+            '/weight': (context) =>
+                const AppDiagnosticsBanner(child: WeightPage()),
           },
         );
       },

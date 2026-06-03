@@ -30,7 +30,24 @@ class RemoteDatabaseService {
     useSSL: true,
   );
 
+  List<String> get missingConfigurationKeys {
+    final missing = <String>[];
+    if (_host.trim().isEmpty) missing.add('POSTGRES_HOST');
+    if (_port <= 0) missing.add('POSTGRES_PORT');
+    if (_database.trim().isEmpty) missing.add('POSTGRES_DB');
+    if (_username.trim().isEmpty) missing.add('POSTGRES_USER');
+    if (_password.isEmpty) missing.add('POSTGRES_PASSWORD');
+    return missing;
+  }
+
   Future<void> _init() async {
+    final missing = missingConfigurationKeys;
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'Backend-Konfiguration fehlt: ${missing.join(', ')}. '
+        'Die APK wurde ohne passende --dart-define Werte gebaut.',
+      );
+    }
     if (_connection.isClosed) {
       _connection = PostgreSQLConnection(
         _host,
@@ -196,9 +213,8 @@ class RemoteDatabaseService {
     }
 
     final dynamic createdAtVal = row[9];
-    String createdAtString = createdAtVal is DateTime
-        ? createdAtVal.toIso8601String()
-        : '';
+    String createdAtString =
+        createdAtVal is DateTime ? createdAtVal.toIso8601String() : '';
 
     final dynamic lastUsed = row[10];
     int lastUsedInt = 100;

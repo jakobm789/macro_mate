@@ -122,6 +122,12 @@ class AppState extends ChangeNotifier {
     if (stackTrace != null) {
       debugPrintStack(stackTrace: stackTrace);
     }
+    notifyListeners();
+  }
+
+  void clearUiError() {
+    lastUiError = null;
+    notifyListeners();
   }
 
   Future<void> _configureLocalTimezone() async {
@@ -213,14 +219,14 @@ class AppState extends ChangeNotifier {
         );
         reminderSupplementEnabled =
             dbSettings['reminder_supplement_enabled'] == 1;
-        List<String> suppTimeParts = dbSettings['reminder_supplement_time']
-            .split(':');
+        List<String> suppTimeParts =
+            dbSettings['reminder_supplement_time'].split(':');
         reminderSupplementTime = TimeOfDay(
           hour: int.parse(suppTimeParts[0]),
           minute: int.parse(suppTimeParts[1]),
         );
-        List<String> suppTime2Parts = dbSettings['reminder_supplement_time2']
-            .split(':');
+        List<String> suppTime2Parts =
+            dbSettings['reminder_supplement_time2'].split(':');
         reminderSupplementTimeSecond = TimeOfDay(
           hour: int.parse(suppTime2Parts[0]),
           minute: int.parse(suppTime2Parts[1]),
@@ -596,9 +602,8 @@ class AppState extends ChangeNotifier {
     List<ConsumedFoodItem> ingredients,
     int? recipeTotalWeight,
   ) async {
-    final persistableIngredients = ingredients
-        .where((ingredient) => ingredient.food.id != null)
-        .toList();
+    final persistableIngredients =
+        ingredients.where((ingredient) => ingredient.food.id != null).toList();
     if (persistableIngredients.isEmpty) {
       throw Exception('Diese Mahlzeit enthält keine speicherbaren Zutaten.');
     }
@@ -661,9 +666,8 @@ class AppState extends ChangeNotifier {
   Future<int> copyMealFromYesterday(String mealName) async {
     final yesterday = currentDate.subtract(const Duration(days: 1));
     final consumedFoods = await DatabaseHelper().getConsumedFoods(yesterday);
-    final yesterdayMeal = consumedFoods
-        .where((food) => food.mealName == mealName)
-        .toList();
+    final yesterdayMeal =
+        consumedFoods.where((food) => food.mealName == mealName).toList();
 
     var copiedCount = 0;
     for (final consumedFood in yesterdayMeal) {
@@ -728,9 +732,8 @@ class AppState extends ChangeNotifier {
           }
         }
       }
-      breakfast = consumedFoods
-          .where((f) => f.mealName == 'Frühstück')
-          .toList();
+      breakfast =
+          consumedFoods.where((f) => f.mealName == 'Frühstück').toList();
       lunch = consumedFoods.where((f) => f.mealName == 'Mittagessen').toList();
       dinner = consumedFoods.where((f) => f.mealName == 'Abendessen').toList();
       snacks = consumedFoods.where((f) => f.mealName == 'Snacks').toList();
@@ -800,8 +803,7 @@ class AppState extends ChangeNotifier {
     final weeklyCarbGoal = dailyCarbGoal * 7;
     final weeklyProteinGoal = dailyProteinGoal * 7;
     final weeklyFatGoal = dailyFatGoal * 7;
-    final macroScore =
-        (adherence(carbs, weeklyCarbGoal) +
+    final macroScore = (adherence(carbs, weeklyCarbGoal) +
             adherence(protein, weeklyProteinGoal) +
             adherence(fat, weeklyFatGoal)) /
         3;
@@ -823,8 +825,7 @@ class AppState extends ChangeNotifier {
         int fatPerc = goals['fat_percentage'];
         int sugarPerc = goals['sugar_percentage'].toInt();
         final autoModeIndex = goals['auto_calorie_mode'] ?? 0;
-        autoMode =
-            autoModeIndex is int &&
+        autoMode = autoModeIndex is int &&
                 autoModeIndex >= 0 &&
                 autoModeIndex < AutoCalorieMode.values.length
             ? AutoCalorieMode.values[autoModeIndex]
@@ -848,8 +849,8 @@ class AppState extends ChangeNotifier {
         targetDate = goals['target_date'] == null
             ? null
             : DateTime.tryParse(goals['target_date'] as String);
-        targetWeeklyChange = (goals['target_weekly_change'] as num?)
-            ?.toDouble();
+        targetWeeklyChange =
+            (goals['target_weekly_change'] as num?)?.toDouble();
         dailyCarbGoal = (dailyCalorieGoal * carbPerc / 100) / 4.0;
         dailyProteinGoal = useProteinPerKg
             ? _proteinGoalFromWeight()
@@ -863,9 +864,8 @@ class AppState extends ChangeNotifier {
   }
 
   double _proteinGoalFromWeight() {
-    final weight = _weightEntries.isNotEmpty
-        ? _weightEntries.last.weight
-        : 80.0;
+    final weight =
+        _weightEntries.isNotEmpty ? _weightEntries.last.weight : 80.0;
     return (weight * proteinPerKg).clamp(0.0, 500.0);
   }
 
@@ -952,9 +952,8 @@ class AppState extends ChangeNotifier {
     if (_weightEntries.length < 2) return 0.0;
     DateTime now = DateTime.now();
     DateTime oneWeekAgo = now.subtract(Duration(days: 7));
-    List<WeightEntry> lastWeek = _weightEntries
-        .where((e) => e.date.isAfter(oneWeekAgo))
-        .toList();
+    List<WeightEntry> lastWeek =
+        _weightEntries.where((e) => e.date.isAfter(oneWeekAgo)).toList();
     if (lastWeek.isEmpty) return 0.0;
     double avgNow =
         lastWeek.map((e) => e.weight).reduce((a, b) => a + b) / lastWeek.length;
@@ -963,8 +962,7 @@ class AppState extends ChangeNotifier {
         .where((e) => e.date.isAfter(weekBefore) && e.date.isBefore(oneWeekAgo))
         .toList();
     if (priorWeek.isEmpty) return 0.0;
-    double avgPast =
-        priorWeek.map((e) => e.weight).reduce((a, b) => a + b) /
+    double avgPast = priorWeek.map((e) => e.weight).reduce((a, b) => a + b) /
         priorWeek.length;
     return avgNow - avgPast;
   }
@@ -979,8 +977,7 @@ class AppState extends ChangeNotifier {
     if (lastTwoWeeks.isEmpty) {
       return 0.0;
     }
-    double avgNow =
-        lastTwoWeeks.map((e) => e.weight).reduce((a, b) => a + b) /
+    double avgNow = lastTwoWeeks.map((e) => e.weight).reduce((a, b) => a + b) /
         lastTwoWeeks.length;
     DateTime twoWeeksBeforeThat = now.subtract(Duration(days: 28));
     List<WeightEntry> priorTwoWeeks = _weightEntries
@@ -995,7 +992,7 @@ class AppState extends ChangeNotifier {
     }
     double avgPast =
         priorTwoWeeks.map((e) => e.weight).reduce((a, b) => a + b) /
-        priorTwoWeeks.length;
+            priorTwoWeeks.length;
     return avgNow - avgPast;
   }
 
@@ -1206,12 +1203,11 @@ class AppState extends ChangeNotifier {
       List<FoodItem> results = await _remoteService.searchFoodItems(query);
       results = results
           .where(
-            (f) =>
-                !(f.caloriesPer100g == 0 &&
-                    f.fatPer100g == 0 &&
-                    f.carbsPer100g == 0 &&
-                    f.sugarPer100g == 0 &&
-                    f.proteinPer100g == 0),
+            (f) => !(f.caloriesPer100g == 0 &&
+                f.fatPer100g == 0 &&
+                f.carbsPer100g == 0 &&
+                f.sugarPer100g == 0 &&
+                f.proteinPer100g == 0),
           )
           .toList();
       return results;
@@ -1324,9 +1320,8 @@ class AppState extends ChangeNotifier {
           List<FoodItem> results = [];
           for (var p in products) {
             final nutriments = p['nutriments'] ?? {};
-            final calories = (nutriments['energy-kcal_100g'] ?? 0)
-                .toDouble()
-                .round();
+            final calories =
+                (nutriments['energy-kcal_100g'] ?? 0).toDouble().round();
             final fat = (nutriments['fat_100g'] ?? 0).toDouble();
             final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
             final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
@@ -1455,9 +1450,8 @@ class AppState extends ChangeNotifier {
     }
 
     // 1. Gemeinsame Hilfswerte
-    double weight = _weightEntries.isNotEmpty
-        ? _weightEntries.last.weight
-        : 80.0;
+    double weight =
+        _weightEntries.isNotEmpty ? _weightEntries.last.weight : 80.0;
     final safeCalories = dailyCalorieGoal <= 0 ? 1 : dailyCalorieGoal;
     double carbPerc = (dailyCarbGoal * 4) / safeCalories * 100;
     double proteinPerc = (dailyProteinGoal * 4) / safeCalories * 100;
@@ -1472,8 +1466,7 @@ class AppState extends ChangeNotifier {
         double bmr;
         switch (bmrFormula) {
           case BmrFormula.mifflin:
-            bmr =
-                10 * weight +
+            bmr = 10 * weight +
                 6.25 * userHeight -
                 5 * userAge +
                 (userGender == Gender.male ? 5 : -161);
@@ -1490,13 +1483,12 @@ class AppState extends ChangeNotifier {
           case AutoCalorieMode.diet:
           case AutoCalorieMode.bulk:
           case AutoCalorieMode.custom:
-            dailyCalorieGoal =
-                (baseCal +
-                        calorieDeltaForWeeklyWeightChange(
-                          targetWeeklyChange(weight),
-                        ))
-                    .clamp(1000, 6000)
-                    .toInt();
+            dailyCalorieGoal = (baseCal +
+                    calorieDeltaForWeeklyWeightChange(
+                      targetWeeklyChange(weight),
+                    ))
+                .clamp(1000, 6000)
+                .toInt();
             break;
           case AutoCalorieMode.maintain:
             dailyCalorieGoal = baseCal;
@@ -1517,15 +1509,13 @@ class AppState extends ChangeNotifier {
         // Diet-Logik (-100/ +50)
         if (weeklyChange > targetWeekly)
           delta = -100; // zu langsam
-        else if (weeklyChange < targetWeekly)
-          delta = 50; // zu schnell
+        else if (weeklyChange < targetWeekly) delta = 50; // zu schnell
       } else if (autoMode == AutoCalorieMode.bulk ||
           (autoMode == AutoCalorieMode.custom && customPercentPerMonth > 0)) {
         // Bulk-Logik (+100/ -50)
         if (weeklyChange < targetWeekly)
           delta = 100; // zu langsam
-        else if (weeklyChange > targetWeekly)
-          delta = -50; // zu schnell
+        else if (weeklyChange > targetWeekly) delta = -50; // zu schnell
       } else if (autoMode == AutoCalorieMode.maintain) {
         const double tol = 0.15; // ±150 g Toleranz
         if (weeklyChange > tol) delta = -100;
@@ -1538,9 +1528,9 @@ class AppState extends ChangeNotifier {
           "(Ziel ${targetWeekly.toStringAsFixed(1)} kg). "
           "Kalorien ${(delta >= 0) ? '+' : ''}$delta ⇒ $dailyCalorieGoal";
       lastMondayCheck = DateTime.now().toIso8601String().substring(
-        0,
-        10,
-      ); // yyyy-MM-dd
+            0,
+            10,
+          ); // yyyy-MM-dd
     }
 
     // ───── C) Makroziele aus Kalorien ──────────────────────────────────────
