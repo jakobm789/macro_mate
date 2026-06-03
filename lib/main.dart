@@ -105,7 +105,13 @@ void main() async {
   final appState = AppState();
   runApp(MaterialApp(home: const LoadingScreen()));
   await appState.initializeCompletely();
-  await appState.scheduleAllNotifications();
+  try {
+    await appState.scheduleAllNotifications().timeout(
+          const Duration(seconds: 8),
+        );
+  } catch (e, st) {
+    appState.reportUiError('scheduleAllNotifications', e, st);
+  }
   runApp(
     ChangeNotifierProvider.value(
       value: appState,

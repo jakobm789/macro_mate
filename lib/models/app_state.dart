@@ -125,6 +125,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void reportUiError(String context, Object error, [StackTrace? stackTrace]) {
+    _logError(context, error, stackTrace);
+  }
+
   void clearUiError() {
     lastUiError = null;
     notifyListeners();
@@ -134,6 +138,18 @@ class AppState extends ChangeNotifier {
     tz.initializeTimeZones();
     final String timeZoneName = await FlutterTimezone.getLocalTimezone();
     tz.setLocalLocation(tz.getLocation(timeZoneName));
+  }
+
+  Future<void> _runStartupStep(
+    String context,
+    Future<void> Function() action, {
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    try {
+      await action().timeout(timeout);
+    } catch (e, st) {
+      _logError(context, e, st);
+    }
   }
 
   Future<void> initializeCompletely() async {
@@ -153,17 +169,17 @@ class AppState extends ChangeNotifier {
     Timer.periodic(Duration(hours: 6), (timer) {
       _checkMondayAndAutoAdjustIfNeeded();
     });
-    await _configureLocalTimezone();
-    await loadWeightEntries();
-    await loadGoals();
-    await loadDarkMode();
-    await loadNotificationSettings();
-    await loadRecentFoodItems();
-    await loadFavoriteFoods();
-    await loadSavedMeals();
-    await loadConsumedFoods();
-    await syncOfflineQueue();
-    await _tryAutoLogin();
+    await _runStartupStep('configureLocalTimezone', _configureLocalTimezone);
+    await _runStartupStep('loadWeightEntries', loadWeightEntries);
+    await _runStartupStep('loadGoals', loadGoals);
+    await _runStartupStep('loadDarkMode', loadDarkMode);
+    await _runStartupStep('loadNotificationSettings', loadNotificationSettings);
+    await _runStartupStep('loadRecentFoodItems', loadRecentFoodItems);
+    await _runStartupStep('loadFavoriteFoods', loadFavoriteFoods);
+    await _runStartupStep('loadSavedMeals', loadSavedMeals);
+    await _runStartupStep('loadConsumedFoods', loadConsumedFoods);
+    await _runStartupStep('syncOfflineQueue', syncOfflineQueue);
+    await _runStartupStep('autoLogin', _tryAutoLogin);
     notifyListeners();
   }
 
