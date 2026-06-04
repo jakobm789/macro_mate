@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_gemma/core/domain/model_source.dart';
 
 import '../models/food_analysis_result.dart';
 import '../models/local_llm_model.dart';
@@ -47,15 +48,107 @@ class LlmService {
   static const Duration _timeout = Duration(minutes: 3);
   static const int _maxImageSizeBytes = 20 * 1024 * 1024;
 
+  static final Uint8List _dummyPngBytes = Uint8List.fromList([
+    137,
+    80,
+    78,
+    71,
+    13,
+    10,
+    26,
+    10,
+    0,
+    0,
+    0,
+    13,
+    73,
+    72,
+    68,
+    82,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+    8,
+    6,
+    0,
+    0,
+    0,
+    31,
+    21,
+    196,
+    137,
+    0,
+    0,
+    0,
+    11,
+    73,
+    68,
+    65,
+    84,
+    120,
+    1,
+    99,
+    96,
+    0,
+    2,
+    0,
+    0,
+    5,
+    0,
+    1,
+    26,
+    10,
+    43,
+    66,
+    0,
+    0,
+    0,
+    0,
+    73,
+    69,
+    78,
+    68,
+    174,
+    66,
+    96,
+    130
+  ]);
+
+  static bool _isProcessing = false;
+
   final LocalLlmModel selectedModel;
+  PreferredBackend? forcedBackend;
   InferenceModel? _loadedModel;
   bool? _loadedModelSupportsImage;
+  PreferredBackend? loadedBackend;
 
-  LlmService({required this.selectedModel});
+  String get loadedBackendName {
+    if (loadedBackend == PreferredBackend.gpu) return 'GPU';
+    if (loadedBackend == PreferredBackend.cpu) return 'CPU';
+    return 'Unbekannt';
+  }
+
+  LlmService({required this.selectedModel, this.forcedBackend});
 
   Future<bool> isSelectedModelInstalled() async {
     _ensureSupportedPlatform();
     return FlutterGemma.isModelInstalled(selectedModel.fileName);
+  }
+
+  void _setActiveModel() {
+    final manager = FlutterGemmaPlugin.instance.modelManager;
+    final spec = InferenceModelSpec(
+      name: selectedModel.fileName,
+      modelSource: ModelSource.network(selectedModel.downloadUrl),
+      modelType: selectedModel.modelType,
+      fileType: ModelFileType.litertlm,
+    );
+    manager.setActiveModel(spec);
   }
 
   Future<void> ensureSelectedModelAvailable({
@@ -65,6 +158,7 @@ class LlmService {
     _ensureSupportedPlatform();
     final installed = await isSelectedModelInstalled();
     if (installed) {
+      _setActiveModel();
       return;
     }
 
@@ -93,18 +187,53 @@ class LlmService {
 
   Future<String> runDebugPrompt() async {
     await ensureSelectedModelAvailable();
-    final model = await _getModel(supportImage: false);
+    final runWithImage = selectedModel.supportsVision;
+    final model = await _getModel(supportImage: runWithImage);
     final chat = await model.createChat(
       temperature: 0.1,
       topK: 1,
+      supportImage: runWithImage,
       modelType: selectedModel.modelType,
       systemInstruction: 'Antworte kurz auf Deutsch.',
     );
 
     try {
-      await chat.addQueryChunk(
-        Message.text(text: 'Antworte nur mit: OK lokal', isUser: true),
-      );
+      final message = runWithImage
+          ? Message.withImage(
+              text: 'Antworte nur mit: OK lokal',
+              imageBytes: _dummyPngBytes,
+              isUser: true)
+          : Message.text(text: 'Antworte nur mit: OK lokal', isUser: true);
+      await chat.addQueryChunk(message);
+      final response = await chat.generateChatResponse().timeout(_timeout);
+      return _responseToText(response).trim();
+    } finally {
+      await chat.close();
+    }
+  }
+
+  Future<String> runMockFoodPrompt() async {
+    await ensureSelectedModelAvailable();
+    final runWithImage = selectedModel.supportsVision;
+    final model = await _getModel(supportImage: runWithImage);
+    final chat = await model.createChat(
+      temperature: 0.1,
+      topK: 1,
+      supportImage: runWithImage,
+      modelType: selectedModel.modelType,
+      systemInstruction: 'Antworte kurz und präzise.',
+    );
+
+    try {
+      final message = runWithImage
+          ? Message.withImage(
+              text: 'Nährwerte für Apfel 150g. Protein, Kohlenhydrate, Fett.',
+              imageBytes: _dummyPngBytes,
+              isUser: true)
+          : Message.text(
+              text: 'Nährwerte für Apfel 150g. Protein, Kohlenhydrate, Fett.',
+              isUser: true);
+      await chat.addQueryChunk(message);
       final response = await chat.generateChatResponse().timeout(_timeout);
       return _responseToText(response).trim();
     } finally {
@@ -120,6 +249,8 @@ class LlmService {
   Future<FoodAnalysisResult> analyzeFood({
     String? imagePath,
     String? textDescription,
+    void Function(String partialReasoning)? onReasoningProgress,
+    VoidCallback? onInferenceStart,
   }) async {
     final normalizedText = _normalizeText(textDescription);
     final hasImage = imagePath != null && imagePath.isNotEmpty;
@@ -136,70 +267,108 @@ class LlmService {
       );
     }
 
-    Uint8List? imageBytes;
-    if (hasImage) {
-      final imageFile = File(imagePath);
-      if (!await imageFile.exists()) {
-        throw LlmInputValidationError('Bild-Datei nicht gefunden.');
-      }
-      final imageSize = await imageFile.length();
-      if (imageSize > _maxImageSizeBytes) {
-        throw LlmInputValidationError(
-          'Bild ist zu groß (${(imageSize / 1024 / 1024).toStringAsFixed(1)} MB). '
-          'Maximum: 20 MB.',
-        );
-      }
-      imageBytes = await imageFile.readAsBytes();
+    if (_isProcessing) {
+      throw LlmInferenceError(
+        'Es läuft bereits eine KI-Analyse. Bitte warte, bis diese abgeschlossen ist.',
+      );
     }
-
-    await ensureSelectedModelAvailable();
-    final stopwatch = Stopwatch()..start();
-    final model = await _getModel(supportImage: hasImage);
-    final chat = await model.createChat(
-      temperature: 0.2,
-      topK: 1,
-      supportImage: hasImage,
-      modelType: selectedModel.modelType,
-      systemInstruction: _buildSystemPrompt(),
-      isThinking: selectedModel.reasoningMode,
-    );
+    _isProcessing = true;
 
     try {
-      final prompt = _buildFoodPrompt(normalizedText, hasImage: hasImage);
-      final message = imageBytes == null
-          ? Message.text(text: prompt, isUser: true)
-          : Message.withImage(
-              text: prompt,
-              imageBytes: imageBytes,
-              isUser: true,
-            );
+      Uint8List? imageBytes;
+      bool runWithImage = hasImage;
 
-      await chat.addQueryChunk(message);
-      final generated = await _generateFoodResponse(chat);
-      final result = _parseFoodAnalysis(generated.text).copyWith(
-        reasoning: generated.reasoning,
+      if (hasImage) {
+        final imageFile = File(imagePath);
+        if (!await imageFile.exists()) {
+          throw LlmInputValidationError('Bild-Datei nicht gefunden.');
+        }
+        final imageSize = await imageFile.length();
+        if (imageSize > _maxImageSizeBytes) {
+          throw LlmInputValidationError(
+            'Bild ist zu groß (${(imageSize / 1024 / 1024).toStringAsFixed(1)} MB). '
+            'Maximum: 20 MB.',
+          );
+        }
+        imageBytes = await imageFile.readAsBytes();
+      } else if (selectedModel.supportsVision) {
+        // Fallback for VLM models to prevent infinite loops on text-only inputs
+        imageBytes = _dummyPngBytes;
+        runWithImage = true;
+      }
+
+      await ensureSelectedModelAvailable();
+      final stopwatch = Stopwatch()..start();
+      final model = await _getModel(supportImage: runWithImage);
+      final enableThinking = selectedModel.reasoningMode && !runWithImage;
+      if (selectedModel.reasoningMode && runWithImage) {
+        debugPrint(
+          '[Local LLM] Thinking disabled for image analysis because '
+          'Gemma 4 LiteRTLM thinking streams do not reliably emit complete '
+          'final text for multimodal prompts.',
+        );
+      }
+      onInferenceStart?.call();
+      final chat = await model.createChat(
+        temperature: 0.2,
+        topK: 1,
+        supportImage: runWithImage,
+        modelType: selectedModel.modelType,
+        systemInstruction: _buildSystemPrompt(),
+        isThinking: enableThinking,
       );
-      stopwatch.stop();
-      debugPrint(
-        '[Local LLM Metrics] op=analyze model=${selectedModel.displayName} '
-        'duration_ms=${stopwatch.elapsedMilliseconds} confidence=${result.confidence}',
-      );
-      return result;
-    } on TimeoutException {
-      throw LlmInferenceError(
-        'Lokale Inferenz hat zu lange gedauert. Wähle ein kleineres Modell oder versuche es erneut.',
-      );
-    } on LlmJsonParseError {
-      rethrow;
-    } on LlmInputValidationError {
-      rethrow;
-    } catch (e) {
-      throw LlmInferenceError(
-        'Lokale Inferenz mit ${selectedModel.displayName} ist fehlgeschlagen: $e',
-      );
+
+      try {
+        final prompt = _buildFoodPrompt(normalizedText, hasImage: hasImage);
+        final message = imageBytes == null
+            ? Message.text(text: prompt, isUser: true)
+            : Message.withImage(
+                text: prompt,
+                imageBytes: imageBytes,
+                isUser: true,
+              );
+
+        await chat.addQueryChunk(message);
+        final generated = await _generateFoodResponse(
+          chat,
+          onReasoningProgress,
+          enableThinking: enableThinking,
+        );
+        final result = parseFoodAnalysis(generated.text).copyWith(
+          reasoning: generated.reasoning,
+        );
+        stopwatch.stop();
+        debugPrint(
+          '[Local LLM Metrics] op=analyze model=${selectedModel.displayName} '
+          'duration_ms=${stopwatch.elapsedMilliseconds} confidence=${result.confidence}',
+        );
+        return result;
+      } on TimeoutException {
+        throw LlmInferenceError(
+          'Lokale Inferenz hat zu lange gedauert. Wähle ein kleineres Modell oder versuche es erneut.',
+        );
+      } on LlmJsonParseError {
+        rethrow;
+      } on LlmInputValidationError {
+        rethrow;
+      } catch (e) {
+        throw LlmInferenceError(
+          'Lokale Inferenz mit ${selectedModel.displayName} ist fehlgeschlagen: $e',
+        );
+      } finally {
+        await chat.close();
+      }
     } finally {
-      await chat.close();
+      _isProcessing = false;
     }
+  }
+
+  PreferredBackend _getDefaultBackendForModel(LocalLlmModel model) {
+    if (model.id == LocalLlmModelId.gemma4E4b ||
+        model.id == LocalLlmModelId.gemma4E4bReasoning) {
+      return PreferredBackend.cpu;
+    }
+    return PreferredBackend.gpu;
   }
 
   Future<InferenceModel> _getModel({required bool supportImage}) async {
@@ -214,26 +383,63 @@ class LlmService {
     await _loadedModel?.close();
     _loadedModel = null;
     _loadedModelSupportsImage = null;
-    try {
-      _loadedModel = await _loadModelWithBackend(
-        supportImage: supportImage,
-        backend: PreferredBackend.gpu,
-      );
-      _loadedModelSupportsImage = supportImage;
-      return _loadedModel!;
-    } catch (gpuError) {
+    _setActiveModel();
+
+    final targetBackend = forcedBackend;
+    if (targetBackend != null) {
+      try {
+        _loadedModel = await _loadModelWithBackend(
+          supportImage: supportImage,
+          backend: targetBackend,
+        );
+        _loadedModelSupportsImage = supportImage;
+        loadedBackend = targetBackend;
+        return _loadedModel!;
+      } catch (e) {
+        throw LlmInferenceError(
+          'Erzwungenes Backend $targetBackend fehlgeschlagen: $e',
+        );
+      }
+    }
+
+    final defaultBackend = _getDefaultBackendForModel(selectedModel);
+    if (defaultBackend == PreferredBackend.cpu) {
       try {
         _loadedModel = await _loadModelWithBackend(
           supportImage: supportImage,
           backend: PreferredBackend.cpu,
         );
         _loadedModelSupportsImage = supportImage;
+        loadedBackend = PreferredBackend.cpu;
         return _loadedModel!;
       } catch (cpuError) {
         throw LlmInferenceError(
-          'Modell konnte nicht geladen werden. Prüfe, ob das Gerät genug RAM '
-          'hat und Android arm64-v8a nutzt. GPU: $gpuError CPU: $cpuError',
+          'Modell konnte auf CPU nicht geladen werden: $cpuError',
         );
+      }
+    } else {
+      try {
+        _loadedModel = await _loadModelWithBackend(
+          supportImage: supportImage,
+          backend: PreferredBackend.gpu,
+        );
+        _loadedModelSupportsImage = supportImage;
+        loadedBackend = PreferredBackend.gpu;
+        return _loadedModel!;
+      } catch (gpuError) {
+        try {
+          _loadedModel = await _loadModelWithBackend(
+            supportImage: supportImage,
+            backend: PreferredBackend.cpu,
+          );
+          _loadedModelSupportsImage = supportImage;
+          loadedBackend = PreferredBackend.cpu;
+          return _loadedModel!;
+        } catch (cpuError) {
+          throw LlmInferenceError(
+            'Modell konnte nicht geladen werden. GPU: $gpuError CPU: $cpuError',
+          );
+        }
       }
     }
   }
@@ -285,10 +491,10 @@ class LlmService {
     return response.toString();
   }
 
-  Future<_GeneratedFoodResponse> _generateFoodResponse(
-    InferenceChat chat,
-  ) async {
-    if (!selectedModel.reasoningMode) {
+  Future<_GeneratedFoodResponse> _generateFoodResponse(InferenceChat chat,
+      void Function(String partialReasoning)? onReasoningProgress,
+      {required bool enableThinking}) async {
+    if (!enableThinking) {
       final response = await chat.generateChatResponse().timeout(_timeout);
       return _GeneratedFoodResponse(text: _responseToText(response));
     }
@@ -303,6 +509,10 @@ class LlmService {
           textBuffer.write(response.token);
         case ThinkingResponse():
           reasoningBuffer.write(response.content);
+          if (onReasoningProgress != null) {
+            onReasoningProgress(
+                _normalizeReasoning(reasoningBuffer.toString()) ?? '');
+          }
         case FunctionCallResponse():
         case ParallelFunctionCallResponse():
           break;
@@ -332,10 +542,17 @@ class LlmService {
     if (trimmed == null || trimmed.isEmpty) {
       return null;
     }
+    final maxLen = (selectedModel.id == LocalLlmModelId.gemma4E4b ||
+            selectedModel.id == LocalLlmModelId.gemma4E4bReasoning)
+        ? 1200
+        : 600;
+    if (trimmed.length > maxLen) {
+      return trimmed.substring(0, maxLen);
+    }
     return trimmed;
   }
 
-  FoodAnalysisResult _parseFoodAnalysis(String rawText) {
+  FoodAnalysisResult parseFoodAnalysis(String rawText) {
     final jsonText = _extractJsonObject(rawText);
     try {
       final decoded = jsonDecode(jsonText) as Map<String, dynamic>;
@@ -380,18 +597,18 @@ class LlmService {
     if (!hasImage) {
       buffer.writeln('Analysiere diese Lebensmittelbeschreibung.');
     }
-    buffer.writeln('Gib ausschließlich das JSON-Objekt aus.');
+
+    buffer.writeln(
+      'Gib ausschließlich ein kompaktes JSON-Objekt aus: keine Markdown-Codefences, '
+      'keine Erklärungen, keine Zeilen vor oder nach JSON. Halte notes leer oder sehr kurz.',
+    );
     return buffer.toString();
   }
 
   String _buildSystemPrompt() {
-    if (!selectedModel.reasoningMode) {
-      return _systemPrompt;
-    }
     return '$_systemPrompt\n'
-        'Reasoning-Modus: Nutze den Thinking-Modus für eine sorgfältige '
-        'Prüfung von Bildinhalt, Portionsgröße und Makros. Gib im finalen '
-        'Antwortkanal weiterhin ausschließlich das JSON-Objekt aus.';
+        'WICHTIG: Gib im finalen Antwortkanal ausschließlich ein kompaktes JSON-Objekt aus. '
+        'Keine Markdown-Codefences, kein Fließtext, keine Erklärungen vor oder nach JSON.';
   }
 
   void _ensureSupportedPlatform() {
@@ -425,15 +642,21 @@ class _GeneratedFoodResponse {
 }
 
 const String _systemPrompt = '''
-Du bist ein Ernährungsexperte und Lebensmittel-Analyst.
-Analysiere Bild und/oder Text und schätze die Nährwerte.
+Du bist ein hochpräziser digitaler Ernährungsberater und Experte für visuelle Lebensmittel-Analysen.
+Deine Aufgabe ist es, Fotos und Beschreibungen von Mahlzeiten zu analysieren, die Zutaten zu identifizieren und das Gesamtgewicht sowie die Nährwerte (Kalorien, Eiweiß, Kohlenhydrate, Fett, Zucker) der GESAMTEN abgebildeten Portion zu schätzen.
 
-WICHTIG: Gib alle Nährwerte für die GESAMTE sichtbare Portion an.
-Schätze außerdem das Gesamtgewicht der sichtbaren Portion in Gramm.
+### ANALYSE-SCHRITTE (Nutze diese Struktur für dein Denken/deinen Text)
+1. **Zutaten-Identifikation**: Welche sichtbaren und impliziten Zutaten (z. B. Butter, Öl) enthält die Mahlzeit?
+2. **Maßstab & Volumen**: Nutze sichtbare Referenzobjekte (Gabel, Tellergröße, Gläser) zur Volumenbestimmung.
+3. **Gewichtsschätzung (in Gramm)**: Schätze das Gewicht jeder Zutat einzeln basierend auf Dichte und Größe und summiere sie auf.
+4. **Nährwert-Zuweisung & Versteckte Fette**: Weise Nährwerte/100g zu. Addiere standardmäßig +5-10g Fett für gebratene/sautierte Speisen wegen Bratölen.
+5. **Verzerrungskorrektur**: LLMs unterschätzen große Portionen oft systematisch. Sei bei großen Portionen eher konservativ und passe die Werte nach oben an.
 
-Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in folgendem Format:
+### FORMAT DER ANTWORT
+Am Ende deiner Antwort (bzw. als alleiniges Ergebnis im finalen Textkanal bei aktivem Reasoning) musst du das Ergebnis als gültiges JSON-Objekt ausgeben:
+```json
 {
-  "name": "Name des Lebensmittels/Gerichts",
+  "name": "Name des Lebensmittels/Gerichts (Deutsch)",
   "brand": "Marke falls erkennbar, sonst 'Unbekannt'",
   "estimated_weight_grams": 350,
   "total_calories": 525,
@@ -442,16 +665,34 @@ Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in folgendem Format:
   "total_fat": 11.2,
   "total_sugar": 7.4,
   "confidence": 0.85,
-  "notes": "Kurze Erklärung zur Schätzung"
+  "ingredients": [
+    {
+      "name": "Zutat",
+      "grams": 100,
+      "calories": 150,
+      "protein": 8.0,
+      "carbs": 20.0,
+      "fat": 3.0,
+      "sugar": 2.0
+    }
+  ],
+  "notes": "Kurze Zusammenfassung der Annahmen, keine zweite Kalorienrechnung (Deutsch)."
 }
+```
 
-Regeln:
-- "confidence" ist ein Wert zwischen 0.0 und 1.0.
-- Bei unklaren Bildern oder vagen Beschreibungen: confidence < 0.7.
-- Alle Nährwerte als Zahlen, keine Strings.
-- Gewicht in Gramm als ganze Zahl.
-- Kalorien als ganze Zahl für die gesamte Portion.
-- Makros als Dezimalzahlen mit einer Nachkommastelle für die gesamte Portion.
-- Bei reiner Textbeschreibung ohne Mengenangabe: Standardportion schätzen.
-- Sprache: Deutsch für name und notes.
+### REGELN:
+- **Zahlenformate**: Alle Nährwerte als Zahlen. Gewicht und Kalorien als ganze Zahlen. Makronährstoffe als Dezimalzahlen (double) mit einer Nachkommastelle.
+- **Konfidenz (confidence)**:
+  - 0.85 - 1.00: Sehr deutliches Bild, flacher Teller, keine überlappenden Schichten, einfache Zutaten.
+  - 0.70 - 0.84: Standardbild, leichte Überlappung, oder eine detaillierte Textbeschreibung mit Mengenangaben.
+  - 0.50 - 0.69: Versteckte Zutaten (z. B. Auflauf, Suppe, Sandwich, Soßen), ungünstiger Kamerawinkel, oder vage Textbeschreibung.
+  - < 0.50: Sehr unklares Bild, starke Überlappung, schlechte Belichtung, oder sehr vage Textbeschreibung.
+- **Textbeschreibungen**: Wenn kein Bild vorhanden ist, schätze eine Standardportion basierend auf der Textbeschreibung und passe das Gewicht entsprechend an.
+- **Sprache**: name, notes und alle Texte müssen auf Deutsch verfasst sein.
+- **Zutaten-Summe**: ingredients muss alle wesentlichen Zutaten enthalten. total_calories, total_protein, total_carbs, total_fat und total_sugar müssen exakt der Summe der ingredients-Werte entsprechen. Wenn du z. B. 200g Haferflocken mit ca. 750 kcal annimmst, darf total_calories nicht darunter liegen.
+- **Kompakte Ausgabe**: Schreibe minifiziertes oder sehr kompaktes JSON ohne Markdown-Codefence. Keine langen Sätze. Keine Erklärung außerhalb von JSON.
+- **Notes**: Wiederhole in notes keine Zahlenrechnung. Verwende notes nur für kurze Unsicherheiten/Annahmen, maximal 80 Zeichen, sonst leerer String.
+- **Explizite Mengenangaben**: Wenn die Beschreibung konkrete Grammangaben enthält, musst du diese Mengen übernehmen und jede explizit genannte Zutat einzeln in ingredients ausgeben. Ignoriere diese Angaben nicht zugunsten einer kleineren Standardportion.
+- **Plausibilitätsanker**: Nutze typische Richtwerte: Haferflocken ca. 370-390 kcal/100g, 12-14g Protein/100g, 58-68g Kohlenhydrate/100g und 6-8g Fett/100g; Proteinpulver ca. 360-400 kcal/100g und 70-85g Protein/100g; Banane ca. 85-95 kcal/100g; Apfel ca. 50-55 kcal/100g. Gesamtwerte dürfen diese bekannten Größenordnungen nicht massiv unterschreiten.
+- **Makro-Konsistenz**: Wenn du ingredients angibst, muss jedes ingredient auch bei Protein, Kohlenhydraten und Fett zur Grammmenge passen. Beispiel: 200g Haferflocken haben nicht 13g Protein, sondern etwa 24-28g Protein.
 ''';

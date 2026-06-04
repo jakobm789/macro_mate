@@ -47,4 +47,4 @@ if [ -n "${HUGGINGFACE_TOKEN:-}" ]; then
   dart_defines+=(--dart-define=HUGGINGFACE_TOKEN="$HUGGINGFACE_TOKEN")
 fi
 
-flutter build apk --release "${dart_defines[@]}"
+./flutter_sdk/bin/flutter build apk --release "${dart_defines[@]}"

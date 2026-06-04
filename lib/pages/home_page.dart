@@ -339,7 +339,7 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
               ListTile(
                 leading: Icon(Icons.auto_awesome, color: Color(0xFF64FFDA)),
-                title: Text('AI Erkennung'),
+                title: Text('KI Erkennung'),
                 subtitle: Text('Foto, Text oder Sprache'),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);

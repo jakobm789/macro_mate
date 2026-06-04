@@ -11,6 +11,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../models/ai_food_analysis_state.dart';
 import '../models/app_state.dart';
 import '../models/food_analysis_result.dart';
+import '../models/local_llm_model.dart';
 import '../services/llm_service.dart';
 
 /// BottomSheet für die KI-gestützte Lebensmittelerkennung.
@@ -38,13 +39,21 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   bool _speechInitialized = false;
   bool _finishRecordingRequested = false;
   bool _modelWarmupStarted = false;
-  String _speechSessionBaseText = '';
+  String _speechCommittedText = '';
+  String _speechCurrentPartial = '';
+  int _speechListenGeneration = 0;
+  bool _speechRestartPending = false;
 
   // --- State ---
   AiFoodAnalysisState _analysisState = AiFoodAnalysisState.idle();
   File? _selectedImage;
   Timer? _recordingTimer;
   Duration _recordingDuration = Duration.zero;
+  String _partialReasoning = '';
+  bool _thinkingExpanded = false;
+  final Set<int> _expandedSteps = {};
+  String _currentInferenceStep = '';
+  String? _inferenceBackendName;
 
   // --- Controllers ---
   final TextEditingController _descriptionController = TextEditingController();
@@ -76,7 +85,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     final appState = Provider.of<AppState>(context, listen: false);
     _llmService = LlmService(selectedModel: appState.selectedLocalLlmModel);
     _initSpeech();
-    _warmUpModelInBackground();
+    _checkAndTriggerDownload();
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
@@ -182,7 +191,9 @@ class _AiFoodSheetState extends State<AiFoodSheet>
 
       _recordingDuration = Duration.zero;
       _finishRecordingRequested = false;
-      _speechSessionBaseText = _descriptionController.text.trim();
+      _speechCommittedText = _descriptionController.text.trim();
+      _speechCurrentPartial = '';
+      _speechRestartPending = false;
 
       _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (mounted) {
@@ -206,20 +217,36 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   Future<void> _listenForSpeech() async {
-    _speechSessionBaseText = _descriptionController.text.trim();
+    _commitCurrentSpeechPartial();
+    _speechCommittedText = _descriptionController.text.trim();
+    _speechCurrentPartial = '';
+    final listenGeneration = ++_speechListenGeneration;
     await _speech.listen(
       onResult: (result) {
-        if (mounted) {
-          final recognizedWords = result.recognizedWords.trim();
-          final combined = [
-            if (_speechSessionBaseText.isNotEmpty) _speechSessionBaseText,
-            if (recognizedWords.isNotEmpty) recognizedWords,
-          ].join(' ').trim();
+        if (mounted && listenGeneration == _speechListenGeneration) {
+          _speechCurrentPartial = result.recognizedWords.trim();
+          var combined = _combineSpeechText(
+            _speechCommittedText,
+            _speechCurrentPartial,
+          );
+
+          final appState = Provider.of<AppState>(context, listen: false);
+          final maxLen =
+              _getMaxDescriptionLength(appState.selectedLocalLlmModel);
+          if (combined.length > maxLen) {
+            combined = combined.substring(0, maxLen);
+            _showSnackBar('Spracheingabe auf $maxLen Zeichen begrenzt.');
+          }
+
           setState(() {
             _descriptionController.text = combined;
+            _descriptionController.selection = TextSelection.collapsed(
+              offset: _descriptionController.text.length,
+            );
           });
           if (result.finalResult) {
-            _speechSessionBaseText = combined;
+            _speechCommittedText = combined;
+            _speechCurrentPartial = '';
           }
         }
       },
@@ -232,17 +259,57 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     );
   }
 
+  void _commitCurrentSpeechPartial() {
+    _speechCommittedText = _combineSpeechText(
+      _speechCommittedText,
+      _speechCurrentPartial,
+    );
+    _speechCurrentPartial = '';
+    if (_speechCommittedText.isNotEmpty) {
+      _descriptionController.text = _speechCommittedText;
+      _descriptionController.selection = TextSelection.collapsed(
+        offset: _descriptionController.text.length,
+      );
+    }
+  }
+
+  String _combineSpeechText(String committed, String partial) {
+    final base = committed.trim();
+    final addition = partial.trim();
+    if (addition.isEmpty) {
+      return base;
+    }
+    if (base.isEmpty) {
+      return addition;
+    }
+    if (base.endsWith(addition)) {
+      return base;
+    }
+    if (addition.startsWith(base)) {
+      return addition;
+    }
+    return '$base $addition'.trim();
+  }
+
   Future<void> _restartListeningAfterPause() async {
+    if (_speechRestartPending) {
+      return;
+    }
+    _speechRestartPending = true;
+    _commitCurrentSpeechPartial();
     await Future.delayed(const Duration(milliseconds: 250));
     if (!mounted ||
         _finishRecordingRequested ||
         _analysisState.status != AiFoodAnalysisStatus.recording) {
+      _speechRestartPending = false;
       return;
     }
     try {
       await _listenForSpeech();
     } catch (e) {
       debugPrint('[Speech] restart after pause failed: $e');
+    } finally {
+      _speechRestartPending = false;
     }
   }
 
@@ -253,6 +320,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     _pulseController.reset();
 
     try {
+      _commitCurrentSpeechPartial();
       setState(() {
         _analysisState = AiFoodAnalysisState.transcribing();
       });
@@ -287,7 +355,10 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     try {
       await _speech.cancel();
     } catch (_) {}
-    _speechSessionBaseText = '';
+    _speechCommittedText = '';
+    _speechCurrentPartial = '';
+    _speechListenGeneration++;
+    _speechRestartPending = false;
 
     if (mounted) {
       setState(() {
@@ -299,6 +370,32 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   // ──────────────────────────────────────────────
   // Analyse starten
   // ──────────────────────────────────────────────
+
+  Future<void> _checkAndTriggerDownload() async {
+    if (!mounted) return;
+    final appState = Provider.of<AppState>(context, listen: false);
+    final markedInstalled =
+        appState.isLocalLlmModelMarkedInstalled(appState.selectedLocalLlmModel);
+    bool installed = markedInstalled;
+    if (!installed) {
+      installed = await _llmService?.isSelectedModelInstalled() ?? false;
+    }
+
+    if (!installed) {
+      if (!appState.isLocalModelDownloadRunning) {
+        try {
+          unawaited(appState.downloadSelectedLocalLlmModel());
+        } catch (e) {
+          debugPrint('[AiFoodSheet] Auto-download failed: $e');
+        }
+      }
+    } else {
+      if (!markedInstalled) {
+        await appState.refreshInstalledLocalLlmModels();
+      }
+      _warmUpModelInBackground();
+    }
+  }
 
   Future<void> _warmUpModelInBackground() async {
     if (_modelWarmupStarted) return;
@@ -322,19 +419,45 @@ class _AiFoodSheetState extends State<AiFoodSheet>
 
     setState(() {
       _analysisState = AiFoodAnalysisState.analyzing();
+      _partialReasoning = '';
+      _thinkingExpanded = false;
+      _expandedSteps.clear();
+      _currentInferenceStep = 'Modell wird geladen...';
+      _inferenceBackendName = null;
     });
     _pulseController.repeat();
 
+    // Kurze Verzögerung, damit die UI rendern kann und "Modell wird geladen..." anzeigt
+    await Future.delayed(const Duration(milliseconds: 100));
+
     try {
       final appState = Provider.of<AppState>(context, listen: false);
-      await _llmService?.dispose();
-      final llmService = LlmService(
-        selectedModel: appState.selectedLocalLlmModel,
-      );
-      _llmService = llmService;
+      if (_llmService == null ||
+          _llmService!.selectedModel != appState.selectedLocalLlmModel) {
+        await _llmService?.dispose();
+        _llmService = LlmService(
+          selectedModel: appState.selectedLocalLlmModel,
+        );
+      }
+      final llmService = _llmService!;
       final result = await llmService.analyzeFood(
         imagePath: _selectedImage?.path,
         textDescription: hasText ? _descriptionController.text.trim() : null,
+        onReasoningProgress: (partial) {
+          if (mounted) {
+            setState(() {
+              _partialReasoning = partial;
+            });
+          }
+        },
+        onInferenceStart: () {
+          if (mounted) {
+            setState(() {
+              _currentInferenceStep = 'Inferenz wird berechnet...';
+              _inferenceBackendName = llmService.loadedBackendName;
+            });
+          }
+        },
       );
 
       if (!mounted) return;
@@ -343,6 +466,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       _populateResultControllers(result);
 
       setState(() {
+        _inferenceBackendName = llmService.loadedBackendName;
         if (result.isLowConfidence) {
           _analysisState = AiFoodAnalysisState.fallback(result);
         } else {
@@ -432,6 +556,14 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   // ──────────────────────────────────────────────
 
   String _humanReadableError(dynamic error) {
+    final msg = error.toString();
+    if (msg.contains('token ids are too long') ||
+        msg.contains('maximum number of tokens') ||
+        (msg.contains('INVALID_ARGUMENT') && msg.contains('token'))) {
+      return 'Die Eingabe (Bild + Beschreibung) überschreitet das Limit des lokalen Modells. '
+          'Bitte versuche es mit einer kürzeren Beschreibung oder wähle ein größeres Modell in den Einstellungen.';
+    }
+
     if (error is LlmModelUnavailableError) {
       return error.message;
     } else if (error is LlmUnsupportedPlatformError) {
@@ -472,6 +604,14 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final appState = Provider.of<AppState>(context);
+    final isInstalled =
+        appState.isLocalLlmModelMarkedInstalled(appState.selectedLocalLlmModel);
+
+    if (isInstalled && !_modelWarmupStarted) {
+      _warmUpModelInBackground();
+    }
+
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -503,7 +643,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
                   Icon(Icons.auto_awesome, color: _accentColor, size: 24),
                   const SizedBox(width: 8),
                   Text(
-                    'AI Erkennung',
+                    'KI Erkennung',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -516,21 +656,25 @@ class _AiFoodSheetState extends State<AiFoodSheet>
 
               // ── Eingabebereich ──
               if (!_analysisState.hasResult) ...[
-                // Foto-Bereich
-                _buildImageSection(),
-                const SizedBox(height: 16),
+                if (!isInstalled) ...[
+                  _buildDownloadCard(appState, theme),
+                ] else ...[
+                  // Foto-Bereich
+                  _buildImageSection(),
+                  const SizedBox(height: 16),
 
-                // Textbeschreibung
-                _buildDescriptionField(),
-                const SizedBox(height: 16),
+                  // Textbeschreibung
+                  _buildDescriptionField(),
+                  const SizedBox(height: 16),
 
-                // Sprachaufnahme
-                _buildVoiceSection(),
-                const SizedBox(height: 20),
+                  // Sprachaufnahme
+                  _buildVoiceSection(),
+                  const SizedBox(height: 20),
 
-                // Analysieren-Button
-                if (_analysisState.status == AiFoodAnalysisStatus.idle)
-                  _buildAnalyzeButton(),
+                  // Analysieren-Button
+                  if (_analysisState.status == AiFoodAnalysisStatus.idle)
+                    _buildAnalyzeButton(),
+                ],
               ],
 
               // ── Status-Bereich ──
@@ -550,6 +694,182 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   // ──────────────────────────────────────────────
   // Eingabe-Widgets
   // ──────────────────────────────────────────────
+
+  Widget _buildDownloadCard(AppState appState, ThemeData theme) {
+    final progress = appState.localModelDownloadProgress ?? 0;
+    final message =
+        appState.localModelDownloadMessage ?? 'Warte auf Download...';
+    final isRunning = appState.isLocalModelDownloadRunning;
+    final modelName = appState.selectedLocalLlmModel.displayName;
+
+    // Modelldateigröße schätzen
+    final modelSize =
+        appState.selectedLocalLlmModel.id == LocalLlmModelId.fastVlm05b
+            ? 'ca. 350 MB'
+            : (appState.selectedLocalLlmModel.id == LocalLlmModelId.gemma4E2b
+                ? 'ca. 1.4 GB'
+                : 'ca. 2.6 GB');
+
+    return Container(
+      key: const ValueKey('download_card'),
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primaryContainer.withOpacity(0.12),
+            theme.colorScheme.surface,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.2),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: isRunning
+                    ? SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                              theme.colorScheme.primary),
+                        ),
+                      )
+                    : Icon(
+                        Icons.cloud_download_outlined,
+                        color: theme.colorScheme.primary,
+                        size: 28,
+                      ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isRunning
+                          ? 'KI-Modell wird geladen...'
+                          : 'Download erforderlich',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$modelName ($modelSize)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (isRunning) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress / 100.0,
+                minHeight: 8,
+                backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    message,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Text(
+                  '$progress%',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            Text(
+              'Für die lokale, datenschutzfreundliche KI-Erkennung muss das Modell einmalig heruntergeladen werden. Dies geschieht vollständig im Hintergrund.',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  try {
+                    unawaited(appState.downloadSelectedLocalLlmModel());
+                  } catch (e) {
+                    _showSnackBar('Fehler beim Starten des Downloads: $e');
+                  }
+                },
+                icon: const Icon(Icons.download, size: 20),
+                label: const Text(
+                  'Download starten',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _buildImageSection() {
     final theme = Theme.of(context);
@@ -641,13 +961,29 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     );
   }
 
+  int _getMaxDescriptionLength(LocalLlmModel model) {
+    if (model.id == LocalLlmModelId.gemma4E4b ||
+        model.id == LocalLlmModelId.gemma4E4bReasoning) {
+      return 1200;
+    }
+    if (model.maxTokens >= 3000) {
+      return 1200;
+    }
+    return 600;
+  }
+
   Widget _buildDescriptionField() {
     final theme = Theme.of(context);
+    final appState = Provider.of<AppState>(context);
+    final maxLen = _getMaxDescriptionLength(appState.selectedLocalLlmModel);
+
     return Semantics(
       label: 'Textbeschreibung des Lebensmittels',
       child: TextField(
         controller: _descriptionController,
-        maxLines: 2,
+        maxLines: null,
+        minLines: 2,
+        maxLength: maxLen,
         decoration: InputDecoration(
           labelText: 'Beschreibung (optional)',
           hintText: 'z.B. 200g Spaghetti Bolognese',
@@ -890,6 +1226,20 @@ class _AiFoodSheetState extends State<AiFoodSheet>
                 ),
                 const SizedBox(height: 8),
                 Text(
+                  _currentInferenceStep,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (_inferenceBackendName != null) ...[
+                  const SizedBox(height: 10),
+                  _buildBackendBadge(theme),
+                ],
+                const SizedBox(height: 8),
+                Text(
                   'Bild und Beschreibung bleiben auf dem Gerät',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -897,6 +1247,13 @@ class _AiFoodSheetState extends State<AiFoodSheet>
                     fontSize: 13,
                   ),
                 ),
+                if (_partialReasoning.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _buildThinkingWidget(
+                    reasoning: _partialReasoning,
+                    isStillRunning: true,
+                  ),
+                ],
               ],
             ),
           ),
@@ -951,6 +1308,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     final theme = Theme.of(context);
     // Live-Vorschau berechnen
     final previewCalories = int.tryParse(_caloriesController.text) ?? 0;
+    final result = _analysisState.result;
     final reasoning = _analysisState.result?.reasoning?.trim();
 
     return Container(
@@ -1014,9 +1372,19 @@ class _AiFoodSheetState extends State<AiFoodSheet>
             const SizedBox(height: 16),
           ],
 
+          if (_inferenceBackendName != null) ...[
+            _buildBackendBadge(theme),
+            const SizedBox(height: 16),
+          ],
+
           if (reasoning != null && reasoning.isNotEmpty) ...[
             _buildReasoningTile(reasoning),
             const SizedBox(height: 16),
+          ],
+
+          if (result?.totalsCorrectedFromIngredients == true) ...[
+            _buildIngredientCorrectionNotice(theme),
+            const SizedBox(height: 12),
           ],
 
           // Mahlzeit-Dropdown
@@ -1141,11 +1509,13 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           ),
 
           // Notes
-          if (_analysisState.result?.notes != null &&
-              _analysisState.result!.notes!.isNotEmpty) ...[
+          if (result != null && result.ingredients.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildIngredientsSummary(result, theme),
+          ] else if (result?.notes != null && result!.notes!.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              _analysisState.result!.notes!,
+              result.notes!,
               style: TextStyle(
                 color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
                 fontSize: 12,
@@ -1196,53 +1566,401 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   Widget _buildReasoningTile(String reasoning) {
-    final theme = Theme.of(context);
-    return Theme(
-      data: theme.copyWith(dividerColor: Colors.transparent),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer.withOpacity(0.22),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: theme.colorScheme.primary.withOpacity(0.22),
-          ),
+    return _buildThinkingWidget(reasoning: reasoning, isStillRunning: false);
+  }
+
+  Widget _buildBackendBadge(ThemeData theme) {
+    final backend = _inferenceBackendName ?? 'Unbekannt';
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        backend,
+        style: TextStyle(
+          color: theme.colorScheme.onSurfaceVariant,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
         ),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          leading: Icon(
-            Icons.psychology_alt_outlined,
-            color: theme.colorScheme.primary,
-          ),
-          title: Text(
-            'Modell-Reasoning',
-            style: TextStyle(
-              color: theme.colorScheme.onSurface,
-              fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Widget _buildIngredientCorrectionNotice(ThemeData theme) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: _warningColor.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _warningColor.withOpacity(0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.calculate_outlined, color: _warningColor, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Gesamtwerte wurden aus den erkannten Zutaten neu summiert, weil die KI-Gesamtsumme widersprüchlich war.',
+              style: TextStyle(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
-          subtitle: Text(
-            'Nur sichtbar, wenn Thinking aktiviert ist.',
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIngredientsSummary(FoodAnalysisResult result, ThemeData theme) {
+    final ingredientCalories = result.ingredients.fold<int>(
+      0,
+      (sum, ingredient) => sum + ingredient.calories,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.onSurface.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Zutaten-Schätzung',
             style: TextStyle(
               color: theme.colorScheme.onSurfaceVariant,
               fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: SelectableText(
-                reasoning,
+          const SizedBox(height: 6),
+          ...result.ingredients.take(6).map(
+                (ingredient) => Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text(
+                    '${ingredient.name}: ${ingredient.grams} g, ${ingredient.calories} kcal',
+                    style: TextStyle(
+                      color:
+                          theme.colorScheme.onSurfaceVariant.withOpacity(0.78),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+          if (result.ingredients.length > 6)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                '+ ${result.ingredients.length - 6} weitere Zutaten',
                 style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 13,
-                  height: 1.35,
+                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.72),
+                  fontSize: 12,
                 ),
               ),
             ),
-          ],
+          const SizedBox(height: 6),
+          Text(
+            'Summe: $ingredientCalories kcal',
+            style: TextStyle(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThinkingWidget(
+      {required String reasoning, required bool isStillRunning}) {
+    final theme = Theme.of(context);
+    final steps = parseThoughtSteps(reasoning, isStillRunning);
+    if (steps.isEmpty) return const SizedBox.shrink();
+
+    final activeStep = steps.firstWhere(
+      (s) => s.isActive,
+      orElse: () => steps.last,
+    );
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.18),
         ),
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Toggle-Button für gesamten Denkprozess
+          InkWell(
+            onTap: () {
+              setState(() {
+                _thinkingExpanded = !_thinkingExpanded;
+              });
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.psychology_outlined,
+                    color: theme.colorScheme.primary,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _thinkingExpanded
+                          ? 'Denkprozess'
+                          : 'Denkprozess: ${activeStep.title}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  if (isStillRunning && !_thinkingExpanded) ...[
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Icon(
+                    _thinkingExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Wenn ausgeklappt, zeige die ganze Kette von Gedanken-Überschriften
+          if (_thinkingExpanded) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: List.generate(steps.length, (index) {
+                  final step = steps[index];
+                  final isExpanded = _expandedSteps.contains(index);
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: step.isActive
+                            ? theme.colorScheme.primary.withOpacity(0.3)
+                            : theme.colorScheme.outline.withOpacity(0.08),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Schritt-Überschrift (weiter ausklappbar für Details)
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              if (isExpanded) {
+                                _expandedSteps.remove(index);
+                              } else {
+                                _expandedSteps.add(index);
+                              }
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            child: Row(
+                              children: [
+                                if (step.isActive && isStillRunning)
+                                  const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.blue),
+                                    ),
+                                  )
+                                else
+                                  Icon(
+                                    step.isCompleted
+                                        ? Icons.check_circle
+                                        : Icons.circle_outlined,
+                                    color: step.isCompleted
+                                        ? Colors.green
+                                        : theme.colorScheme.onSurfaceVariant,
+                                    size: 16,
+                                  ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    step.title,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: step.isActive
+                                          ? FontWeight.bold
+                                          : FontWeight.w600,
+                                      color: step.isActive
+                                          ? theme.colorScheme.primary
+                                          : theme.colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  isExpanded
+                                      ? Icons.expand_less
+                                      : Icons.expand_more,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  size: 18,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Ausgeklappte Details für diesen Schritt
+                        if (isExpanded && step.body.isNotEmpty) ...[
+                          const Divider(height: 1),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                            child: _buildFormattedBody(step.body, theme),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ],
+
+          // Immer unterhalb anzeigen welcher Schritt aktuell läuft (nur während Inferenz)
+          if (isStillRunning) ...[
+            const Divider(height: 1),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: theme.colorScheme.primaryContainer.withOpacity(0.04),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Aktuell: ${activeStep.title}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormattedBody(String bodyText, ThemeData theme) {
+    final lines = bodyText.split('\n');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: lines
+          .map((line) => _buildFormattedLine(line, theme))
+          .where((w) => w is! SizedBox)
+          .toList(),
+    );
+  }
+
+  Widget _buildFormattedLine(String line, ThemeData theme) {
+    final trimmed = line.trim();
+    if (trimmed.isEmpty) return const SizedBox.shrink();
+
+    final isBullet = trimmed.startsWith('*') || trimmed.startsWith('-');
+    final cleanLine =
+        isBullet ? trimmed.replaceFirst(RegExp(r'^[*+\-]\s*'), '') : trimmed;
+
+    final parts = cleanLine.split('**');
+    final spans = <TextSpan>[];
+    for (int i = 0; i < parts.length; i++) {
+      final isBold = i % 2 == 1;
+      spans.add(TextSpan(
+        text: parts[i],
+        style: TextStyle(
+          fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+          color: isBold
+              ? theme.colorScheme.onSurface
+              : theme.colorScheme.onSurfaceVariant,
+        ),
+      ));
+    }
+
+    final textWidget = RichText(
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.4,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        children: spans,
+      ),
+    );
+
+    if (isBullet) {
+      return Padding(
+        padding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '• ',
+              style: TextStyle(
+                fontSize: 14,
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Expanded(child: textWidget),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: textWidget,
     );
   }
 
@@ -1361,4 +2079,92 @@ class _GeminiBorderPainter extends CustomPainter {
   bool shouldRepaint(covariant _GeminiBorderPainter oldDelegate) {
     return oldDelegate.progress != progress || oldDelegate.colors != colors;
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reasoning & Thinking UI Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ThoughtStep {
+  final String title;
+  final String body;
+  final bool isActive;
+  final bool isCompleted;
+
+  ThoughtStep({
+    required this.title,
+    required this.body,
+    required this.isActive,
+    required this.isCompleted,
+  });
+}
+
+List<ThoughtStep> parseThoughtSteps(String reasoning, bool isStillRunning) {
+  final steps = <ThoughtStep>[];
+
+  final cleanReasoning = reasoning
+      .replaceAll(RegExp(r'<\|channel>thought\s*'), '')
+      .replaceAll('<channel|>', '')
+      .replaceAll(RegExp(r'</?think>'), '')
+      .trim();
+
+  if (cleanReasoning.isEmpty) {
+    return [];
+  }
+
+  // Regex to find top-level steps like "1. **Analyze the Image:**"
+  final regExp = RegExp(r'(?:^|\n\n|\n)(\d+)\.\s*\*\*(.*?)\*\*');
+  final matches = regExp.allMatches(cleanReasoning).toList();
+
+  if (matches.isEmpty) {
+    steps.add(ThoughtStep(
+      title: 'Überlegung...',
+      body: cleanReasoning,
+      isActive: isStillRunning,
+      isCompleted: !isStillRunning,
+    ));
+    return steps;
+  }
+
+  final firstMatchIndex = matches.first.start;
+  if (firstMatchIndex > 0) {
+    final intro = cleanReasoning.substring(0, firstMatchIndex).trim();
+    if (intro.isNotEmpty) {
+      steps.add(ThoughtStep(
+        title: 'Vorbereitung',
+        body: intro,
+        isActive: false,
+        isCompleted: true,
+      ));
+    }
+  }
+
+  for (int i = 0; i < matches.length; i++) {
+    final match = matches[i];
+    final stepNum = match.group(1);
+    var title = match.group(2)?.trim() ?? '';
+    if (title.endsWith(':')) {
+      title = title.substring(0, title.length - 1).trim();
+    }
+
+    if (stepNum != null) {
+      title = '$stepNum. $title';
+    }
+
+    final startOfContent = match.end;
+    final endOfContent =
+        (i + 1 < matches.length) ? matches[i + 1].start : cleanReasoning.length;
+
+    final body = cleanReasoning.substring(startOfContent, endOfContent).trim();
+    final isLast = (i == matches.length - 1);
+
+    steps.add(ThoughtStep(
+      title: title,
+      body: body,
+      isActive: isStillRunning && isLast,
+      isCompleted: !isStillRunning || !isLast,
+    ));
+  }
+
+  return steps;
 }

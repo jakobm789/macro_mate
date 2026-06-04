@@ -30,7 +30,7 @@ class LocalLlmModel {
     this.reasoningMode = false,
   });
 
-  static const List<LocalLlmModel> supported = [
+  static const List<LocalLlmModel> all = [
     LocalLlmModel(
       id: LocalLlmModelId.fastVlm05b,
       displayName: 'FastVLM 0.5B',
@@ -39,7 +39,7 @@ class LocalLlmModel {
           'https://huggingface.co/litert-community/FastVLM-0.5B/resolve/main/FastVLM-0.5B.litertlm',
       modelType: ModelType.general,
       supportsVision: true,
-      maxTokens: 1280,
+      maxTokens: 2048,
       recommendation: 'Super leicht, super schnell.',
     ),
     LocalLlmModel(
@@ -61,7 +61,44 @@ class LocalLlmModel {
           'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm',
       modelType: ModelType.gemma4,
       supportsVision: true,
+      maxTokens: 3072,
+      recommendation: 'Standard.',
+    ),
+    LocalLlmModel(
+      id: LocalLlmModelId.gemma4E4bReasoning,
+      displayName: 'Gemma 4 E4B Reasoning',
+      fileName: 'gemma-4-E4B-it.litertlm',
+      downloadUrl:
+          'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm',
+      modelType: ModelType.gemma4,
+      supportsVision: true,
+      maxTokens: 3072,
+      recommendation: 'Maximale Qualität, dauert länger.',
+      reasoningMode: true,
+    ),
+  ];
+
+  static const List<LocalLlmModel> supported = [
+    LocalLlmModel(
+      id: LocalLlmModelId.gemma4E2b,
+      displayName: 'Gemma 4 E2B',
+      fileName: 'gemma-4-E2B-it.litertlm',
+      downloadUrl:
+          'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm',
+      modelType: ModelType.gemma4,
+      supportsVision: true,
       maxTokens: 2048,
+      recommendation: 'Schnell.',
+    ),
+    LocalLlmModel(
+      id: LocalLlmModelId.gemma4E4b,
+      displayName: 'Gemma 4 E4B',
+      fileName: 'gemma-4-E4B-it.litertlm',
+      downloadUrl:
+          'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm',
+      modelType: ModelType.gemma4,
+      supportsVision: true,
+      maxTokens: 3072,
       recommendation: 'Standard.',
     ),
     LocalLlmModel(
@@ -79,7 +116,7 @@ class LocalLlmModel {
   ];
 
   static LocalLlmModel byId(LocalLlmModelId id) {
-    return supported.firstWhere(
+    return all.firstWhere(
       (model) => model.id == id,
       orElse: () => supported.first,
     );
@@ -90,6 +127,9 @@ class LocalLlmModel {
       (value) => value.name == storedName,
       orElse: () => LocalLlmModelId.gemma4E4b,
     );
-    return byId(id);
+    final model = byId(id);
+    return supported.any((supportedModel) => supportedModel.id == model.id)
+        ? model
+        : byId(LocalLlmModelId.gemma4E4b);
   }
 }

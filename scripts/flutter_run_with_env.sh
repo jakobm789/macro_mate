@@ -56,4 +56,4 @@ if [ -n "${HUGGINGFACE_TOKEN:-}" ]; then
   dart_defines+=(--dart-define=HUGGINGFACE_TOKEN="$HUGGINGFACE_TOKEN")
 fi
 
-flutter run -d "$DEVICE_ID" "$@" "${dart_defines[@]}"
+./flutter_sdk/bin/flutter run -d "$DEVICE_ID" "$@" "${dart_defines[@]}"
