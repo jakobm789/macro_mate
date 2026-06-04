@@ -32,17 +32,26 @@ class AiFoodSheet extends StatefulWidget {
 
 class _AiFoodSheetState extends State<AiFoodSheet>
     with SingleTickerProviderStateMixin {
+  static final stt.SpeechToText _sharedSpeech = stt.SpeechToText();
+  static _AiFoodSheetState? _activeSpeechState;
+
   // --- Services ---
   LlmService? _llmService;
   final ImagePicker _imagePicker = ImagePicker();
-  final stt.SpeechToText _speech = stt.SpeechToText();
+  final stt.SpeechToText _speech = _sharedSpeech;
   bool _speechInitialized = false;
   bool _finishRecordingRequested = false;
+  bool _disposed = false;
   bool _modelWarmupStarted = false;
   String _speechCommittedText = '';
   String _speechCurrentPartial = '';
   int _speechListenGeneration = 0;
-  bool _speechRestartPending = false;
+
+  /// Tracks which listen-generation triggered the current restart attempt.
+  /// A restart is only allowed to proceed if this matches _speechListenGeneration
+  /// at the time it was initiated. This prevents double-restarts caused by
+  /// both 'notListening' and 'done' status callbacks firing for the same session.
+  int _speechRestartForGeneration = -1;
 
   // --- State ---
   AiFoodAnalysisState _analysisState = AiFoodAnalysisState.idle();
@@ -81,6 +90,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   @override
   void initState() {
     super.initState();
+    _activeSpeechState = this;
     _selectedMeal = widget.mealName;
     final appState = Provider.of<AppState>(context, listen: false);
     _llmService = LlmService(selectedModel: appState.selectedLocalLlmModel);
@@ -95,26 +105,8 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   Future<void> _initSpeech() async {
     try {
       final available = await _speech.initialize(
-        onStatus: (val) {
-          debugPrint('[Speech] onStatus: $val');
-          if ((val == 'done' || val == 'notListening') &&
-              _analysisState.status == AiFoodAnalysisStatus.recording &&
-              !_finishRecordingRequested) {
-            unawaited(_restartListeningAfterPause());
-          }
-        },
-        onError: (val) {
-          debugPrint('[Speech] onError: $val');
-          if (_analysisState.status == AiFoodAnalysisStatus.recording) {
-            setState(() {
-              _analysisState = AiFoodAnalysisState.error(
-                'Spracherkennungsfehler: ${val.errorMsg} (permanent: ${val.permanent})',
-              );
-            });
-            _recordingTimer?.cancel();
-            _pulseController.stop();
-          }
-        },
+        onStatus: _routeSpeechStatus,
+        onError: _routeSpeechError,
       );
       if (mounted) {
         setState(() {
@@ -126,8 +118,54 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     }
   }
 
+  static void _routeSpeechStatus(String status) {
+    _activeSpeechState?._handleSpeechStatus(status);
+  }
+
+  static void _routeSpeechError(dynamic error) {
+    _activeSpeechState?._handleSpeechError(error);
+  }
+
+  void _handleSpeechStatus(String val) {
+    if (_disposed || !mounted) return;
+    debugPrint(
+        '[Speech] onStatus: $val (gen=$_speechListenGeneration, restartFor=$_speechRestartForGeneration)');
+    if ((val == 'done' || val == 'notListening') &&
+        _analysisState.status == AiFoodAnalysisStatus.recording &&
+        !_finishRecordingRequested) {
+      final gen = _speechListenGeneration;
+      unawaited(_restartListeningAfterPause(gen));
+    }
+  }
+
+  void _handleSpeechError(dynamic val) {
+    if (_disposed || !mounted) return;
+    debugPrint('[Speech] onError: $val');
+    if (_analysisState.status == AiFoodAnalysisStatus.recording) {
+      if (val.permanent) {
+        setState(() {
+          _analysisState = AiFoodAnalysisState.error(
+            'Spracherkennungsfehler: ${val.errorMsg}',
+          );
+        });
+        _recordingTimer?.cancel();
+        _pulseController.stop();
+      } else {
+        debugPrint('[Speech] Non-permanent error, attempting restart...');
+        final gen = _speechListenGeneration;
+        unawaited(_restartListeningAfterPause(gen));
+      }
+    }
+  }
+
   @override
   void dispose() {
+    _disposed = true;
+    if (_activeSpeechState == this) {
+      _activeSpeechState = null;
+    }
+    _finishRecordingRequested = true;
+    _speechListenGeneration++;
     _recordingTimer?.cancel();
     _descriptionController.dispose();
     _nameController.dispose();
@@ -140,7 +178,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     _sugarController.dispose();
     _pulseController.dispose();
     unawaited(_llmService?.dispose() ?? Future<void>.value());
-    _speech.stop();
+    unawaited(_speech.cancel());
     super.dispose();
   }
 
@@ -193,7 +231,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       _finishRecordingRequested = false;
       _speechCommittedText = _descriptionController.text.trim();
       _speechCurrentPartial = '';
-      _speechRestartPending = false;
+      _speechRestartForGeneration = -1;
 
       _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (mounted) {
@@ -218,36 +256,72 @@ class _AiFoodSheetState extends State<AiFoodSheet>
 
   Future<void> _listenForSpeech() async {
     _commitCurrentSpeechPartial();
+    // Snapshot the committed text before starting a new listen session.
     _speechCommittedText = _descriptionController.text.trim();
     _speechCurrentPartial = '';
     final listenGeneration = ++_speechListenGeneration;
+    debugPrint(
+        '[Speech] listen gen=$listenGeneration, committed="$_speechCommittedText"');
     await _speech.listen(
       onResult: (result) {
-        if (mounted && listenGeneration == _speechListenGeneration) {
-          _speechCurrentPartial = result.recognizedWords.trim();
-          var combined = _combineSpeechText(
-            _speechCommittedText,
-            _speechCurrentPartial,
+        if (_disposed ||
+            !mounted ||
+            listenGeneration != _speechListenGeneration ||
+            _finishRecordingRequested) {
+          debugPrint('[Speech] ignoring stale result for gen=$listenGeneration '
+              '(current=$_speechListenGeneration)');
+          return;
+        }
+        final words = result.recognizedWords.trim();
+        debugPrint(
+            '[Speech] onResult: gen=$listenGeneration, words="$words", final=${result.finalResult}');
+
+        if (words.isEmpty) return;
+
+        final visibleBefore = _descriptionController.text.trim();
+        final partialBefore = _speechCurrentPartial;
+        // Store the raw partial from this session.
+        _speechCurrentPartial = words;
+        final committedBaseline = _bestSpeechBaseline(visibleBefore);
+        var combined = _combineSpeechText(
+          committedBaseline,
+          _speechCurrentPartial,
+        );
+        if (_isStaleSpeechRegression(
+              visibleBefore: visibleBefore,
+              partialBefore: partialBefore,
+              combined: combined,
+            ) ||
+            _isDuplicateSpeechRegression(
+              visibleBefore: visibleBefore,
+              words: words,
+              combined: combined,
+            )) {
+          debugPrint('[Speech] ignoring stale/duplicate result: "$words"');
+          _speechCurrentPartial = partialBefore;
+          return;
+        }
+
+        final appState = Provider.of<AppState>(context, listen: false);
+        final maxLen = _getMaxDescriptionLength(appState.selectedLocalLlmModel);
+        if (combined.length > maxLen) {
+          combined = combined.substring(0, maxLen);
+          _showSnackBar('Spracheingabe auf $maxLen Zeichen begrenzt.');
+        }
+
+        setState(() {
+          _descriptionController.text = combined;
+          _descriptionController.selection = TextSelection.collapsed(
+            offset: _descriptionController.text.length,
           );
-
-          final appState = Provider.of<AppState>(context, listen: false);
-          final maxLen =
-              _getMaxDescriptionLength(appState.selectedLocalLlmModel);
-          if (combined.length > maxLen) {
-            combined = combined.substring(0, maxLen);
-            _showSnackBar('Spracheingabe auf $maxLen Zeichen begrenzt.');
-          }
-
-          setState(() {
-            _descriptionController.text = combined;
-            _descriptionController.selection = TextSelection.collapsed(
-              offset: _descriptionController.text.length,
-            );
-          });
-          if (result.finalResult) {
-            _speechCommittedText = combined;
-            _speechCurrentPartial = '';
-          }
+        });
+        if (result.finalResult) {
+          // Lock in this session's final result so it becomes part of the
+          // committed baseline for the next session/restart.
+          _speechCommittedText = combined;
+          _speechCurrentPartial = '';
+          debugPrint(
+              '[Speech] finalResult → committed="$_speechCommittedText"');
         }
       },
       localeId: 'de_DE',
@@ -260,11 +334,18 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   void _commitCurrentSpeechPartial() {
+    if (_disposed || !mounted) return;
+    debugPrint(
+        '[Speech] commitCurrentSpeechPartial: committed before="$_speechCommittedText", partial before="$_speechCurrentPartial"');
+    final visibleBefore = _descriptionController.text.trim();
+    final committedBaseline = _bestSpeechBaseline(visibleBefore);
     _speechCommittedText = _combineSpeechText(
-      _speechCommittedText,
+      committedBaseline,
       _speechCurrentPartial,
     );
     _speechCurrentPartial = '';
+    debugPrint(
+        '[Speech] commitCurrentSpeechPartial: committed after="$_speechCommittedText"');
     if (_speechCommittedText.isNotEmpty) {
       _descriptionController.text = _speechCommittedText;
       _descriptionController.selection = TextSelection.collapsed(
@@ -276,45 +357,141 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   String _combineSpeechText(String committed, String partial) {
     final base = committed.trim();
     final addition = partial.trim();
-    if (addition.isEmpty) {
-      return base;
-    }
-    if (base.isEmpty) {
+    debugPrint('[Speech] combine: base="$base", addition="$addition"');
+    if (addition.isEmpty) return base;
+    if (base.isEmpty) return addition;
+
+    // Some Android speech engines deliver cumulative text across restarts,
+    // meaning `addition` may start with (all or part of) `base`.
+    // Detect this and strip the overlapping prefix to avoid duplication.
+    final baseLower = base.toLowerCase();
+    final additionLower = addition.toLowerCase();
+    if (additionLower.startsWith(baseLower)) {
+      // The engine re-delivered the full committed text plus new words.
+      // Use the engine's version (it may have better punctuation/casing).
+      debugPrint(
+          '[Speech] combine: addition contains base, using addition directly');
       return addition;
     }
-    if (base.endsWith(addition)) {
-      return base;
+
+    // Check for partial overlap: the end of `base` matches the start of `addition`.
+    // This handles cases where the engine delivers text that partially overlaps
+    // with what was already committed.
+    // We check from the longest possible overlap down to a minimum of 3 chars.
+    final minOverlap = 3;
+    final maxCheck =
+        base.length < addition.length ? base.length : addition.length;
+    for (var len = maxCheck; len >= minOverlap; len--) {
+      if (baseLower.endsWith(additionLower.substring(0, len))) {
+        final merged = base + addition.substring(len);
+        debugPrint('[Speech] combine: overlap=$len chars, merged="$merged"');
+        return merged;
+      }
     }
-    if (addition.startsWith(base)) {
-      return addition;
-    }
-    return '$base $addition'.trim();
+
+    // No overlap detected – simple append.
+    final result = '$base $addition';
+    debugPrint('[Speech] combine: no overlap, result="$result"');
+    return result;
   }
 
-  Future<void> _restartListeningAfterPause() async {
-    if (_speechRestartPending) {
+  String _bestSpeechBaseline(String visibleBefore) {
+    final committed = _speechCommittedText.trim();
+    final visible = visibleBefore.trim();
+    if (visible.isEmpty) return committed;
+    if (committed.isEmpty) return visible;
+    if (visible.length <= committed.length) return committed;
+    if (visible.toLowerCase().startsWith(committed.toLowerCase())) {
+      return visible;
+    }
+    return committed;
+  }
+
+  bool _isStaleSpeechRegression({
+    required String visibleBefore,
+    required String partialBefore,
+    required String combined,
+  }) {
+    if (visibleBefore.isEmpty || combined.isEmpty) return false;
+    if (combined.length >= visibleBefore.length) return false;
+    final visibleLower = visibleBefore.toLowerCase();
+    final combinedLower = combined.toLowerCase();
+    return visibleLower.startsWith(combinedLower) ||
+        combinedLower.split(RegExp(r'\s+')).every(visibleLower.contains);
+  }
+
+  bool _isDuplicateSpeechRegression({
+    required String visibleBefore,
+    required String words,
+    required String combined,
+  }) {
+    final visibleLower = visibleBefore.toLowerCase();
+    final wordsLower = words.toLowerCase();
+    final combinedLower = combined.toLowerCase();
+    if (visibleLower.isEmpty || wordsLower.isEmpty) return false;
+    if (!visibleLower.contains(wordsLower)) return false;
+    if (visibleLower == wordsLower) return false;
+    return combinedLower.startsWith(visibleLower) &&
+        combinedLower.length > visibleLower.length;
+  }
+
+  Future<void> _restartListeningAfterPause(int forGeneration) async {
+    if (_disposed || !mounted || _finishRecordingRequested) return;
+    // Only allow one restart per listen-generation. If a restart was already
+    // initiated for this generation (e.g. 'notListening' fired before 'done'),
+    // skip the duplicate.
+    if (_speechRestartForGeneration == forGeneration) {
+      debugPrint(
+          '[Speech] restart already pending for gen=$forGeneration, skipping');
       return;
     }
-    _speechRestartPending = true;
+    _speechRestartForGeneration = forGeneration;
+
+    // Also verify the generation hasn't already been superseded by a new
+    // listen session (e.g. if the user manually stopped and restarted).
+    if (forGeneration != _speechListenGeneration) {
+      debugPrint(
+          '[Speech] restart gen=$forGeneration stale (current=$_speechListenGeneration), skipping');
+      return;
+    }
+
+    // Commit any partial text from the session that just ended, so it becomes
+    // part of the baseline for the new session.
     _commitCurrentSpeechPartial();
-    await Future.delayed(const Duration(milliseconds: 250));
+    debugPrint(
+        '[Speech] restart: gen=$forGeneration, committed="$_speechCommittedText"');
+
+    // Wait briefly for the speech engine to fully settle before restarting.
+    await Future.delayed(const Duration(milliseconds: 350));
+
     if (!mounted ||
         _finishRecordingRequested ||
         _analysisState.status != AiFoodAnalysisStatus.recording) {
-      _speechRestartPending = false;
+      debugPrint(
+          '[Speech] restart aborted: mounted=$mounted, finishRequested=$_finishRecordingRequested');
       return;
     }
+
+    // Double-check generation hasn't changed during the delay.
+    if (forGeneration != _speechListenGeneration) {
+      debugPrint(
+          '[Speech] restart gen=$forGeneration stale after delay (current=$_speechListenGeneration), skipping');
+      return;
+    }
+
     try {
       await _listenForSpeech();
+      _speechRestartForGeneration = -1;
     } catch (e) {
-      debugPrint('[Speech] restart after pause failed: $e');
-    } finally {
-      _speechRestartPending = false;
+      debugPrint('[Speech] restart failed: $e');
+      _speechRestartForGeneration = -1;
     }
   }
 
   Future<void> _stopRecording() async {
     _finishRecordingRequested = true;
+    _speechListenGeneration++;
+    _speechRestartForGeneration = -1;
     _recordingTimer?.cancel();
     _pulseController.stop();
     _pulseController.reset();
@@ -348,6 +525,8 @@ class _AiFoodSheetState extends State<AiFoodSheet>
 
   Future<void> _cancelRecording() async {
     _finishRecordingRequested = true;
+    _speechListenGeneration++;
+    _speechRestartForGeneration = -1;
     _recordingTimer?.cancel();
     _pulseController.stop();
     _pulseController.reset();
@@ -358,7 +537,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     _speechCommittedText = '';
     _speechCurrentPartial = '';
     _speechListenGeneration++;
-    _speechRestartPending = false;
+    _speechRestartForGeneration = -1;
 
     if (mounted) {
       setState(() {
@@ -642,14 +821,17 @@ class _AiFoodSheetState extends State<AiFoodSheet>
                 children: [
                   Icon(Icons.auto_awesome, color: _accentColor, size: 24),
                   const SizedBox(width: 8),
-                  Text(
-                    'KI Erkennung',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface,
+                  Expanded(
+                    child: Text(
+                      'KI Erkennung',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                   ),
+                  if (_inferenceBackendName != null) _buildBackendText(theme),
                 ],
               ),
               const SizedBox(height: 20),
@@ -1234,10 +1416,6 @@ class _AiFoodSheetState extends State<AiFoodSheet>
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (_inferenceBackendName != null) ...[
-                  const SizedBox(height: 10),
-                  _buildBackendBadge(theme),
-                ],
                 const SizedBox(height: 8),
                 Text(
                   'Bild und Beschreibung bleiben auf dem Gerät',
@@ -1369,11 +1547,6 @@ class _AiFoodSheetState extends State<AiFoodSheet>
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-          ],
-
-          if (_inferenceBackendName != null) ...[
-            _buildBackendBadge(theme),
             const SizedBox(height: 16),
           ],
 
@@ -1569,18 +1742,15 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     return _buildThinkingWidget(reasoning: reasoning, isStillRunning: false);
   }
 
-  Widget _buildBackendBadge(ThemeData theme) {
+  Widget _buildBackendText(ThemeData theme) {
     final backend = _inferenceBackendName ?? 'Unbekannt';
 
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        backend,
-        style: TextStyle(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
+    return Text(
+      backend,
+      style: TextStyle(
+        color: theme.colorScheme.onSurfaceVariant,
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
       ),
     );
   }

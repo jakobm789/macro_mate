@@ -291,8 +291,9 @@ class LlmService {
           );
         }
         imageBytes = await imageFile.readAsBytes();
-      } else if (selectedModel.supportsVision) {
-        // Fallback for VLM models to prevent infinite loops on text-only inputs
+      } else if (selectedModel.id == LocalLlmModelId.fastVlm05b) {
+        // FastVLM needs an image prompt even for diagnostics. Gemma text-only
+        // prompts must stay text-only so thinking mode can remain enabled.
         imageBytes = _dummyPngBytes;
         runWithImage = true;
       }
@@ -364,10 +365,6 @@ class LlmService {
   }
 
   PreferredBackend _getDefaultBackendForModel(LocalLlmModel model) {
-    if (model.id == LocalLlmModelId.gemma4E4b ||
-        model.id == LocalLlmModelId.gemma4E4bReasoning) {
-      return PreferredBackend.cpu;
-    }
     return PreferredBackend.gpu;
   }
 
