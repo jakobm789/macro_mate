@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/app_state.dart';
+import '../models/local_llm_model.dart';
+import '../services/llm_service.dart';
 
 class PalOption {
   final double value;
@@ -78,6 +82,8 @@ class _SettingsPageState extends State<SettingsPage> {
   TimeOfDay reminderDinner = const TimeOfDay(hour: 19, minute: 0);
   Gender _selectedGender = Gender.male;
   BmrFormula _selectedFormula = BmrFormula.mifflin;
+  bool _llmBusy = false;
+  String? _llmStatusMessage;
 
   @override
   void initState() {
@@ -144,6 +150,7 @@ class _SettingsPageState extends State<SettingsPage> {
     reminderSupplementTime = appState.reminderSupplementTime;
     reminderSupplementTime2 = appState.reminderSupplementTimeSecond;
     reminderMealsEnabled = appState.reminderMealsEnabled;
+    unawaited(appState.refreshInstalledLocalLlmModels());
     reminderBreakfast = appState.reminderBreakfast;
     reminderLunch = appState.reminderLunch;
     reminderDinner = appState.reminderDinner;
@@ -215,7 +222,7 @@ class _SettingsPageState extends State<SettingsPage> {
       appState.useProteinPerKg = _useProteinPerKg;
       appState.proteinPerKg =
           double.tryParse(_proteinPerKgController.text.replaceAll(',', '.')) ??
-          appState.proteinPerKg;
+              appState.proteinPerKg;
       appState.targetWeight = _targetWeightController.text.trim().isEmpty
           ? null
           : double.tryParse(_targetWeightController.text.replaceAll(',', '.'));
@@ -229,12 +236,12 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       final autoInputsChanged =
           oldUseCustomStartCalories != appState.useCustomStartCalories ||
-          oldStartCalories != appState.userStartCalories ||
-          oldAge != appState.userAge ||
-          oldHeight != appState.userHeight ||
-          oldActivity != appState.userActivityLevel ||
-          oldGender != appState.userGender ||
-          oldFormula != appState.bmrFormula;
+              oldStartCalories != appState.userStartCalories ||
+              oldAge != appState.userAge ||
+              oldHeight != appState.userHeight ||
+              oldActivity != appState.userActivityLevel ||
+              oldGender != appState.userGender ||
+              oldFormula != appState.bmrFormula;
       final autoModeChanged = oldMode != appState.autoMode;
       final autoTargetChanged =
           oldCustomPercent != appState.customPercentPerMonth;
@@ -434,6 +441,83 @@ class _SettingsPageState extends State<SettingsPage> {
     return await showTimePicker(context: context, initialTime: initial);
   }
 
+  Future<void> _checkLocalModel(AppState appState) async {
+    setState(() {
+      _llmBusy = true;
+      _llmStatusMessage = null;
+    });
+    try {
+      final service = LlmService(selectedModel: appState.selectedLocalLlmModel);
+      final installed = await service.isSelectedModelInstalled();
+      await service.dispose();
+      setState(() {
+        _llmStatusMessage = installed
+            ? '${appState.selectedLocalLlmModel.displayName} ist lokal installiert.'
+            : '${appState.selectedLocalLlmModel.displayName} ist noch nicht lokal installiert.';
+      });
+      if (installed) {
+        unawaited(appState.refreshInstalledLocalLlmModels());
+      }
+    } catch (e) {
+      setState(() {
+        _llmStatusMessage = _llmErrorText(e);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _llmBusy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _downloadLocalModel(AppState appState) async {
+    setState(() => _llmStatusMessage = null);
+    try {
+      await appState.downloadSelectedLocalLlmModel();
+    } catch (e) {
+      setState(() {
+        _llmStatusMessage = _llmErrorText(e);
+      });
+    }
+  }
+
+  Future<void> _testLocalModel(AppState appState) async {
+    setState(() {
+      _llmBusy = true;
+      _llmStatusMessage = 'Debug-Inferenz läuft...';
+    });
+    try {
+      final service = LlmService(selectedModel: appState.selectedLocalLlmModel);
+      final response = await service.runDebugPrompt();
+      await service.dispose();
+      setState(() {
+        _llmStatusMessage = 'Debug-Antwort: $response';
+      });
+    } catch (e) {
+      setState(() {
+        _llmStatusMessage = _llmErrorText(e);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _llmBusy = false;
+        });
+      }
+    }
+  }
+
+  String _llmErrorText(Object error) {
+    if (error is LlmModelUnavailableError ||
+        error is LlmUnsupportedPlatformError ||
+        error is LlmInputValidationError ||
+        error is LlmInferenceError ||
+        error is LlmJsonParseError) {
+      return error.toString();
+    }
+    return 'Lokaler Modelltest fehlgeschlagen: $error';
+  }
+
   Widget _timeTile(String title, TimeOfDay time, Function(TimeOfDay) onPicked) {
     return ListTile(
       title: Text(title),
@@ -446,6 +530,50 @@ class _SettingsPageState extends State<SettingsPage> {
           onPicked(picked);
         }
       },
+    );
+  }
+
+  Widget _settingsSectionTitle(IconData icon, String title) {
+    return Row(
+      children: [
+        Icon(icon, size: 22),
+        SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _localModelStatusIcon({
+    required bool installed,
+    required bool downloading,
+  }) {
+    if (downloading) {
+      return const SizedBox(
+        width: 22,
+        height: 22,
+        child: CircularProgressIndicator(strokeWidth: 2.4),
+      );
+    }
+    if (installed) {
+      return Tooltip(
+        message: 'Installiert',
+        child: Icon(
+          Icons.check_circle,
+          color: Colors.green.shade700,
+        ),
+      );
+    }
+    return Tooltip(
+      message: 'Nicht installiert',
+      child: Icon(
+        Icons.download_for_offline_outlined,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
     );
   }
 
@@ -470,9 +598,9 @@ class _SettingsPageState extends State<SettingsPage> {
         child: Column(
           children: [
             ExpansionTile(
-              title: const Text(
+              title: _settingsSectionTitle(
+                Icons.flag_outlined,
                 'Ziele einstellen (manuell)',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               children: [
                 TextField(
@@ -615,14 +743,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   difference > 0
                       ? 'Die Summe ist ${difference.abs()}% zu hoch.'
                       : difference < 0
-                      ? 'Die Summe ist ${difference.abs()}% zu niedrig.'
-                      : 'Die Summe der Makronährstoffe beträgt 100%',
+                          ? 'Die Summe ist ${difference.abs()}% zu niedrig.'
+                          : 'Die Summe der Makronährstoffe beträgt 100%',
                   style: TextStyle(
                     color: difference == 0
                         ? Colors.green
                         : difference > 0
-                        ? Colors.red[700]
-                        : Colors.orange[700],
+                            ? Colors.red[700]
+                            : Colors.orange[700],
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -648,9 +776,9 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             SizedBox(height: 20),
             ExpansionTile(
-              title: Text(
+              title: _settingsSectionTitle(
+                Icons.trending_up,
                 'Automatische Kaloriensteuerung',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               children: [
                 RadioListTile<AutoCalorieMode>(
@@ -996,9 +1124,125 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             SizedBox(height: 20),
             ExpansionTile(
-              title: Text(
+              title: _settingsSectionTitle(
+                Icons.memory,
+                'Lokales Vision-Modell',
+              ),
+              children: [
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    children: LocalLlmModel.supported.map((model) {
+                      final installed =
+                          appState.isLocalLlmModelMarkedInstalled(model);
+                      final downloading =
+                          appState.downloadingLocalLlmModel?.fileName ==
+                              model.fileName;
+                      return RadioListTile<LocalLlmModelId>(
+                        title: Text(model.displayName),
+                        subtitle: Text(model.recommendation),
+                        secondary: _localModelStatusIcon(
+                          installed: installed,
+                          downloading: downloading,
+                        ),
+                        value: model.id,
+                        groupValue: appState.selectedLocalLlmModel.id,
+                        onChanged:
+                            _llmBusy || appState.isLocalModelDownloadRunning
+                                ? null
+                                : (value) async {
+                                    if (value == null) return;
+                                    await appState.setSelectedLocalLlmModel(
+                                      LocalLlmModel.byId(value),
+                                    );
+                                    if (mounted) {
+                                      setState(() {
+                                        _llmStatusMessage = null;
+                                      });
+                                    }
+                                  },
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                      );
+                    }).toList(),
+                  ),
+                ),
+                SizedBox(height: 12),
+                if (appState.localModelDownloadProgress != null)
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16.0),
+                    child: LinearProgressIndicator(
+                      value: appState.localModelDownloadProgress! / 100.0,
+                    ),
+                  ),
+                if (_llmStatusMessage != null ||
+                    appState.localModelDownloadMessage != null)
+                  Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _llmStatusMessage ??
+                            appState.localModelDownloadMessage!,
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed:
+                            _llmBusy || appState.isLocalModelDownloadRunning
+                                ? null
+                                : () => _checkLocalModel(appState),
+                        icon: Icon(Icons.inventory_2_outlined),
+                        label: Text('Prüfen'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _llmBusy ||
+                                appState.isLocalModelDownloadRunning ||
+                                appState.isLocalLlmModelMarkedInstalled(
+                                  appState.selectedLocalLlmModel,
+                                )
+                            ? null
+                            : () => _downloadLocalModel(appState),
+                        icon: Icon(
+                          appState.isLocalLlmModelMarkedInstalled(
+                            appState.selectedLocalLlmModel,
+                          )
+                              ? Icons.check_circle_outline
+                              : Icons.download,
+                        ),
+                        label: Text(
+                          appState.isLocalLlmModelMarkedInstalled(
+                            appState.selectedLocalLlmModel,
+                          )
+                              ? 'Installiert'
+                              : 'Installieren',
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed:
+                            _llmBusy || appState.isLocalModelDownloadRunning
+                                ? null
+                                : () => _testLocalModel(appState),
+                        icon: Icon(Icons.bug_report_outlined),
+                        label: Text('Debug-Test'),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+              ],
+            ),
+            SizedBox(height: 20),
+            ExpansionTile(
+              title: _settingsSectionTitle(
+                Icons.notifications_active_outlined,
                 'Benachrichtigungen',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               children: [
                 SwitchListTile(
@@ -1107,9 +1351,9 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             SizedBox(height: 20),
             ExpansionTile(
-              title: Text(
+              title: _settingsSectionTitle(
+                Icons.tune,
                 'Sonstige Einstellungen',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               children: [
                 SwitchListTile(

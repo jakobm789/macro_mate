@@ -798,8 +798,6 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     return Consumer<AppState>(
@@ -848,440 +846,427 @@ class _MyHomePageState extends State<MyHomePage> {
             backgroundColor: Theme.of(context).colorScheme.inversePrimary,
             centerTitle: true,
           ),
-          body: SingleChildScrollView(
-            padding: EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircularPercentIndicator(
-                        radius: 80.0,
-                        lineWidth: 12.0,
-                        percent: _calorieProgress(state).clamp(0.0, 1.0),
-                        center: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${(state.dailyCalorieGoal - state.consumedCalories).toStringAsFixed(0)} kcal',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              'Verbleibend',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        circularStrokeCap: CircularStrokeCap.round,
-                        backgroundColor: Colors.grey[300]!,
-                        progressColor: Colors.lightBlueAccent,
-                        animation: true,
-                        animateFromLastPercent: true,
-                      ),
-                      SizedBox(width: 24),
-                      Column(
+          body: Stack(
+            children: [
+              SingleChildScrollView(
+                padding: EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '\nGrundziel:',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                          CircularPercentIndicator(
+                            radius: 80.0,
+                            lineWidth: 12.0,
+                            percent: _calorieProgress(state).clamp(0.0, 1.0),
+                            center: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '${(state.dailyCalorieGoal - state.consumedCalories).toStringAsFixed(0)} kcal',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '${state.dailyCalorieGoal.toStringAsFixed(0)} kcal',
-                                style: TextStyle(fontSize: 16),
-                              ),
-                            ],
+                                Text(
+                                  'Verbleibend',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            circularStrokeCap: CircularStrokeCap.round,
+                            backgroundColor: Colors.grey[300]!,
+                            progressColor: Colors.lightBlueAccent,
+                            animation: true,
+                            animateFromLastPercent: true,
                           ),
-                          SizedBox(height: 16),
+                          SizedBox(width: 24),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Gegessen:',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '\nGrundziel:',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    '${state.dailyCalorieGoal.toStringAsFixed(0)} kcal',
+                                    style: TextStyle(fontSize: 16),
+                                  ),
+                                ],
                               ),
-                              SizedBox(height: 4),
-                              Text(
-                                '${state.consumedCalories.toStringAsFixed(0)} kcal',
-                                style: TextStyle(fontSize: 16),
+                              SizedBox(height: 16),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Gegessen:',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    '${state.consumedCalories.toStringAsFixed(0)} kcal',
+                                    style: TextStyle(fontSize: 16),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 24),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Kohlenhydrate (g)',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '${state.consumedCarbs.toStringAsFixed(0)} / ${state.dailyCarbGoal.toStringAsFixed(0)} g',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 4),
-                    LinearPercentIndicator(
-                      lineHeight: 7.0,
-                      percent: _carbProgress(state).clamp(0.0, 1.0),
-                      progressColor: carbProgressColor,
-                      backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(3.5),
-                      animation: true,
-                    ),
-                    SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Zucker (g)',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '${state.consumedSugar.toStringAsFixed(0)} / ${state.dailySugarGoalGrams.toStringAsFixed(0)} g',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 4),
-                    LinearPercentIndicator(
-                      lineHeight: 7.0,
-                      percent: _sugarProgress(state).clamp(0.0, 1.0),
-                      progressColor: sugarProgressColor,
-                      backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(3.5),
-                      animation: true,
-                    ),
-                    SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Proteine (g)',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '${state.consumedProtein.toStringAsFixed(0)} / ${state.dailyProteinGoal.toStringAsFixed(0)} g',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 4),
-                    LinearPercentIndicator(
-                      lineHeight: 7.0,
-                      percent: _proteinProgress(state).clamp(0.0, 1.0),
-                      progressColor: proteinProgressColor,
-                      backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(3.5),
-                      animation: true,
-                    ),
-                    SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Fette (g)',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '${state.consumedFat.toStringAsFixed(0)} / ${state.dailyFatGoal.toStringAsFixed(0)} g',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 4),
-                    LinearPercentIndicator(
-                      lineHeight: 7.0,
-                      percent: _fatProgress(state).clamp(0.0, 1.0),
-                      progressColor: fatProgressColor,
-                      backgroundColor: Colors.grey[300]!,
-                      barRadius: Radius.circular(3.5),
-                      animation: true,
                     ),
                     SizedBox(height: 24),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Kohlenhydrate (g)',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '${state.consumedCarbs.toStringAsFixed(0)} / ${state.dailyCarbGoal.toStringAsFixed(0)} g',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        LinearPercentIndicator(
+                          lineHeight: 7.0,
+                          percent: _carbProgress(state).clamp(0.0, 1.0),
+                          progressColor: carbProgressColor,
+                          backgroundColor: Colors.grey[300]!,
+                          barRadius: Radius.circular(3.5),
+                          animation: true,
+                        ),
+                        SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Zucker (g)',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '${state.consumedSugar.toStringAsFixed(0)} / ${state.dailySugarGoalGrams.toStringAsFixed(0)} g',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        LinearPercentIndicator(
+                          lineHeight: 7.0,
+                          percent: _sugarProgress(state).clamp(0.0, 1.0),
+                          progressColor: sugarProgressColor,
+                          backgroundColor: Colors.grey[300]!,
+                          barRadius: Radius.circular(3.5),
+                          animation: true,
+                        ),
+                        SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Proteine (g)',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '${state.consumedProtein.toStringAsFixed(0)} / ${state.dailyProteinGoal.toStringAsFixed(0)} g',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        LinearPercentIndicator(
+                          lineHeight: 7.0,
+                          percent: _proteinProgress(state).clamp(0.0, 1.0),
+                          progressColor: proteinProgressColor,
+                          backgroundColor: Colors.grey[300]!,
+                          barRadius: Radius.circular(3.5),
+                          animation: true,
+                        ),
+                        SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Fette (g)',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '${state.consumedFat.toStringAsFixed(0)} / ${state.dailyFatGoal.toStringAsFixed(0)} g',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        LinearPercentIndicator(
+                          lineHeight: 7.0,
+                          percent: _fatProgress(state).clamp(0.0, 1.0),
+                          progressColor: fatProgressColor,
+                          backgroundColor: Colors.grey[300]!,
+                          barRadius: Radius.circular(3.5),
+                          animation: true,
+                        ),
+                        SizedBox(height: 24),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        MealSection(
+                          mealName: 'Frühstück',
+                          foods: state.breakfast,
+                          onAdd: () {
+                            _showAddFoodOptions(context, state, 'Frühstück');
+                          },
+                          onCopyYesterday: () => _copyMealFromYesterday(
+                              context, state, 'Frühstück'),
+                          onImportQr: () => _scanMealQr(
+                            context,
+                            state,
+                            'Frühstück',
+                          ),
+                          onShareQr: state.breakfast.isEmpty
+                              ? null
+                              : () => _showMealQr(context, state, 'Frühstück'),
+                          onSaveMeal: state.breakfast.isEmpty
+                              ? null
+                              : () => _saveMealTemplate(
+                                    context,
+                                    state,
+                                    'Frühstück',
+                                    state.breakfast,
+                                  ),
+                        ),
+                        SizedBox(height: 8),
+                        MealSection(
+                          mealName: 'Mittagessen',
+                          foods: state.lunch,
+                          onAdd: () {
+                            _showAddFoodOptions(context, state, 'Mittagessen');
+                          },
+                          onCopyYesterday: () => _copyMealFromYesterday(
+                              context, state, 'Mittagessen'),
+                          onImportQr: () => _scanMealQr(
+                            context,
+                            state,
+                            'Mittagessen',
+                          ),
+                          onShareQr: state.lunch.isEmpty
+                              ? null
+                              : () =>
+                                  _showMealQr(context, state, 'Mittagessen'),
+                          onSaveMeal: state.lunch.isEmpty
+                              ? null
+                              : () => _saveMealTemplate(
+                                    context,
+                                    state,
+                                    'Mittagessen',
+                                    state.lunch,
+                                  ),
+                        ),
+                        SizedBox(height: 8),
+                        MealSection(
+                          mealName: 'Abendessen',
+                          foods: state.dinner,
+                          onAdd: () {
+                            _showAddFoodOptions(context, state, 'Abendessen');
+                          },
+                          onCopyYesterday: () => _copyMealFromYesterday(
+                              context, state, 'Abendessen'),
+                          onImportQr: () => _scanMealQr(
+                            context,
+                            state,
+                            'Abendessen',
+                          ),
+                          onShareQr: state.dinner.isEmpty
+                              ? null
+                              : () => _showMealQr(context, state, 'Abendessen'),
+                          onSaveMeal: state.dinner.isEmpty
+                              ? null
+                              : () => _saveMealTemplate(
+                                    context,
+                                    state,
+                                    'Abendessen',
+                                    state.dinner,
+                                  ),
+                        ),
+                        SizedBox(height: 8),
+                        MealSection(
+                          mealName: 'Snacks',
+                          foods: state.snacks,
+                          onAdd: () {
+                            _showAddFoodOptions(context, state, 'Snacks');
+                          },
+                          onCopyYesterday: () =>
+                              _copyMealFromYesterday(context, state, 'Snacks'),
+                          onImportQr: () =>
+                              _scanMealQr(context, state, 'Snacks'),
+                          onShareQr: state.snacks.isEmpty
+                              ? null
+                              : () => _showMealQr(context, state, 'Snacks'),
+                          onSaveMeal: state.snacks.isEmpty
+                              ? null
+                              : () => _saveMealTemplate(
+                                    context,
+                                    state,
+                                    'Snacks',
+                                    state.snacks,
+                                  ),
+                        ),
+                      ],
+                    ),
                   ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    MealSection(
-                      mealName: 'Frühstück',
-                      foods: state.breakfast,
-                      onAdd: () {
-                        _showAddFoodOptions(context, state, 'Frühstück');
-                      },
-                      onCopyYesterday: () =>
-                          _copyMealFromYesterday(context, state, 'Frühstück'),
-                      onImportQr: () => _scanMealQr(
-                        context,
-                        state,
-                        'Frühstück',
-                      ),
-                      onShareQr: state.breakfast.isEmpty
-                          ? null
-                          : () => _showMealQr(context, state, 'Frühstück'),
-                      onSaveMeal: state.breakfast.isEmpty
-                          ? null
-                          : () => _saveMealTemplate(
-                                context,
-                                state,
-                                'Frühstück',
-                                state.breakfast,
-                              ),
-                    ),
-                    SizedBox(height: 8),
-                    MealSection(
-                      mealName: 'Mittagessen',
-                      foods: state.lunch,
-                      onAdd: () {
-                        _showAddFoodOptions(context, state, 'Mittagessen');
-                      },
-                      onCopyYesterday: () =>
-                          _copyMealFromYesterday(context, state, 'Mittagessen'),
-                      onImportQr: () => _scanMealQr(
-                        context,
-                        state,
-                        'Mittagessen',
-                      ),
-                      onShareQr: state.lunch.isEmpty
-                          ? null
-                          : () => _showMealQr(context, state, 'Mittagessen'),
-                      onSaveMeal: state.lunch.isEmpty
-                          ? null
-                          : () => _saveMealTemplate(
-                                context,
-                                state,
-                                'Mittagessen',
-                                state.lunch,
-                              ),
-                    ),
-                    SizedBox(height: 8),
-                    MealSection(
-                      mealName: 'Abendessen',
-                      foods: state.dinner,
-                      onAdd: () {
-                        _showAddFoodOptions(context, state, 'Abendessen');
-                      },
-                      onCopyYesterday: () =>
-                          _copyMealFromYesterday(context, state, 'Abendessen'),
-                      onImportQr: () => _scanMealQr(
-                        context,
-                        state,
-                        'Abendessen',
-                      ),
-                      onShareQr: state.dinner.isEmpty
-                          ? null
-                          : () => _showMealQr(context, state, 'Abendessen'),
-                      onSaveMeal: state.dinner.isEmpty
-                          ? null
-                          : () => _saveMealTemplate(
-                                context,
-                                state,
-                                'Abendessen',
-                                state.dinner,
-                              ),
-                    ),
-                    SizedBox(height: 8),
-                    MealSection(
-                      mealName: 'Snacks',
-                      foods: state.snacks,
-                      onAdd: () {
-                        _showAddFoodOptions(context, state, 'Snacks');
-                      },
-                      onCopyYesterday: () =>
-                          _copyMealFromYesterday(context, state, 'Snacks'),
-                      onImportQr: () => _scanMealQr(context, state, 'Snacks'),
-                      onShareQr: state.snacks.isEmpty
-                          ? null
-                          : () => _showMealQr(context, state, 'Snacks'),
-                      onSaveMeal: state.snacks.isEmpty
-                          ? null
-                          : () => _saveMealTemplate(
-                                context,
-                                state,
-                                'Snacks',
-                                state.snacks,
-                              ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          floatingActionButton: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                height: _fabExpanded ? 196.0 : 0.0,
-                curve: Curves.fastOutSlowIn,
-                child: SingleChildScrollView(
-                  physics: const NeverScrollableScrollPhysics(),
-                  child: Column(
-                    children: [
-                      IgnorePointer(
-                        ignoring: !_fabExpanded,
-                        child: AnimatedOpacity(
-                          opacity: _fabExpanded ? 1.0 : 0.0,
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          child: AnimatedScale(
-                            scale: _fabExpanded ? 1.0 : 0.0,
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeOutBack,
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: FloatingActionButton(
-                                heroTag: 'yesterdayFab',
-                                mini: true,
-                                onPressed: () {
-                                  setState(() => _fabExpanded = false);
-                                  _copyDayFromYesterday(context, state);
-                                },
-                                tooltip: 'Gestern übernehmen',
-                                child: const Icon(Icons.restore),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      IgnorePointer(
-                        ignoring: !_fabExpanded,
-                        child: AnimatedOpacity(
-                          opacity: _fabExpanded ? 1.0 : 0.0,
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          child: AnimatedScale(
-                            scale: _fabExpanded ? 1.0 : 0.0,
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeOutBack,
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: FloatingActionButton(
-                                heroTag: 'dashboardFab',
-                                mini: true,
-                                onPressed: () {
-                                  setState(() => _fabExpanded = false);
-                                  Navigator.pushNamed(context, '/weekly_dashboard');
-                                },
-                                tooltip: 'Wochen-Dashboard',
-                                child: const Icon(Icons.analytics),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      IgnorePointer(
-                        ignoring: !_fabExpanded,
-                        child: AnimatedOpacity(
-                          opacity: _fabExpanded ? 1.0 : 0.0,
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          child: AnimatedScale(
-                            scale: _fabExpanded ? 1.0 : 0.0,
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeOutBack,
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: FloatingActionButton(
-                                heroTag: 'weightFab',
-                                mini: true,
-                                onPressed: () {
-                                  setState(() => _fabExpanded = false);
-                                  Navigator.pushNamed(context, '/weight');
-                                },
-                                tooltip: 'Gewicht tracken',
-                                child: const Icon(Icons.monitor_weight),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      IgnorePointer(
-                        ignoring: !_fabExpanded,
-                        child: AnimatedOpacity(
-                          opacity: _fabExpanded ? 1.0 : 0.0,
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          child: AnimatedScale(
-                            scale: _fabExpanded ? 1.0 : 0.0,
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeOutBack,
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: FloatingActionButton(
-                                heroTag: 'settingsFab',
-                                mini: true,
-                                onPressed: () {
-                                  setState(() => _fabExpanded = false);
-                                  Navigator.pushNamed(context, '/settings');
-                                },
-                                tooltip: 'Einstellungen',
-                                child: const Icon(Icons.settings),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
-              FloatingActionButton(
-                heroTag: 'mainFab',
-                onPressed: () {
-                  setState(() {
-                    _fabExpanded = !_fabExpanded;
-                  });
-                },
-                tooltip: _fabExpanded ? 'Schließen' : 'Optionen anzeigen',
-                child: Icon(_fabExpanded ? Icons.close : Icons.add),
+              Positioned(
+                right: 16,
+                bottom: 8,
+                child: _buildFabMenu(context, state),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildFabMenu(BuildContext context, AppState state) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          height: _fabExpanded ? 212.0 : 0.0,
+          curve: Curves.fastOutSlowIn,
+          child: SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                _buildMiniFab(
+                  visible: _fabExpanded,
+                  heroTag: 'yesterdayFab',
+                  tooltip: 'Gestern übernehmen',
+                  icon: Icons.restore,
+                  onPressed: () {
+                    setState(() => _fabExpanded = false);
+                    _copyDayFromYesterday(context, state);
+                  },
+                ),
+                _buildMiniFab(
+                  visible: _fabExpanded,
+                  heroTag: 'dashboardFab',
+                  tooltip: 'Wochen-Dashboard',
+                  icon: Icons.analytics,
+                  onPressed: () {
+                    setState(() => _fabExpanded = false);
+                    Navigator.pushNamed(context, '/weekly_dashboard');
+                  },
+                ),
+                _buildMiniFab(
+                  visible: _fabExpanded,
+                  heroTag: 'weightFab',
+                  tooltip: 'Gewicht tracken',
+                  icon: Icons.monitor_weight,
+                  onPressed: () {
+                    setState(() => _fabExpanded = false);
+                    Navigator.pushNamed(context, '/weight');
+                  },
+                ),
+                _buildMiniFab(
+                  visible: _fabExpanded,
+                  heroTag: 'settingsFab',
+                  tooltip: 'Einstellungen',
+                  icon: Icons.settings,
+                  onPressed: () {
+                    setState(() => _fabExpanded = false);
+                    Navigator.pushNamed(context, '/settings');
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          height: _fabExpanded ? 20.0 : 0.0,
+          curve: Curves.fastOutSlowIn,
+        ),
+        FloatingActionButton(
+          heroTag: 'mainFab',
+          onPressed: () {
+            setState(() {
+              _fabExpanded = !_fabExpanded;
+            });
+          },
+          tooltip: _fabExpanded ? 'Schließen' : 'Optionen anzeigen',
+          child: Icon(_fabExpanded ? Icons.close : Icons.add),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMiniFab({
+    required bool visible,
+    required String heroTag,
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        opacity: visible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        child: AnimatedScale(
+          scale: visible ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutBack,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: FloatingActionButton(
+              heroTag: heroTag,
+              mini: true,
+              onPressed: onPressed,
+              tooltip: tooltip,
+              child: Icon(icon),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

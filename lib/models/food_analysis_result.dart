@@ -3,68 +3,69 @@ import 'food_item.dart';
 
 /// Ergebnis einer AI-gestützten Lebensmittelanalyse.
 ///
-/// Enthält Nährwerte pro 100g (passend zu [FoodItem]) sowie eine
-/// geschätzte Portionsgröße und Konfidenz-Score.
+/// Enthält Gesamt-Nährwerte für die geschätzte Portion sowie Konfidenz-Score.
 class FoodAnalysisResult {
   final String name;
   final String brand;
   final int estimatedWeightGrams;
-  final int caloriesPer100g;
-  final double proteinPer100g;
-  final double carbsPer100g;
-  final double fatPer100g;
-  final double sugarPer100g;
+  final int totalCalories;
+  final double totalProtein;
+  final double totalCarbs;
+  final double totalFat;
+  final double totalSugar;
   final double confidence;
   final String? notes;
+  final String? reasoning;
 
   const FoodAnalysisResult({
     required this.name,
     required this.brand,
     required this.estimatedWeightGrams,
-    required this.caloriesPer100g,
-    required this.proteinPer100g,
-    required this.carbsPer100g,
-    required this.fatPer100g,
-    required this.sugarPer100g,
+    required this.totalCalories,
+    required this.totalProtein,
+    required this.totalCarbs,
+    required this.totalFat,
+    required this.totalSugar,
     required this.confidence,
     this.notes,
+    this.reasoning,
   });
 
   /// Confidence unter 0.7 gilt als unsichere Schätzung → Fallback-UI.
   bool get isLowConfidence => confidence < 0.7;
 
-  /// Konvertiert zu [FoodItem] ohne ID (wird beim Remote-Insert zugewiesen).
-  FoodItem toFoodItem() => FoodItem(
-        name: name,
-        brand: brand.isEmpty ? 'Unbekannt' : brand,
-        caloriesPer100g: caloriesPer100g,
-        proteinPer100g: proteinPer100g,
-        carbsPer100g: carbsPer100g,
-        fatPer100g: fatPer100g,
-        sugarPer100g: sugarPer100g,
-        source: 'ai',
-      );
+  /// Konvertiert Gesamtwerte für die Portion in das appweite pro-100g-Format.
+  FoodItem toFoodItem() {
+    final grams = estimatedWeightGrams <= 0 ? 100 : estimatedWeightGrams;
+    final factor = 100.0 / grams;
+    return FoodItem(
+      name: name,
+      brand: brand.isEmpty ? 'Unbekannt' : brand,
+      caloriesPer100g: (totalCalories * factor).round(),
+      proteinPer100g: totalProtein * factor,
+      carbsPer100g: totalCarbs * factor,
+      fatPer100g: totalFat * factor,
+      sugarPer100g: totalSugar * factor,
+      source: 'ai',
+    );
+  }
 
-  /// Erstellt ein [FoodAnalysisResult] aus der JSON-Antwort von GPT.
+  /// Erstellt ein [FoodAnalysisResult] aus der JSON-Antwort des lokalen Modells.
   factory FoodAnalysisResult.fromJson(Map<String, dynamic> json) {
     return FoodAnalysisResult(
       name: json['name'] as String? ?? 'Unbekanntes Lebensmittel',
       brand: json['brand'] as String? ?? 'Unbekannt',
       estimatedWeightGrams:
           _parseIntSafe(json['estimated_weight_grams'], fallback: 100),
-      caloriesPer100g:
-          _parseIntSafe(json['calories_per_100g'], fallback: 0),
-      proteinPer100g:
-          _parseDoubleSafe(json['protein_per_100g'], fallback: 0.0),
-      carbsPer100g:
-          _parseDoubleSafe(json['carbs_per_100g'], fallback: 0.0),
-      fatPer100g:
-          _parseDoubleSafe(json['fat_per_100g'], fallback: 0.0),
-      sugarPer100g:
-          _parseDoubleSafe(json['sugar_per_100g'], fallback: 0.0),
+      totalCalories: _parseIntSafe(json['total_calories'], fallback: 0),
+      totalProtein: _parseDoubleSafe(json['total_protein'], fallback: 0.0),
+      totalCarbs: _parseDoubleSafe(json['total_carbs'], fallback: 0.0),
+      totalFat: _parseDoubleSafe(json['total_fat'], fallback: 0.0),
+      totalSugar: _parseDoubleSafe(json['total_sugar'], fallback: 0.0),
       confidence:
           _parseDoubleSafe(json['confidence'], fallback: 0.5).clamp(0.0, 1.0),
       notes: json['notes'] as String?,
+      reasoning: json['reasoning'] as String?,
     );
   }
 
@@ -72,25 +73,27 @@ class FoodAnalysisResult {
     String? name,
     String? brand,
     int? estimatedWeightGrams,
-    int? caloriesPer100g,
-    double? proteinPer100g,
-    double? carbsPer100g,
-    double? fatPer100g,
-    double? sugarPer100g,
+    int? totalCalories,
+    double? totalProtein,
+    double? totalCarbs,
+    double? totalFat,
+    double? totalSugar,
     double? confidence,
     String? notes,
+    String? reasoning,
   }) {
     return FoodAnalysisResult(
       name: name ?? this.name,
       brand: brand ?? this.brand,
       estimatedWeightGrams: estimatedWeightGrams ?? this.estimatedWeightGrams,
-      caloriesPer100g: caloriesPer100g ?? this.caloriesPer100g,
-      proteinPer100g: proteinPer100g ?? this.proteinPer100g,
-      carbsPer100g: carbsPer100g ?? this.carbsPer100g,
-      fatPer100g: fatPer100g ?? this.fatPer100g,
-      sugarPer100g: sugarPer100g ?? this.sugarPer100g,
+      totalCalories: totalCalories ?? this.totalCalories,
+      totalProtein: totalProtein ?? this.totalProtein,
+      totalCarbs: totalCarbs ?? this.totalCarbs,
+      totalFat: totalFat ?? this.totalFat,
+      totalSugar: totalSugar ?? this.totalSugar,
       confidence: confidence ?? this.confidence,
       notes: notes ?? this.notes,
+      reasoning: reasoning ?? this.reasoning,
     );
   }
 

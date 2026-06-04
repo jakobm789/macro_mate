@@ -11,8 +11,10 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/remote_database_service.dart';
 import '../services/database_helper.dart';
+import '../services/llm_service.dart';
 import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
+import '../models/local_llm_model.dart';
 import '../models/saved_meal.dart';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:http/http.dart' as http;
@@ -133,6 +135,15 @@ class AppState extends ChangeNotifier {
   double? targetWeeklyChange;
   String? mondayPopupMessage;
   bool isInitialized = false;
+  LocalLlmModel selectedLocalLlmModel =
+      LocalLlmModel.byId(LocalLlmModelId.gemma4E4b);
+  bool isLocalModelDownloadRunning = false;
+  int? localModelDownloadProgress;
+  String? localModelDownloadMessage;
+  LocalLlmModel? downloadingLocalLlmModel;
+  Set<String> installedLocalModelFiles = {};
+  Future<void>? _localModelDownloadFuture;
+  static const int _localModelDownloadNotificationId = 4304;
 
   void markInitialized() {
     isInitialized = true;
@@ -179,6 +190,13 @@ class AppState extends ChangeNotifier {
     }).toList();
   }
 
+  Future<FoodItem?> _resolveFoodById(int foodId) {
+    if (foodId < 0) {
+      return DatabaseHelper().getLocalFoodById(foodId);
+    }
+    return _remoteService.getFoodItemById(foodId);
+  }
+
   Future<void> _configureLocalTimezone() async {
     tz.initializeTimeZones();
     final String timeZoneName = await FlutterTimezone.getLocalTimezone();
@@ -210,6 +228,11 @@ class AppState extends ChangeNotifier {
         ? Gender.male
         : Gender.female;
     bmrFormula = BmrFormula.values[prefs.getInt('bmr_formula')!];
+    selectedLocalLlmModel = LocalLlmModel.byStoredName(
+      prefs.getString('local_llm_model'),
+    );
+    installedLocalModelFiles =
+        prefs.getStringList('installed_local_llm_model_files')?.toSet() ?? {};
 
     Timer.periodic(Duration(hours: 6), (timer) {
       _checkMondayAndAutoAdjustIfNeeded();
@@ -257,6 +280,160 @@ class AppState extends ChangeNotifier {
       gender == Gender.male ? 'male' : 'female',
     );
     await prefs.setInt('bmr_formula', formula.index);
+  }
+
+  Future<void> setSelectedLocalLlmModel(LocalLlmModel model) async {
+    selectedLocalLlmModel = model;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('local_llm_model', model.id.name);
+    notifyListeners();
+  }
+
+  bool isLocalLlmModelMarkedInstalled(LocalLlmModel model) {
+    return installedLocalModelFiles.contains(model.fileName);
+  }
+
+  Future<void> refreshInstalledLocalLlmModels() async {
+    final installedFiles = <String>{};
+    for (final model in LocalLlmModel.supported) {
+      final service = LlmService(selectedModel: model);
+      try {
+        if (await service.isSelectedModelInstalled()) {
+          installedFiles.add(model.fileName);
+        }
+      } catch (e) {
+        debugPrint(
+          '[Local LLM] install check skipped for ${model.displayName}: $e',
+        );
+      } finally {
+        await service.dispose();
+      }
+    }
+    installedLocalModelFiles = installedFiles;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      'installed_local_llm_model_files',
+      installedLocalModelFiles.toList()..sort(),
+    );
+    notifyListeners();
+  }
+
+  Future<void> _markLocalLlmModelInstalled(LocalLlmModel model) async {
+    installedLocalModelFiles.add(model.fileName);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      'installed_local_llm_model_files',
+      installedLocalModelFiles.toList()..sort(),
+    );
+  }
+
+  Future<void> downloadSelectedLocalLlmModel() {
+    if (isLocalModelDownloadRunning && _localModelDownloadFuture != null) {
+      return _localModelDownloadFuture!;
+    }
+    final model = selectedLocalLlmModel;
+    _localModelDownloadFuture = _downloadLocalModel(model);
+    return _localModelDownloadFuture!;
+  }
+
+  Future<void> _downloadLocalModel(LocalLlmModel model) async {
+    final service = LlmService(selectedModel: model);
+    var alreadyInstalled = installedLocalModelFiles.contains(model.fileName);
+    if (!alreadyInstalled) {
+      try {
+        alreadyInstalled = await service.isSelectedModelInstalled();
+      } catch (_) {
+        alreadyInstalled = false;
+      }
+    }
+    if (alreadyInstalled) {
+      await _markLocalLlmModelInstalled(model);
+      localModelDownloadProgress = 100;
+      localModelDownloadMessage =
+          '${model.displayName} ist bereits installiert.';
+      await service.dispose();
+      notifyListeners();
+      return;
+    }
+
+    isLocalModelDownloadRunning = true;
+    localModelDownloadProgress = 0;
+    downloadingLocalLlmModel = model;
+    localModelDownloadMessage = 'Download gestartet: ${model.displayName}';
+    notifyListeners();
+    await _showLocalModelDownloadNotification(
+      title: model.displayName,
+      body: 'Download gestartet',
+      progress: 0,
+    );
+
+    try {
+      await service.ensureSelectedModelAvailable(
+        allowDownload: true,
+        onDownloadProgress: (progress) {
+          localModelDownloadProgress = progress;
+          localModelDownloadMessage = 'Download: $progress%';
+          notifyListeners();
+          unawaited(
+            _showLocalModelDownloadNotification(
+              title: model.displayName,
+              body: 'Download: $progress%',
+              progress: progress,
+            ),
+          );
+        },
+      );
+      localModelDownloadProgress = 100;
+      localModelDownloadMessage = '${model.displayName} ist installiert.';
+      await _markLocalLlmModelInstalled(model);
+      await _showLocalModelDownloadNotification(
+        title: model.displayName,
+        body: 'Installation abgeschlossen',
+        progress: 100,
+        complete: true,
+      );
+    } catch (e) {
+      localModelDownloadMessage = 'Download fehlgeschlagen: $e';
+      await _showLocalModelDownloadNotification(
+        title: model.displayName,
+        body: 'Download fehlgeschlagen',
+        complete: true,
+      );
+      rethrow;
+    } finally {
+      await service.dispose();
+      isLocalModelDownloadRunning = false;
+      downloadingLocalLlmModel = null;
+      _localModelDownloadFuture = null;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _showLocalModelDownloadNotification({
+    required String title,
+    required String body,
+    int? progress,
+    bool complete = false,
+  }) async {
+    final androidDetails = AndroidNotificationDetails(
+      'local_model_downloads',
+      'Modelldownloads',
+      channelDescription: 'Fortschritt lokaler KI-Modell-Downloads',
+      importance: complete ? Importance.defaultImportance : Importance.low,
+      priority: complete ? Priority.defaultPriority : Priority.low,
+      onlyAlertOnce: true,
+      ongoing: !complete,
+      showProgress: progress != null && !complete,
+      maxProgress: 100,
+      progress: (progress ?? 0).clamp(0, 100).toInt(),
+      indeterminate: progress == null && !complete,
+    );
+    await notificationsPlugin.show(
+      _localModelDownloadNotificationId,
+      title,
+      body,
+      NotificationDetails(android: androidDetails),
+    );
   }
 
   Future<void> loadNotificationSettings() async {
@@ -616,7 +793,7 @@ class AppState extends ChangeNotifier {
       final items = <FoodItem>[];
       for (final row in usageRows) {
         final foodId = row['food_id'] as int;
-        final food = await _remoteService.getFoodItemById(foodId);
+        final food = await _resolveFoodById(foodId);
         if (food == null) continue;
         items.add(
           food.copyWith(
@@ -637,7 +814,7 @@ class AppState extends ChangeNotifier {
       favoriteFoodIds = await DatabaseHelper().getFavoriteFoodIds();
       final items = <FoodItem>[];
       for (final id in favoriteFoodIds) {
-        final food = await _remoteService.getFoodItemById(id);
+        final food = await _resolveFoodById(id);
         if (food != null) items.add(food);
       }
       favoriteFoodItems = await _applyLocalUsageToFoods(items);
@@ -661,7 +838,7 @@ class AppState extends ChangeNotifier {
   Future<void> loadSavedMeals() async {
     try {
       savedMeals = await DatabaseHelper().getSavedMeals(
-        (foodId) => _remoteService.getFoodItemById(foodId),
+        _resolveFoodById,
       );
       notifyListeners();
     } catch (e, st) {
@@ -748,16 +925,25 @@ class AppState extends ChangeNotifier {
       if (foodId == null) {
         continue;
       }
-      final remoteFood = await _remoteService.getFoodItemById(foodId);
-      if (remoteFood == null) {
+      final food = await _resolveFoodById(foodId);
+      if (food == null) {
         continue;
       }
-      await addOrUpdateFood(
-        mealName,
-        remoteFood,
-        consumedFood.quantity,
-        currentDate,
-      );
+      if ((food.id != null && food.id! < 0) || food.source == 'ai') {
+        await addLocalAiFood(
+          mealName,
+          food,
+          consumedFood.quantity,
+          currentDate,
+        );
+      } else {
+        await addOrUpdateFood(
+          mealName,
+          food,
+          consumedFood.quantity,
+          currentDate,
+        );
+      }
       copiedCount++;
     }
     return copiedCount;
@@ -770,14 +956,23 @@ class AppState extends ChangeNotifier {
     for (final consumedFood in consumedFoods) {
       final foodId = consumedFood.food.id;
       if (foodId == null) continue;
-      final remoteFood = await _remoteService.getFoodItemById(foodId);
-      if (remoteFood == null) continue;
-      await addOrUpdateFood(
-        consumedFood.mealName,
-        remoteFood,
-        consumedFood.quantity,
-        currentDate,
-      );
+      final food = await _resolveFoodById(foodId);
+      if (food == null) continue;
+      if ((food.id != null && food.id! < 0) || food.source == 'ai') {
+        await addLocalAiFood(
+          consumedFood.mealName,
+          food,
+          consumedFood.quantity,
+          currentDate,
+        );
+      } else {
+        await addOrUpdateFood(
+          consumedFood.mealName,
+          food,
+          consumedFood.quantity,
+          currentDate,
+        );
+      }
       copiedCount++;
     }
     return copiedCount;
@@ -824,9 +1019,13 @@ class AppState extends ChangeNotifier {
           ? quantityValue
           : int.tryParse(quantityValue?.toString() ?? '');
       if (foodId == null || quantity == null || quantity <= 0) continue;
-      final food = await _remoteService.getFoodItemById(foodId);
+      final food = await _resolveFoodById(foodId);
       if (food == null) continue;
-      await addOrUpdateFood(mealName, food, quantity, currentDate);
+      if ((food.id != null && food.id! < 0) || food.source == 'ai') {
+        await addLocalAiFood(mealName, food, quantity, currentDate);
+      } else {
+        await addOrUpdateFood(mealName, food, quantity, currentDate);
+      }
       importedCount++;
     }
     return importedCount;
@@ -848,7 +1047,7 @@ class AppState extends ChangeNotifier {
         ConsumedFoodItem cItem = consumedFoods[i];
         final int? remoteId = cItem.food.id;
         if (remoteId != null) {
-          final remoteFood = await _remoteService.getFoodItemById(remoteId);
+          final remoteFood = await _resolveFoodById(remoteId);
           if (remoteFood != null) {
             consumedFoods[i] = cItem.copyWith(
               food: await _applyLocalUsage(remoteFood),
@@ -912,7 +1111,7 @@ class AppState extends ChangeNotifier {
     for (final entry in entries) {
       final foodId = entry.food.id;
       if (foodId == null) continue;
-      final food = await _remoteService.getFoodItemById(foodId);
+      final food = await _resolveFoodById(foodId);
       if (food == null) continue;
       calories += food.caloriesPer100g * entry.quantity / 100.0;
       carbs += food.carbsPer100g * entry.quantity / 100.0;
@@ -954,7 +1153,15 @@ class AppState extends ChangeNotifier {
     }
 
     final List<WeeklyDaySummary> list = [];
-    final weekdayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    final weekdayNames = [
+      'Montag',
+      'Dienstag',
+      'Mittwoch',
+      'Donnerstag',
+      'Freitag',
+      'Samstag',
+      'Sonntag'
+    ];
     final Map<int, FoodItem> resolvedFoods = {};
 
     for (var i = 1; i <= 7; i++) {
@@ -971,7 +1178,7 @@ class AppState extends ChangeNotifier {
 
         FoodItem? food = resolvedFoods[foodId];
         if (food == null) {
-          food = await _remoteService.getFoodItemById(foodId);
+          food = await _resolveFoodById(foodId);
           if (food != null) {
             resolvedFoods[foodId] = food;
           }
@@ -1240,6 +1447,42 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       rethrow;
     }
+  }
+
+  Future<void> addLocalAiFood(
+    String mealName,
+    FoodItem food,
+    int quantity,
+    DateTime date,
+  ) async {
+    final db = DatabaseHelper();
+    final localFoodId = await db.insertLocalFood(
+      food.copyWith(source: 'ai'),
+      quantity,
+    );
+    final foodWithId = food.copyWith(
+      id: localFoodId,
+      source: 'ai',
+      lastUsedQuantity: quantity,
+    );
+    final consumedFoodId = await db.insertConsumedFood(
+      date,
+      mealName,
+      localFoodId,
+      quantity,
+    );
+    _getMealList(mealName).add(
+      ConsumedFoodItem(
+        id: consumedFoodId,
+        food: foodWithId,
+        quantity: quantity,
+        date: date,
+        mealName: mealName,
+      ),
+    );
+    _calculateConsumedMacros();
+    await _updateMacroWidget();
+    notifyListeners();
   }
 
   Future<void> updateConsumedFoodItem(

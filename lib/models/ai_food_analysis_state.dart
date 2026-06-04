@@ -9,10 +9,10 @@ enum AiFoodAnalysisStatus {
   /// Mikrofon-Aufnahme aktiv, Timer läuft.
   recording,
 
-  /// Audio wird per Whisper transkribiert.
+  /// Sprache wird lokal transkribiert.
   transcribing,
 
-  /// Bild/Text wird per GPT analysiert.
+  /// Bild/Text wird lokal analysiert.
   analyzing,
 
   /// Analyse erfolgreich (Confidence ≥ 0.7).
@@ -55,11 +55,11 @@ class AiFoodAnalysisState {
         recordingDuration: duration,
       );
 
-  /// Whisper transkribiert Audio.
+  /// Lokale Spracherkennung verarbeitet Audio.
   factory AiFoodAnalysisState.transcribing() =>
       const AiFoodAnalysisState._(status: AiFoodAnalysisStatus.transcribing);
 
-  /// GPT analysiert Bild/Text.
+  /// Lokales Modell analysiert Bild/Text.
   factory AiFoodAnalysisState.analyzing() =>
       const AiFoodAnalysisState._(status: AiFoodAnalysisStatus.analyzing);
 
@@ -71,8 +71,7 @@ class AiFoodAnalysisState {
       );
 
   /// Fehler aufgetreten.
-  factory AiFoodAnalysisState.error(String message) =>
-      AiFoodAnalysisState._(
+  factory AiFoodAnalysisState.error(String message) => AiFoodAnalysisState._(
         status: AiFoodAnalysisStatus.error,
         errorMessage: message,
       );

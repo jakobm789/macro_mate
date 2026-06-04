@@ -8,6 +8,7 @@ MacroMate ist eine Flutter-App zum Tracken von Kalorien und Makronährstoffen. S
 - Tagesübersicht mit Ziel- und Ist-Werten für Kalorien, Kohlenhydrate, Proteine, Fette und Zucker
 - Mahlzeiten verwalten (Frühstück, Mittagessen, Abendessen, Snacks)
 - Lebensmittel per Barcode scannen (Open Food Facts Integration)
+- Lokale Bild-/Textanalyse für Lebensmittel über LiteRT / Google AI Edge
 - Eigenes Lebensmittellager mit Import/Export als JSON
 - Gewicht verfolgen und Auswertungen betrachten
 - Lokale Push-Benachrichtigungen und Dark/Light-Mode
@@ -35,8 +36,17 @@ MacroMate ist eine Flutter-App zum Tracken von Kalorien und Makronährstoffen. S
    flutter run
    ```
 
+## Lokale Modell-Inferenz
+Die Lebensmittelanalyse sendet keine Vision-LLM-Requests an externe APIs. In den Einstellungen unter **Lokales Vision-Modell** kann eines dieser Modelle gewählt, installiert, geprüft und mit einem Debug-Prompt getestet werden:
+
+- Gemma 4 E4B
+- Gemma 4 E2B
+- FastVLM 0.5B
+
+Android ist zuerst unterstützt. Für `.litertlm`-Vision-Inferenz wird ein `arm64-v8a`-Gerät empfohlen. Falls ein Hugging-Face-Token für einen Modell-Download nötig ist, kann er optional als `HUGGINGFACE_TOKEN` per `--dart-define` übergeben werden; für die Inferenz selbst wird kein API-Key verwendet.
+
 ## Tests
-Es sind derzeit keine automatisierten Tests vorhanden, der folgende Befehl bestätigt dies:
+Automatisierte Tests laufen mit:
 ```bash
 flutter test
 ```

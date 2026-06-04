@@ -28,7 +28,6 @@ required=(
   POSTGRES_PASSWORD
   SENDER_EMAIL
   BREVO_API_KEY
-  OPENAI_API_KEY
 )
 
 missing=0
@@ -43,12 +42,18 @@ if [ "$missing" -ne 0 ]; then
   exit 1
 fi
 
-flutter run -d "$DEVICE_ID" "$@" \
-  --dart-define=POSTGRES_HOST="$POSTGRES_HOST" \
-  --dart-define=POSTGRES_PORT="$POSTGRES_PORT" \
-  --dart-define=POSTGRES_DB="$POSTGRES_DB" \
-  --dart-define=POSTGRES_USER="$POSTGRES_USER" \
-  --dart-define=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-  --dart-define=SENDER_EMAIL="$SENDER_EMAIL" \
-  --dart-define=BREVO_API_KEY="$BREVO_API_KEY" \
-  --dart-define=OPENAI_API_KEY="$OPENAI_API_KEY"
+dart_defines=(
+  --dart-define=POSTGRES_HOST="$POSTGRES_HOST"
+  --dart-define=POSTGRES_PORT="$POSTGRES_PORT"
+  --dart-define=POSTGRES_DB="$POSTGRES_DB"
+  --dart-define=POSTGRES_USER="$POSTGRES_USER"
+  --dart-define=POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
+  --dart-define=SENDER_EMAIL="$SENDER_EMAIL"
+  --dart-define=BREVO_API_KEY="$BREVO_API_KEY"
+)
+
+if [ -n "${HUGGINGFACE_TOKEN:-}" ]; then
+  dart_defines+=(--dart-define=HUGGINGFACE_TOKEN="$HUGGINGFACE_TOKEN")
+fi
+
+flutter run -d "$DEVICE_ID" "$@" "${dart_defines[@]}"

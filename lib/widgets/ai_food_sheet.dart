@@ -1,6 +1,7 @@
 // lib/widgets/ai_food_sheet.dart
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -10,7 +11,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../models/ai_food_analysis_state.dart';
 import '../models/app_state.dart';
 import '../models/food_analysis_result.dart';
-import '../services/openai_service.dart';
+import '../services/llm_service.dart';
 
 /// BottomSheet für die KI-gestützte Lebensmittelerkennung.
 ///
@@ -31,10 +32,13 @@ class AiFoodSheet extends StatefulWidget {
 class _AiFoodSheetState extends State<AiFoodSheet>
     with SingleTickerProviderStateMixin {
   // --- Services ---
-  OpenAIService? _openAiService;
+  LlmService? _llmService;
   final ImagePicker _imagePicker = ImagePicker();
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _speechInitialized = false;
+  bool _finishRecordingRequested = false;
+  bool _modelWarmupStarted = false;
+  String _speechSessionBaseText = '';
 
   // --- State ---
   AiFoodAnalysisState _analysisState = AiFoodAnalysisState.idle();
@@ -63,21 +67,19 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   Color get _successColor => const Color(0xFF4CAF50);
   Color get _warningColor => const Color(0xFFFF9800);
   Color get _errorColor => const Color(0xFFFF5252);
-  Color get _cardColor => Theme.of(context).colorScheme.surfaceContainerHighest;
+  Color get _cardColor => Theme.of(context).colorScheme.surface;
 
   @override
   void initState() {
     super.initState();
     _selectedMeal = widget.mealName;
-    try {
-      _openAiService = OpenAIService();
-    } catch (e) {
-      _analysisState = AiFoodAnalysisState.error(_humanReadableError(e));
-    }
+    final appState = Provider.of<AppState>(context, listen: false);
+    _llmService = LlmService(selectedModel: appState.selectedLocalLlmModel);
     _initSpeech();
+    _warmUpModelInBackground();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 1800),
     );
   }
 
@@ -86,10 +88,10 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       final available = await _speech.initialize(
         onStatus: (val) {
           debugPrint('[Speech] onStatus: $val');
-          if (val == 'done' || val == 'notListening') {
-            if (_analysisState.status == AiFoodAnalysisStatus.recording) {
-              _stopRecording();
-            }
+          if ((val == 'done' || val == 'notListening') &&
+              _analysisState.status == AiFoodAnalysisStatus.recording &&
+              !_finishRecordingRequested) {
+            unawaited(_restartListeningAfterPause());
           }
         },
         onError: (val) {
@@ -128,7 +130,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     _fatController.dispose();
     _sugarController.dispose();
     _pulseController.dispose();
-    _openAiService?.dispose();
+    unawaited(_llmService?.dispose() ?? Future<void>.value());
     _speech.stop();
     super.dispose();
   }
@@ -172,12 +174,15 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       if (!_speechInitialized) {
         await _initSpeech();
         if (!_speechInitialized) {
-          _showSnackBar('Spracherkennung konnte auf diesem Gerät nicht initialisiert werden.');
+          _showSnackBar(
+              'Spracherkennung konnte auf diesem Gerät nicht initialisiert werden.');
           return;
         }
       }
 
       _recordingDuration = Duration.zero;
+      _finishRecordingRequested = false;
+      _speechSessionBaseText = _descriptionController.text.trim();
 
       _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (mounted) {
@@ -194,24 +199,55 @@ class _AiFoodSheetState extends State<AiFoodSheet>
         _analysisState = AiFoodAnalysisState.recording(Duration.zero);
       });
 
-      await _speech.listen(
-        onResult: (result) {
-          if (mounted) {
-            setState(() {
-              _descriptionController.text = result.recognizedWords;
-            });
-          }
-        },
-        localeId: 'de_DE',
-        listenMode: stt.ListenMode.dictation,
-        cancelOnError: true,
-      );
+      await _listenForSpeech();
     } catch (e) {
       _showSnackBar('Fehler beim Starten der Spracherkennung: $e');
     }
   }
 
+  Future<void> _listenForSpeech() async {
+    _speechSessionBaseText = _descriptionController.text.trim();
+    await _speech.listen(
+      onResult: (result) {
+        if (mounted) {
+          final recognizedWords = result.recognizedWords.trim();
+          final combined = [
+            if (_speechSessionBaseText.isNotEmpty) _speechSessionBaseText,
+            if (recognizedWords.isNotEmpty) recognizedWords,
+          ].join(' ').trim();
+          setState(() {
+            _descriptionController.text = combined;
+          });
+          if (result.finalResult) {
+            _speechSessionBaseText = combined;
+          }
+        }
+      },
+      localeId: 'de_DE',
+      listenMode: stt.ListenMode.dictation,
+      partialResults: true,
+      listenFor: const Duration(minutes: 10),
+      pauseFor: const Duration(minutes: 10),
+      cancelOnError: false,
+    );
+  }
+
+  Future<void> _restartListeningAfterPause() async {
+    await Future.delayed(const Duration(milliseconds: 250));
+    if (!mounted ||
+        _finishRecordingRequested ||
+        _analysisState.status != AiFoodAnalysisStatus.recording) {
+      return;
+    }
+    try {
+      await _listenForSpeech();
+    } catch (e) {
+      debugPrint('[Speech] restart after pause failed: $e');
+    }
+  }
+
   Future<void> _stopRecording() async {
+    _finishRecordingRequested = true;
     _recordingTimer?.cancel();
     _pulseController.stop();
     _pulseController.reset();
@@ -243,6 +279,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   Future<void> _cancelRecording() async {
+    _finishRecordingRequested = true;
     _recordingTimer?.cancel();
     _pulseController.stop();
     _pulseController.reset();
@@ -250,6 +287,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     try {
       await _speech.cancel();
     } catch (_) {}
+    _speechSessionBaseText = '';
 
     if (mounted) {
       setState(() {
@@ -262,29 +300,41 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   // Analyse starten
   // ──────────────────────────────────────────────
 
+  Future<void> _warmUpModelInBackground() async {
+    if (_modelWarmupStarted) return;
+    _modelWarmupStarted = true;
+    try {
+      await _llmService?.warmUp(supportImage: true);
+    } catch (e) {
+      debugPrint('[Local LLM Warmup] skipped: $e');
+    }
+  }
+
   Future<void> _startAnalysis() async {
     final hasImage = _selectedImage != null;
     final hasText = _descriptionController.text.trim().isNotEmpty;
 
     if (!hasImage && !hasText) {
-      _showSnackBar('Bitte gib mindestens ein Foto oder eine Beschreibung ein.');
+      _showSnackBar(
+          'Bitte gib mindestens ein Foto oder eine Beschreibung ein.');
       return;
     }
 
     setState(() {
       _analysisState = AiFoodAnalysisState.analyzing();
     });
+    _pulseController.repeat();
 
     try {
-      if (_openAiService == null) {
-        throw OpenAIAuthenticationError(
-          'OPENAI_API_KEY ist nicht gesetzt. Bitte als --dart-define übergeben.',
-        );
-      }
-      final result = await _openAiService!.analyzeFood(
+      final appState = Provider.of<AppState>(context, listen: false);
+      await _llmService?.dispose();
+      final llmService = LlmService(
+        selectedModel: appState.selectedLocalLlmModel,
+      );
+      _llmService = llmService;
+      final result = await llmService.analyzeFood(
         imagePath: _selectedImage?.path,
-        textDescription:
-            hasText ? _descriptionController.text.trim() : null,
+        textDescription: hasText ? _descriptionController.text.trim() : null,
       );
 
       if (!mounted) return;
@@ -299,8 +349,10 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           _analysisState = AiFoodAnalysisState.success(result);
         }
       });
+      _pulseController.stop();
     } catch (e) {
       if (!mounted) return;
+      _pulseController.stop();
       setState(() {
         _analysisState = AiFoodAnalysisState.error(_humanReadableError(e));
       });
@@ -311,11 +363,11 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     _nameController.text = result.name;
     _brandController.text = result.brand;
     _quantityController.text = result.estimatedWeightGrams.toString();
-    _caloriesController.text = result.caloriesPer100g.toString();
-    _proteinController.text = result.proteinPer100g.toStringAsFixed(1);
-    _carbsController.text = result.carbsPer100g.toStringAsFixed(1);
-    _fatController.text = result.fatPer100g.toStringAsFixed(1);
-    _sugarController.text = result.sugarPer100g.toStringAsFixed(1);
+    _caloriesController.text = result.totalCalories.toString();
+    _proteinController.text = result.totalProtein.toStringAsFixed(1);
+    _carbsController.text = result.totalCarbs.toStringAsFixed(1);
+    _fatController.text = result.totalFat.toStringAsFixed(1);
+    _sugarController.text = result.totalSugar.toStringAsFixed(1);
   }
 
   // ──────────────────────────────────────────────
@@ -347,16 +399,16 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       name: name,
       brand: brand.isEmpty ? 'Unbekannt' : brand,
       estimatedWeightGrams: quantity,
-      caloriesPer100g: calories,
-      proteinPer100g: protein,
-      carbsPer100g: carbs,
-      fatPer100g: fat,
-      sugarPer100g: sugar,
+      totalCalories: calories,
+      totalProtein: protein,
+      totalCarbs: carbs,
+      totalFat: fat,
+      totalSugar: sugar,
       confidence: _analysisState.result?.confidence ?? 0.5,
     ).toFoodItem();
 
     try {
-      await appState.addOrUpdateFood(
+      await appState.addLocalAiFood(
         _selectedMeal,
         food,
         quantity,
@@ -380,15 +432,15 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   // ──────────────────────────────────────────────
 
   String _humanReadableError(dynamic error) {
-    if (error is OpenAIAuthenticationError) {
-      return 'API-Key ungültig. Bitte überprüfe deine Konfiguration.';
-    } else if (error is OpenAIRateLimitError) {
-      return 'Zu viele Anfragen. Bitte warte einen Moment.';
-    } else if (error is OpenAIServerError) {
-      return 'API-Fehler (${error.statusCode}): ${error.message}';
-    } else if (error is OpenAIJsonParseError) {
-      return 'Die Antwort konnte nicht verarbeitet werden. Bitte versuche es erneut.';
-    } else if (error is OpenAIInputValidationError) {
+    if (error is LlmModelUnavailableError) {
+      return error.message;
+    } else if (error is LlmUnsupportedPlatformError) {
+      return error.message;
+    } else if (error is LlmInferenceError) {
+      return error.message;
+    } else if (error is LlmJsonParseError) {
+      return 'Die lokale Modellantwort konnte nicht verarbeitet werden. Bitte versuche es erneut.';
+    } else if (error is LlmInputValidationError) {
       return error.message;
     }
     return 'Ein unerwarteter Fehler ist aufgetreten. Bitte versuche es erneut.';
@@ -506,13 +558,15 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.photo_camera, color: theme.colorScheme.onSurfaceVariant, size: 20),
+              Icon(Icons.photo_camera,
+                  color: theme.colorScheme.onSurfaceVariant, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Foto',
@@ -525,7 +579,6 @@ class _AiFoodSheetState extends State<AiFoodSheet>
             ],
           ),
           const SizedBox(height: 12),
-
           if (_selectedImage != null) ...[
             // Bild-Vorschau
             Stack(
@@ -595,7 +648,6 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       child: TextField(
         controller: _descriptionController,
         maxLines: 2,
-        maxLength: 1000,
         decoration: InputDecoration(
           labelText: 'Beschreibung (optional)',
           hintText: 'z.B. 200g Spaghetti Bolognese',
@@ -605,7 +657,8 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+            borderSide:
+                BorderSide(color: theme.colorScheme.primary, width: 1.5),
           ),
         ),
       ),
@@ -613,8 +666,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   Widget _buildVoiceSection() {
-    final isRecording =
-        _analysisState.status == AiFoodAnalysisStatus.recording;
+    final isRecording = _analysisState.status == AiFoodAnalysisStatus.recording;
     final isTranscribing =
         _analysisState.status == AiFoodAnalysisStatus.transcribing;
     final theme = Theme.of(context);
@@ -624,12 +676,14 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.18)),
       ),
       child: Column(
         children: [
           Row(
             children: [
-              Icon(Icons.mic, color: theme.colorScheme.onSurfaceVariant, size: 20),
+              Icon(Icons.mic,
+                  color: theme.colorScheme.onSurfaceVariant, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Spracheingabe',
@@ -667,7 +721,6 @@ class _AiFoodSheetState extends State<AiFoodSheet>
             ],
           ),
           const SizedBox(height: 12),
-
           if (isTranscribing)
             _buildProcessingIndicator('Sprache wird verarbeitet...')
           else
@@ -693,7 +746,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
                       button: true,
                       child: _buildActionButton(
                         icon: Icons.stop,
-                        label: 'Stop',
+                        label: 'OK',
                         onTap: _stopRecording,
                         color: _recordingColor,
                       ),
@@ -720,8 +773,8 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   }
 
   Widget _buildAnalyzeButton() {
-    final hasInput = _selectedImage != null ||
-        _descriptionController.text.trim().isNotEmpty;
+    final hasInput =
+        _selectedImage != null || _descriptionController.text.trim().isNotEmpty;
     final theme = Theme.of(context);
 
     return Semantics(
@@ -743,8 +796,10 @@ class _AiFoodSheetState extends State<AiFoodSheet>
             style: ElevatedButton.styleFrom(
               backgroundColor: _accentColor,
               foregroundColor: theme.colorScheme.onPrimary,
-              disabledBackgroundColor: theme.colorScheme.onSurface.withOpacity(0.12),
-              disabledForegroundColor: theme.colorScheme.onSurface.withOpacity(0.38),
+              disabledBackgroundColor:
+                  theme.colorScheme.onSurface.withOpacity(0.12),
+              disabledForegroundColor:
+                  theme.colorScheme.onSurface.withOpacity(0.38),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -787,34 +842,66 @@ class _AiFoodSheetState extends State<AiFoodSheet>
 
   Widget _buildAnalyzingState() {
     final theme = Theme.of(context);
-    return Container(
+    return AnimatedBuilder(
       key: const ValueKey('analyzing'),
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Column(
-        children: [
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation<Color>(_accentColor),
+      animation: _pulseController,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: _GeminiBorderPainter(
+            progress: _pulseController.value,
+            colors: [
+              theme.colorScheme.primary,
+              const Color(0xFF00C2FF),
+              const Color(0xFF7C4DFF),
+              const Color(0xFFFF4FD8),
+              const Color(0xFFFFB300),
+            ],
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 34),
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.colorScheme.primary.withOpacity(0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.auto_awesome,
+                  color: theme.colorScheme.primary,
+                  size: 34,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Lokales Modell analysiert...',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Bild und Beschreibung bleiben auf dem Gerät',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Bild/Text wird analysiert...',
-            style: TextStyle(
-              color: theme.colorScheme.onSurface,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Dies kann einige Sekunden dauern',
-            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -863,9 +950,8 @@ class _AiFoodSheetState extends State<AiFoodSheet>
   Widget _buildResultCard({required bool isLowConfidence}) {
     final theme = Theme.of(context);
     // Live-Vorschau berechnen
-    final grams = int.tryParse(_quantityController.text) ?? 0;
-    final calPer100 = int.tryParse(_caloriesController.text) ?? 0;
-    final previewCalories = (calPer100 * grams) / 100.0;
+    final previewCalories = int.tryParse(_caloriesController.text) ?? 0;
+    final reasoning = _analysisState.result?.reasoning?.trim();
 
     return Container(
       key: ValueKey(isLowConfidence ? 'fallback' : 'success'),
@@ -928,6 +1014,11 @@ class _AiFoodSheetState extends State<AiFoodSheet>
             const SizedBox(height: 16),
           ],
 
+          if (reasoning != null && reasoning.isNotEmpty) ...[
+            _buildReasoningTile(reasoning),
+            const SizedBox(height: 16),
+          ],
+
           // Mahlzeit-Dropdown
           DropdownButtonFormField<String>(
             value: _selectedMeal,
@@ -968,9 +1059,9 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           ),
           const SizedBox(height: 16),
 
-          // Nährwerte pro 100g Header
+          // Gesamt-Nährwerte Header
           Text(
-            'Nährwerte pro 100g',
+            'Gesamt-Nährwerte der Portion',
             style: TextStyle(
               color: theme.colorScheme.onSurfaceVariant,
               fontSize: 12,
@@ -1027,8 +1118,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           const SizedBox(height: 12),
           TextFormField(
             controller: _sugarController,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: _inputDecoration('Zucker (g)'),
           ),
           const SizedBox(height: 16),
@@ -1042,7 +1132,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              'Vorschau: ${previewCalories.toStringAsFixed(0)} kcal bei ${_quantityController.text} g',
+              'Vorschau: $previewCalories kcal insgesamt bei ${_quantityController.text} g',
               style: TextStyle(
                 color: theme.colorScheme.onSurfaceVariant,
                 fontSize: 13,
@@ -1105,6 +1195,57 @@ class _AiFoodSheetState extends State<AiFoodSheet>
     );
   }
 
+  Widget _buildReasoningTile(String reasoning) {
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer.withOpacity(0.22),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: theme.colorScheme.primary.withOpacity(0.22),
+          ),
+        ),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          leading: Icon(
+            Icons.psychology_alt_outlined,
+            color: theme.colorScheme.primary,
+          ),
+          title: Text(
+            'Modell-Reasoning',
+            style: TextStyle(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          subtitle: Text(
+            'Nur sichtbar, wenn Thinking aktiviert ist.',
+            style: TextStyle(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
+          ),
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SelectableText(
+                reasoning,
+                style: TextStyle(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ──────────────────────────────────────────────
   // Shared Widgets
   // ──────────────────────────────────────────────
@@ -1124,13 +1265,16 @@ class _AiFoodSheetState extends State<AiFoodSheet>
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            border: Border.all(color: color?.withOpacity(0.4) ?? theme.colorScheme.outline.withOpacity(0.3)),
+            border: Border.all(
+                color: color?.withOpacity(0.4) ??
+                    theme.colorScheme.outline.withOpacity(0.3)),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color ?? theme.colorScheme.onSurfaceVariant, size: 20),
+              Icon(icon,
+                  color: color ?? theme.colorScheme.onSurfaceVariant, size: 20),
               const SizedBox(width: 8),
               Text(
                 label,
@@ -1164,7 +1308,8 @@ class _AiFoodSheetState extends State<AiFoodSheet>
           const SizedBox(width: 10),
           Text(
             text,
-            style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 14),
+            style: TextStyle(
+                color: theme.colorScheme.onSurfaceVariant, fontSize: 14),
           ),
         ],
       ),
@@ -1185,5 +1330,35 @@ class _AiFoodSheetState extends State<AiFoodSheet>
       ),
       isDense: true,
     );
+  }
+}
+
+class _GeminiBorderPainter extends CustomPainter {
+  final double progress;
+  final List<Color> colors;
+
+  const _GeminiBorderPainter({
+    required this.progress,
+    required this.colors,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final radius = BorderRadius.circular(20).toRRect(rect.deflate(2));
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..shader = SweepGradient(
+        colors: [...colors, colors.first],
+        transform: GradientRotation(progress * math.pi * 2),
+      ).createShader(rect);
+
+    canvas.drawRRect(radius, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GeminiBorderPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.colors != colors;
   }
 }

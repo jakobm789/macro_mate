@@ -1,5 +1,7 @@
 import 'dart:ui';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'models/app_state.dart';
@@ -92,6 +94,12 @@ class AppDiagnosticsBanner extends StatelessWidget {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await FlutterGemma.initialize(
+    huggingFaceToken: const String.fromEnvironment('HUGGINGFACE_TOKEN').isEmpty
+        ? null
+        : const String.fromEnvironment('HUGGINGFACE_TOKEN'),
+    maxDownloadRetries: 10,
+  );
   final initializationSettingsAndroid = AndroidInitializationSettings(
     '@mipmap/launcher_icon',
   );
@@ -103,7 +111,7 @@ void main() async {
   await notificationsPlugin.initialize(initializationSettings);
   String initialFilePath = PlatformDispatcher.instance.defaultRouteName;
   final appState = AppState();
-  
+
   runApp(
     ChangeNotifierProvider<AppState>.value(
       value: appState,
@@ -242,7 +250,7 @@ class _MyAppState extends State<MyApp> {
             home: const LoadingScreen(),
           );
         }
-        
+
         if (!appState.isLoggedIn) {
           return MaterialApp(
             title: 'MacroMate',

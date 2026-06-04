@@ -19,7 +19,7 @@ class DatabaseHelper {
     return _database!;
   }
 
-  static const int _dbVersion = 24;
+  static const int _dbVersion = 25;
   Future<Database> _initDatabase() async {
     try {
       Directory documentsDirectory = await getApplicationDocumentsDirectory();
@@ -43,6 +43,7 @@ class DatabaseHelper {
       'CREATE TABLE ConsumedFoods(id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, meal_name TEXT NOT NULL, food_id INTEGER NOT NULL, quantity INTEGER NOT NULL)',
     );
     await _createSavedMealTables(db);
+    await _createLocalFoodsTable(db);
     await _createFavoriteTables(db);
     await _createFoodUsageTable(db);
     await _createOfflineQueueTable(db);
@@ -142,6 +143,9 @@ class DatabaseHelper {
     if (oldVersion < 24) {
       await _createFoodUsageTable(db);
     }
+    if (oldVersion < 25) {
+      await _createLocalFoodsTable(db);
+    }
   }
 
   Future<void> _createSavedMealTables(Database db) async {
@@ -162,6 +166,12 @@ class DatabaseHelper {
   Future<void> _createFoodUsageTable(Database db) async {
     await db.execute(
       'CREATE TABLE IF NOT EXISTS FoodUsage(food_id INTEGER PRIMARY KEY, last_used_quantity INTEGER NOT NULL, last_used_at TEXT NOT NULL, use_count INTEGER NOT NULL DEFAULT 0)',
+    );
+  }
+
+  Future<void> _createLocalFoodsTable(Database db) async {
+    await db.execute(
+      'CREATE TABLE IF NOT EXISTS LocalFoods(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, brand TEXT NOT NULL, barcode TEXT, calories_per_100g INTEGER NOT NULL, fat_per_100g REAL NOT NULL, carbs_per_100g REAL NOT NULL, sugar_per_100g REAL NOT NULL, protein_per_100g REAL NOT NULL, created_at TEXT NOT NULL, last_used_quantity INTEGER NOT NULL DEFAULT 100, source TEXT NOT NULL DEFAULT "ai", is_verified INTEGER NOT NULL DEFAULT 0)',
     );
   }
 
@@ -374,6 +384,39 @@ class DatabaseHelper {
       );
     }
     return consumedFoods;
+  }
+
+  Future<int> insertLocalFood(FoodItem food, int lastUsedQuantity) async {
+    final db = await database;
+    final id = await db.insert('LocalFoods', {
+      'name': food.name,
+      'brand': food.brand,
+      'barcode': food.barcode,
+      'calories_per_100g': food.caloriesPer100g,
+      'fat_per_100g': food.fatPer100g,
+      'carbs_per_100g': food.carbsPer100g,
+      'sugar_per_100g': food.sugarPer100g,
+      'protein_per_100g': food.proteinPer100g,
+      'created_at': food.createdAt.toIso8601String(),
+      'last_used_quantity': lastUsedQuantity,
+      'source': food.source,
+      'is_verified': food.isVerified ? 1 : 0,
+    });
+    return -id;
+  }
+
+  Future<FoodItem?> getLocalFoodById(int localFoodId) async {
+    final db = await database;
+    final rows = await db.query(
+      'LocalFoods',
+      where: 'id = ?',
+      whereArgs: [localFoodId.abs()],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return FoodItem.fromMap(rows.first).copyWith(id: -localFoodId.abs());
   }
 
   Future<void> updateConsumedFood(
@@ -679,9 +722,11 @@ class DatabaseHelper {
     final savedMealIngredients = await db.query('SavedMealIngredients');
     final favoriteFoods = await db.query('FavoriteFoods');
     final offlineQueue = await db.query('OfflineQueue');
+    final localFoods = await db.query('LocalFoods');
     final List<Map<String, dynamic>> foodItems = [];
     return {
       'food_items': foodItems,
+      'local_foods': localFoods,
       'consumed_foods': consumedFoods,
       'goals': goals,
       'settings': settings,
@@ -710,6 +755,15 @@ class DatabaseHelper {
             conflictAlgorithm: ConflictAlgorithm.ignore,
           );
         }
+      }
+    }
+    if (data['local_foods'] is List) {
+      for (var food in data['local_foods']) {
+        await db.insert(
+          'LocalFoods',
+          food,
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
       }
     }
     if (data['goals'] is List && data['goals'].isNotEmpty) {
