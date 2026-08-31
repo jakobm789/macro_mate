@@ -1169,7 +1169,7 @@ class _MyHomePageState extends State<MyHomePage> {
       children: [
         AnimatedContainer(
           duration: const Duration(milliseconds: 250),
-          height: _fabExpanded ? 212.0 : 0.0,
+          height: _fabExpanded ? 380.0 : 0.0,
           curve: Curves.fastOutSlowIn,
           child: SingleChildScrollView(
             physics: const NeverScrollableScrollPhysics(),
@@ -1203,6 +1203,36 @@ class _MyHomePageState extends State<MyHomePage> {
                   onPressed: () {
                     setState(() => _fabExpanded = false);
                     Navigator.pushNamed(context, '/weight');
+                  },
+                ),
+                _buildMiniFab(
+                  visible: _fabExpanded,
+                  heroTag: 'healthFab',
+                  tooltip: 'Health & Aktivität',
+                  icon: Icons.favorite,
+                  onPressed: () {
+                    setState(() => _fabExpanded = false);
+                    Navigator.pushNamed(context, '/health');
+                  },
+                ),
+                _buildMiniFab(
+                  visible: _fabExpanded,
+                  heroTag: 'cycleFab',
+                  tooltip: 'Zyklus & Wohlbefinden',
+                  icon: Icons.water_drop,
+                  onPressed: () {
+                    setState(() => _fabExpanded = false);
+                    Navigator.pushNamed(context, '/cycle');
+                  },
+                ),
+                _buildMiniFab(
+                  visible: _fabExpanded,
+                  heroTag: 'backupFab',
+                  tooltip: 'Backup & Wiederherstellung',
+                  icon: Icons.backup,
+                  onPressed: () {
+                    setState(() => _fabExpanded = false);
+                    Navigator.pushNamed(context, '/backup');
                   },
                 ),
                 _buildMiniFab(

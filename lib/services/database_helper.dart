@@ -7,6 +7,7 @@ import 'dart:convert';
 import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
 import '../models/saved_meal.dart';
+import 'package:uuid/uuid.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -19,7 +20,8 @@ class DatabaseHelper {
     return _database!;
   }
 
-  static const int _dbVersion = 25;
+  static const int _dbVersion = 27;
+  static const Uuid _uuid = Uuid();
   Future<Database> _initDatabase() async {
     try {
       Directory documentsDirectory = await getApplicationDocumentsDirectory();
@@ -53,6 +55,8 @@ class DatabaseHelper {
     await db.execute(
       'CREATE TABLE WeightEntries(id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, weight REAL NOT NULL)',
     );
+    await _migrateToV26(db);
+    await _createV27Tables(db);
     List<Map<String, dynamic>> settings = await db.query('Settings');
     if (settings.isEmpty) {
       await db.insert('Settings', {
@@ -146,6 +150,137 @@ class DatabaseHelper {
     if (oldVersion < 25) {
       await _createLocalFoodsTable(db);
     }
+    if (oldVersion < 26) {
+      await _migrateToV26(db);
+    }
+    if (oldVersion < 27) {
+      await _createV27Tables(db);
+    }
+  }
+
+  Future<void> _createV27Tables(Database db) async {
+    final statements = <String>[
+      'CREATE TABLE IF NOT EXISTS health_sources(id TEXT PRIMARY KEY, source_name TEXT NOT NULL, source_device_id TEXT, platform TEXT NOT NULL, priority INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1, discovered_at_utc TEXT NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS health_sync_states(source_id TEXT PRIMARY KEY, cursor_utc TEXT, last_success_utc TEXT, last_error TEXT, status TEXT NOT NULL DEFAULT "never")',
+      'CREATE TABLE IF NOT EXISTS health_records(id TEXT PRIMARY KEY, type TEXT NOT NULL, source_id TEXT NOT NULL, start_utc TEXT NOT NULL, end_utc TEXT NOT NULL, value REAL NOT NULL, unit TEXT NOT NULL, local_day TEXT NOT NULL, payload_json TEXT)',
+      'CREATE TABLE IF NOT EXISTS daily_health_aggregates(day TEXT PRIMARY KEY, steps INTEGER NOT NULL DEFAULT 0, active_kcal REAL NOT NULL DEFAULT 0, total_kcal REAL, distance_m REAL NOT NULL DEFAULT 0, heart_rate_avg REAL, resting_hr REAL, sleep_minutes REAL, source_ids TEXT NOT NULL DEFAULT "[]", updated_at_utc TEXT NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS sleep_sessions(id TEXT PRIMARY KEY, start_utc TEXT NOT NULL, end_utc TEXT NOT NULL, duration_minutes INTEGER NOT NULL, source_id TEXT NOT NULL, stages_json TEXT)',
+      'CREATE TABLE IF NOT EXISTS workout_sessions(id TEXT PRIMARY KEY, type TEXT NOT NULL, start_utc TEXT NOT NULL, end_utc TEXT NOT NULL, duration_seconds REAL NOT NULL, distance_m REAL, energy_kcal REAL, source_id TEXT NOT NULL, route_status TEXT NOT NULL DEFAULT "unavailable")',
+      'CREATE TABLE IF NOT EXISTS workout_route_points(workout_id TEXT NOT NULL, sequence INTEGER NOT NULL, latitude REAL NOT NULL, longitude REAL NOT NULL, timestamp_utc TEXT NOT NULL, PRIMARY KEY(workout_id, sequence))',
+      'CREATE TABLE IF NOT EXISTS cycle_profiles(id INTEGER PRIMARY KEY, typical_cycle_length INTEGER NOT NULL DEFAULT 28, typical_period_length INTEGER NOT NULL DEFAULT 5, predictions_enabled INTEGER NOT NULL DEFAULT 1, health_import_enabled INTEGER NOT NULL DEFAULT 0, timezone TEXT NOT NULL DEFAULT "UTC")',
+      'CREATE TABLE IF NOT EXISTS period_entries(id TEXT PRIMARY KEY, start_day TEXT NOT NULL, end_day TEXT, flow_json TEXT, source TEXT NOT NULL DEFAULT "local", created_at_utc TEXT NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS cycle_daily_logs(day TEXT PRIMARY KEY, bleeding TEXT, mood TEXT, pain INTEGER, energy INTEGER, sleep_quality INTEGER, notes TEXT, tags_json TEXT NOT NULL DEFAULT "[]", source TEXT NOT NULL DEFAULT "local", updated_at_utc TEXT NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS symptom_definitions(id TEXT PRIMARY KEY, name TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1)',
+      'CREATE TABLE IF NOT EXISTS symptom_logs(id TEXT PRIMARY KEY, day TEXT NOT NULL, symptom_id TEXT NOT NULL, intensity INTEGER NOT NULL DEFAULT 1)',
+      'CREATE TABLE IF NOT EXISTS cycle_predictions(id TEXT PRIMARY KEY, kind TEXT NOT NULL, window_start TEXT NOT NULL, window_end TEXT NOT NULL, confidence REAL NOT NULL, rationale TEXT NOT NULL, calculated_at_utc TEXT NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS notification_preferences(id TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 0, lead_minutes INTEGER NOT NULL DEFAULT 0, quiet_start TEXT, quiet_end TEXT, weekdays_json TEXT NOT NULL DEFAULT "[1,2,3,4,5,6,7]", discrete_lock_screen INTEGER NOT NULL DEFAULT 1)',
+      'CREATE TABLE IF NOT EXISTS backup_manifests(id TEXT PRIMARY KEY, schema_version INTEGER NOT NULL, app_version TEXT NOT NULL, created_at_utc TEXT NOT NULL, categories_json TEXT NOT NULL, record_count INTEGER NOT NULL)',
+      'CREATE INDEX IF NOT EXISTS idx_health_records_local_day ON health_records(local_day, type)',
+      'CREATE INDEX IF NOT EXISTS idx_health_records_source ON health_records(source_id, start_utc)',
+      'CREATE INDEX IF NOT EXISTS idx_sleep_sessions_start ON sleep_sessions(start_utc)',
+      'CREATE INDEX IF NOT EXISTS idx_workout_sessions_start ON workout_sessions(start_utc)',
+      'CREATE INDEX IF NOT EXISTS idx_cycle_daily_logs_day ON cycle_daily_logs(day)',
+      'CREATE INDEX IF NOT EXISTS idx_symptom_logs_day ON symptom_logs(day)',
+    ];
+    for (final statement in statements) {
+      await db.execute(statement);
+    }
+  }
+
+  Future<void> _migrateToV26(Database db) async {
+    await db.execute(
+      'CREATE TABLE IF NOT EXISTS app_database_metadata('
+      'id INTEGER PRIMARY KEY, schema_version INTEGER NOT NULL, '
+      'created_at_utc TEXT NOT NULL, migrated_at_utc TEXT NOT NULL)',
+    );
+
+    for (final table in const [
+      'ConsumedFoods',
+      'SavedMeals',
+      'LocalFoods',
+      'WeightEntries',
+    ]) {
+      final columns = await db.rawQuery('PRAGMA table_info($table)');
+      final hasUuid = columns.any((column) => column['name'] == 'uuid');
+      if (!hasUuid) {
+        await db.execute('ALTER TABLE $table ADD COLUMN uuid TEXT');
+      }
+
+      final rows = await db.query(table, columns: ['id', 'uuid']);
+      for (final row in rows) {
+        final existingUuid = row['uuid'] as String?;
+        if (existingUuid != null && existingUuid.isNotEmpty) continue;
+        final legacyId = row['id'];
+        await db.update(
+          table,
+          {'uuid': _legacyUuid(table, legacyId)},
+          where: 'id = ?',
+          whereArgs: [legacyId],
+        );
+      }
+    }
+
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_consumed_foods_date_meal '
+      'ON ConsumedFoods(date, meal_name)',
+    );
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_consumed_foods_uuid '
+      'ON ConsumedFoods(uuid) WHERE uuid IS NOT NULL',
+    );
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_meals_uuid '
+      'ON SavedMeals(uuid) WHERE uuid IS NOT NULL',
+    );
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_local_foods_uuid '
+      'ON LocalFoods(uuid) WHERE uuid IS NOT NULL',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_food_usage_last_used '
+      'ON FoodUsage(last_used_at)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_offline_queue_created '
+      'ON OfflineQueue(created_at)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_weight_entries_date '
+      'ON WeightEntries(date)',
+    );
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_weight_entries_uuid '
+      'ON WeightEntries(uuid) WHERE uuid IS NOT NULL',
+    );
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    await db.rawInsert(
+      'INSERT INTO app_database_metadata '
+      '(id, schema_version, created_at_utc, migrated_at_utc) '
+      'VALUES (1, ?, ?, ?) '
+      'ON CONFLICT(id) DO UPDATE SET '
+      'schema_version = excluded.schema_version, '
+      'migrated_at_utc = excluded.migrated_at_utc',
+      [_dbVersion, now, now],
+    );
+  }
+
+  static String _legacyUuid(String table, Object? id) {
+    return _uuid.v5(Namespace.url.value, 'macromate://legacy/$table/$id');
+  }
+
+  static Map<String, dynamic> _withUuid(
+    String table,
+    Map<String, dynamic> values,
+  ) {
+    final result = Map<String, dynamic>.from(values);
+    final current = result['uuid'];
+    if (current is! String || current.isEmpty) {
+      final legacyId = result['id'];
+      result['uuid'] =
+          legacyId == null ? _uuid.v4() : _legacyUuid(table, legacyId);
+    }
+    return result;
   }
 
   Future<void> _createSavedMealTables(Database db) async {
@@ -306,12 +441,12 @@ class DatabaseHelper {
     final db = await database;
     return await db.insert(
         'ConsumedFoods',
-        {
+        _withUuid('ConsumedFoods', {
           'date': DateFormat('yyyy-MM-dd').format(date),
           'meal_name': mealName,
           'food_id': foodId,
           'quantity': quantity,
-        },
+        }),
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
@@ -388,20 +523,22 @@ class DatabaseHelper {
 
   Future<int> insertLocalFood(FoodItem food, int lastUsedQuantity) async {
     final db = await database;
-    final id = await db.insert('LocalFoods', {
-      'name': food.name,
-      'brand': food.brand,
-      'barcode': food.barcode,
-      'calories_per_100g': food.caloriesPer100g,
-      'fat_per_100g': food.fatPer100g,
-      'carbs_per_100g': food.carbsPer100g,
-      'sugar_per_100g': food.sugarPer100g,
-      'protein_per_100g': food.proteinPer100g,
-      'created_at': food.createdAt.toIso8601String(),
-      'last_used_quantity': lastUsedQuantity,
-      'source': food.source,
-      'is_verified': food.isVerified ? 1 : 0,
-    });
+    final id = await db.insert(
+        'LocalFoods',
+        _withUuid('LocalFoods', {
+          'name': food.name,
+          'brand': food.brand,
+          'barcode': food.barcode,
+          'calories_per_100g': food.caloriesPer100g,
+          'fat_per_100g': food.fatPer100g,
+          'carbs_per_100g': food.carbsPer100g,
+          'sugar_per_100g': food.sugarPer100g,
+          'protein_per_100g': food.proteinPer100g,
+          'created_at': food.createdAt.toIso8601String(),
+          'last_used_quantity': lastUsedQuantity,
+          'source': food.source,
+          'is_verified': food.isVerified ? 1 : 0,
+        }));
     return -id;
   }
 
@@ -452,12 +589,14 @@ class DatabaseHelper {
       for (final food in foods) {
         final foodId = food.food.id;
         if (foodId == null) continue;
-        await txn.insert('ConsumedFoods', {
-          'date': formattedDate,
-          'meal_name': food.mealName,
-          'food_id': foodId,
-          'quantity': food.quantity,
-        });
+        await txn.insert(
+            'ConsumedFoods',
+            _withUuid('ConsumedFoods', {
+              'date': formattedDate,
+              'meal_name': food.mealName,
+              'food_id': foodId,
+              'quantity': food.quantity,
+            }));
       }
     });
   }
@@ -470,12 +609,14 @@ class DatabaseHelper {
   ) async {
     final db = await database;
     return await db.transaction((txn) async {
-      final savedMealId = await txn.insert('SavedMeals', {
-        'name': name,
-        'default_meal_name': defaultMealName,
-        'created_at': DateTime.now().toIso8601String(),
-        'recipe_total_weight': recipeTotalWeight,
-      });
+      final savedMealId = await txn.insert(
+          'SavedMeals',
+          _withUuid('SavedMeals', {
+            'name': name,
+            'default_meal_name': defaultMealName,
+            'created_at': DateTime.now().toIso8601String(),
+            'recipe_total_weight': recipeTotalWeight,
+          }));
       for (final ingredient in ingredients) {
         final foodId = ingredient.food.id;
         if (foodId == null) {
@@ -723,8 +864,37 @@ class DatabaseHelper {
     final favoriteFoods = await db.query('FavoriteFoods');
     final offlineQueue = await db.query('OfflineQueue');
     final localFoods = await db.query('LocalFoods');
+    final healthSources = await db.query('health_sources');
+    final healthSyncStates = await db.query('health_sync_states');
+    final healthRecords = await db.query('health_records');
+    final dailyHealthAggregates = await db.query('daily_health_aggregates');
+    final sleepSessions = await db.query('sleep_sessions');
+    final workoutSessions = await db.query('workout_sessions');
+    final workoutRoutePoints = await db.query('workout_route_points');
+    final cycleProfiles = await db.query('cycle_profiles');
+    final periodEntries = await db.query('period_entries');
+    final cycleDailyLogs = await db.query('cycle_daily_logs');
+    final symptomDefinitions = await db.query('symptom_definitions');
+    final symptomLogs = await db.query('symptom_logs');
+    final cyclePredictions = await db.query('cycle_predictions');
+    final notificationPreferences = await db.query('notification_preferences');
+    final backupManifests = await db.query('backup_manifests');
     final List<Map<String, dynamic>> foodItems = [];
     return {
+      'format': 'macromate-backup',
+      'format_version': 2,
+      'schema_version': _dbVersion,
+      'app_version': '1.0.0',
+      'created_at_utc': DateTime.now().toUtc().toIso8601String(),
+      'categories': [
+        'nutrition',
+        'goals',
+        'settings',
+        'weight',
+        'health',
+        'cycle',
+        'notifications',
+      ],
       'food_items': foodItems,
       'local_foods': localFoods,
       'consumed_foods': consumedFoods,
@@ -735,12 +905,39 @@ class DatabaseHelper {
       'saved_meal_ingredients': savedMealIngredients,
       'favorite_foods': favoriteFoods,
       'offline_queue': offlineQueue,
+      'health_sources': healthSources,
+      'health_sync_states': healthSyncStates,
+      'health_records': healthRecords,
+      'daily_health_aggregates': dailyHealthAggregates,
+      'sleep_sessions': sleepSessions,
+      'workout_sessions': workoutSessions,
+      'workout_route_points': workoutRoutePoints,
+      'cycle_profiles': cycleProfiles,
+      'period_entries': periodEntries,
+      'cycle_daily_logs': cycleDailyLogs,
+      'symptom_definitions': symptomDefinitions,
+      'symptom_logs': symptomLogs,
+      'cycle_predictions': cyclePredictions,
+      'notification_preferences': notificationPreferences,
+      'backup_manifests': backupManifests,
     };
   }
 
   Future<void> mergeData(String jsonData) async {
-    final db = await database;
-    Map<String, dynamic> data = jsonDecode(jsonData);
+    final database = await this.database;
+    Map<String, dynamic> data = Map<String, dynamic>.from(jsonDecode(jsonData));
+    // Versioned backups keep the payload flat for backwards compatibility,
+    // while accepting a future envelope with a nested payload as well.
+    if (data['payload'] is Map) {
+      data = Map<String, dynamic>.from(data['payload'] as Map);
+    }
+    await database.transaction((txn) => _mergeDataInto(txn, data));
+  }
+
+  Future<void> _mergeDataInto(
+    DatabaseExecutor db,
+    Map<String, dynamic> data,
+  ) async {
     if (data['consumed_foods'] is List) {
       for (var c in data['consumed_foods']) {
         List<Map<String, dynamic>> existingConsumed = await db.query(
@@ -751,7 +948,7 @@ class DatabaseHelper {
         if (existingConsumed.isEmpty) {
           await db.insert(
             'ConsumedFoods',
-            c,
+            _withUuid('ConsumedFoods', Map<String, dynamic>.from(c)),
             conflictAlgorithm: ConflictAlgorithm.ignore,
           );
         }
@@ -761,7 +958,7 @@ class DatabaseHelper {
       for (var food in data['local_foods']) {
         await db.insert(
           'LocalFoods',
-          food,
+          _withUuid('LocalFoods', Map<String, dynamic>.from(food)),
           conflictAlgorithm: ConflictAlgorithm.ignore,
         );
       }
@@ -802,7 +999,7 @@ class DatabaseHelper {
         if (existingW.isEmpty) {
           await db.insert(
             'WeightEntries',
-            w,
+            _withUuid('WeightEntries', Map<String, dynamic>.from(w)),
             conflictAlgorithm: ConflictAlgorithm.ignore,
           );
         }
@@ -818,7 +1015,7 @@ class DatabaseHelper {
         if (existingMeal.isEmpty) {
           await db.insert(
             'SavedMeals',
-            meal,
+            _withUuid('SavedMeals', Map<String, dynamic>.from(meal)),
             conflictAlgorithm: ConflictAlgorithm.ignore,
           );
         }
@@ -875,16 +1072,45 @@ class DatabaseHelper {
         }
       }
     }
+    const additionalTables = [
+      'health_sources',
+      'health_sync_states',
+      'health_records',
+      'daily_health_aggregates',
+      'sleep_sessions',
+      'workout_sessions',
+      'workout_route_points',
+      'cycle_profiles',
+      'period_entries',
+      'cycle_daily_logs',
+      'symptom_definitions',
+      'symptom_logs',
+      'cycle_predictions',
+      'notification_preferences',
+      'backup_manifests',
+    ];
+    for (final table in additionalTables) {
+      final rows = data[table];
+      if (rows is! List) continue;
+      for (final rawRow in rows) {
+        if (rawRow is! Map) continue;
+        await db.insert(
+          table,
+          Map<String, dynamic>.from(rawRow),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    }
   }
 
   Future<int> insertWeightEntry(DateTime date, double weight) async {
     final db = await database;
     return await db.insert(
         'WeightEntries',
-        {
+        _withUuid('WeightEntries', {
           'date': DateFormat('yyyy-MM-dd').format(date),
           'weight': weight,
-        },
+        }),
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 

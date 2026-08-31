@@ -10,6 +10,10 @@ import 'pages/settings_page.dart';
 import 'pages/login_page.dart';
 import 'pages/weight_page.dart';
 import 'pages/weekly_dashboard_page.dart';
+import 'features/health/presentation/health_page.dart';
+import 'features/health/data/health_background_sync.dart';
+import 'features/cycle/presentation/cycle_page.dart';
+import 'pages/backup_page.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -174,6 +178,12 @@ class _MyAppState extends State<MyApp> {
       appState.reportUiError('initializeCompletely', e, st);
     }
     try {
+      await initializeHealthBackgroundSync();
+    } catch (e, st) {
+      // Background execution is optional and unsupported on desktop.
+      appState.reportUiError('initializeHealthBackgroundSync', e, st);
+    }
+    try {
       await appState.scheduleAllNotifications().timeout(
             const Duration(seconds: 8),
           );
@@ -323,6 +333,12 @@ class _MyAppState extends State<MyApp> {
                 const AppDiagnosticsBanner(child: WeightPage()),
             '/weekly_dashboard': (context) =>
                 const AppDiagnosticsBanner(child: WeeklyDashboardPage()),
+            '/health': (context) =>
+                const AppDiagnosticsBanner(child: HealthPage()),
+            '/cycle': (context) =>
+                const AppDiagnosticsBanner(child: CyclePage()),
+            '/backup': (context) =>
+                const AppDiagnosticsBanner(child: BackupPage()),
           },
         );
       },

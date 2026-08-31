@@ -11,6 +11,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/remote_database_service.dart';
 import '../services/database_helper.dart';
+import '../services/encrypted_backup_service.dart';
 import '../services/llm_service.dart';
 import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
@@ -1580,17 +1581,28 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String> exportDatabase() async {
+  Future<String> exportDatabase({String? password}) async {
     try {
       Map<String, dynamic> data = await DatabaseHelper().exportData();
-      return jsonEncode(data);
+      if (password == null || password.isEmpty) return jsonEncode(data);
+      return await EncryptedBackupService().encrypt(data, password: password);
     } catch (e) {
       rethrow;
     }
   }
 
-  Future<void> importDatabase(String jsonData) async {
+  Future<void> importDatabase(String jsonData, {String? password}) async {
     try {
+      final decoded = jsonDecode(jsonData);
+      if (decoded is Map &&
+          decoded['format'] == EncryptedBackupService.format) {
+        if (password == null || password.isEmpty) {
+          throw const FormatException('Dieses Backup benötigt ein Passwort.');
+        }
+        jsonData = jsonEncode(
+          await EncryptedBackupService().decrypt(jsonData, password: password),
+        );
+      }
       await DatabaseHelper().mergeData(jsonData);
       await initializeCompletely();
       notifyListeners();
