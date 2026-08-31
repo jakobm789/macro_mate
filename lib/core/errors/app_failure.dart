@@ -31,6 +31,7 @@ sealed class Result<T> {
 final class Success<T> extends Result<T> {
   const Success(this.value);
 
+  @override
   final T value;
 }
 

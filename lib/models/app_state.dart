@@ -7,7 +7,6 @@ import '../core/database/app_database.dart';
 import '../core/logging/app_logger.dart';
 import '../core/notifications/drift_notification_repository.dart';
 import '../core/notifications/notification_controller.dart';
-import '../core/notifications/notification_models.dart';
 import '../core/notifications/notification_repository.dart';
 import '../features/activity/presentation/activity_controller.dart';
 import '../features/auth/presentation/auth_controller.dart';

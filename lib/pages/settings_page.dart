@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../features/notifications/presentation/notification_settings_page.dart';
 import '../models/app_state.dart';
-import '../models/local_llm_model.dart';
 import '../services/llm_service.dart';
 
 class PalOption {
@@ -204,9 +203,7 @@ class _SettingsPageState extends State<SettingsPage> {
       double? customVal = double.tryParse(
         _customPercentController.text.replaceAll(',', '.'),
       );
-      if (customVal == null) {
-        customVal = 1.0;
-      }
+      customVal ??= 1.0;
       int? startCals = int.tryParse(_startCaloriesController.text);
       if (startCals == null || startCals < 500) {
         startCals = 2000;
@@ -544,7 +541,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
       final backend = service.loadedBackendName;
       updateProgress(
-          '   -> Geladen in: ${loadWatch.elapsedMilliseconds} ms (${backend})');
+          '   -> Geladen in: ${loadWatch.elapsedMilliseconds} ms ($backend)');
 
       // 3/4. Inferenzzeit messen (Kurzer Prompt)
       updateProgress('[Schritt 3/4] Führe Inferenz durch (Kurzantwort)...');

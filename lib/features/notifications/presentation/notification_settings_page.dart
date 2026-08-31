@@ -11,7 +11,6 @@ class NotificationSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final controller = context.watch<NotificationController>();
-    final preferences = controller.preferences;
 
     return Scaffold(
       appBar: AppBar(

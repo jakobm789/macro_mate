@@ -190,9 +190,9 @@ class DriftCycleRepository implements CycleRepository {
             energy: row.energy,
             sleepQuality: row.sleepQuality,
             notes: row.notes,
-            tags: row.tagsJson == null
+            tags: row.tagsJson.isEmpty
                 ? const []
-                : List<String>.from(jsonDecode(row.tagsJson!)),
+                : List<String>.from(jsonDecode(row.tagsJson)),
           ),
         )
         .toList();

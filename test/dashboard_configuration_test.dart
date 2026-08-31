@@ -5,7 +5,6 @@ import 'package:macro_mate/core/database/app_database.dart';
 import 'package:macro_mate/features/activity/presentation/activity_controller.dart';
 import 'package:macro_mate/features/cycle/data/drift_cycle_repository.dart';
 import 'package:macro_mate/features/cycle/presentation/cycle_controller.dart';
-import 'package:macro_mate/features/dashboard/presentation/dashboard_config_sheet.dart';
 import 'package:macro_mate/features/dashboard/presentation/dashboard_controller.dart';
 import 'package:macro_mate/features/dashboard/presentation/today_page.dart';
 import 'package:macro_mate/features/health/data/drift_health_repository.dart';

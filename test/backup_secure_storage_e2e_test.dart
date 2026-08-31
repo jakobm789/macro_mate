@@ -14,7 +14,6 @@ import 'package:macro_mate/features/settings/data/drift_settings_repository.dart
 import 'package:macro_mate/features/settings/presentation/settings_controller.dart';
 import 'package:macro_mate/features/weight/data/drift_weight_repository.dart';
 import 'package:macro_mate/models/food_item.dart';
-import 'package:macro_mate/services/encrypted_backup_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

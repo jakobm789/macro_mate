@@ -356,7 +356,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                     child: CircularProgressIndicator(),
                   )
                 : combinedList.isNotEmpty
-                    ? Container(
+                    ? SizedBox(
                         height: 300,
                         child: ListView.builder(
                           shrinkWrap: true,
@@ -542,7 +542,7 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
     return AlertDialog(
       title: Text('Menge hinzufügen für ${widget.food.name}'),
       content: SingleChildScrollView(
-        child: Container(
+        child: SizedBox(
           width: double.infinity,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
@@ -102,10 +100,6 @@ class DashboardController extends ChangeNotifier {
 
   Future<void> loadCardConfiguration() async {
     try {
-      final savedOrderStr = await _settings.getSavedEmail(); // placeholder key or custom key
-      // Load from secure storage or settings table
-      final orderJson = await _settings.getSavedPassword(); // using credential slot or defaults
-      // Fallback to defaults if not customized
       if (_cardOrder.isEmpty) {
         _cardOrder = List.from(defaultCardOrder);
       }

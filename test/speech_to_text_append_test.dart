@@ -6,7 +6,6 @@ import 'package:speech_to_text_platform_interface/speech_to_text_platform_interf
 import 'package:speech_to_text_platform_interface/method_channel_speech_to_text.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:macro_mate/models/app_state.dart';
-import 'package:macro_mate/models/local_llm_model.dart';
 import 'package:macro_mate/widgets/ai_food_sheet.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';

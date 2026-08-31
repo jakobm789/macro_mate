@@ -11,7 +11,6 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../models/ai_food_analysis_state.dart';
 import '../models/app_state.dart';
 import '../models/food_analysis_result.dart';
-import '../models/local_llm_model.dart';
 import '../services/llm_service.dart';
 
 /// BottomSheet für die KI-gestützte Lebensmittelerkennung.

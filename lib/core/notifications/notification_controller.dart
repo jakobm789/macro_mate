@@ -47,12 +47,10 @@ class NotificationController extends ChangeNotifier {
 
   Future<void> initialize() async {
     try {
-      if (_plugin != null) {
-        const androidSettings =
-            AndroidInitializationSettings('@mipmap/ic_launcher');
-        const initSettings = InitializationSettings(android: androidSettings);
-        await _plugin!.initialize(initSettings);
-      }
+      const androidSettings =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initSettings = InitializationSettings(android: androidSettings);
+      await _plugin.initialize(initSettings);
     } catch (_) {}
 
     await loadPreferences();
@@ -95,7 +93,7 @@ class NotificationController extends ChangeNotifier {
     try {
       final baseId = category.index * 100;
       for (int i = 0; i < 20; i++) {
-        await _plugin?.cancel(baseId + i);
+        await _plugin.cancel(baseId + i);
       }
     } catch (_) {}
   }
@@ -109,7 +107,7 @@ class NotificationController extends ChangeNotifier {
     String? personalizedInsight,
   }) async {
     try {
-      await _plugin?.cancelAll();
+      await _plugin.cancelAll();
     } catch (_) {}
 
     final now = DateTime.now();
@@ -304,7 +302,7 @@ class NotificationController extends ChangeNotifier {
       );
       const details = NotificationDetails(android: androidDetails);
 
-      await _plugin?.zonedSchedule(
+      await _plugin.zonedSchedule(
         id,
         displayTitle,
         displayBody,
@@ -345,7 +343,7 @@ class NotificationController extends ChangeNotifier {
     const details = NotificationDetails(android: androidDetails);
 
     try {
-      await _plugin?.zonedSchedule(
+      await _plugin.zonedSchedule(
         id,
         displayTitle,
         displayBody,

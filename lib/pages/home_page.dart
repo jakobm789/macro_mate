@@ -633,7 +633,7 @@ class _MyHomePageState extends State<MyHomePage> {
     AppState state,
     String mealName,
   ) async {
-    final snapshot = await state.getCurrentDaySnapshot();
+    final snapshot = state.getCurrentDaySnapshot();
     try {
       final copiedCount = await state.copyMealFromYesterday(mealName);
       if (!mounted) return;
@@ -734,7 +734,7 @@ class _MyHomePageState extends State<MyHomePage> {
     BuildContext context,
     AppState state,
   ) async {
-    final snapshot = await state.getCurrentDaySnapshot();
+    final snapshot = state.getCurrentDaySnapshot();
     try {
       final copiedCount = await state.copyDayFromYesterday();
       if (!mounted) return;
