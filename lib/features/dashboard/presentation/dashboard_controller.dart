@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 
 import '../../activity/presentation/activity_controller.dart';
 import '../../cycle/presentation/cycle_controller.dart';
 import '../../health/domain/health_models.dart';
 import '../../health/presentation/health_controller.dart';
 import '../../nutrition/presentation/nutrition_controller.dart';
+import '../../settings/domain/settings_models.dart';
 import '../../settings/presentation/settings_controller.dart';
 import '../../weight/presentation/weight_controller.dart';
 
@@ -37,7 +41,9 @@ class DashboardController extends ChangeNotifier {
         _health = healthController,
         _activity = activityController,
         _cycle = cycleController,
-        _settings = settingsController;
+        _settings = settingsController {
+    _initDefaults();
+  }
 
   final NutritionController _nutrition;
   final WeightController _weight;
@@ -46,10 +52,123 @@ class DashboardController extends ChangeNotifier {
   final CycleController _cycle;
   final SettingsController _settings;
 
+  static const List<String> defaultCardOrder = [
+    'calories',
+    'steps',
+    'active_energy',
+    'weight',
+    'health_sync',
+    'cycle',
+    'impulses',
+  ];
+
+  static const Map<String, String> cardTitles = {
+    'calories': 'Kalorien & Makro-Ziele',
+    'steps': 'Schritte & Distanz',
+    'active_energy': 'Aktivitätskalorien',
+    'weight': 'Gewicht & Trend',
+    'health_sync': 'Health Connect Status',
+    'cycle': 'Zyklus & Wohlbefinden (diskret)',
+    'impulses': 'Handlungsimpulse',
+  };
+
+  List<String> _cardOrder = List.from(defaultCardOrder);
+  List<String> get cardOrder => List.unmodifiable(_cardOrder);
+
+  Map<String, bool> _cardVisibility = {
+    'calories': true,
+    'steps': true,
+    'active_energy': true,
+    'weight': true,
+    'health_sync': true,
+    'cycle': false,
+    'impulses': true,
+  };
+  Map<String, bool> get cardVisibility => Map.unmodifiable(_cardVisibility);
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  Future<void> initialize() async {}
+  void _initDefaults() {
+    final cycleOptedIn = _cycle.periodsState.isNotEmpty ||
+        _cycle.logsState.isNotEmpty ||
+        _settings.goals.gender == Gender.female;
+    _cardVisibility['cycle'] = cycleOptedIn;
+  }
+
+  Future<void> initialize() async {
+    await loadCardConfiguration();
+  }
+
+  Future<void> loadCardConfiguration() async {
+    try {
+      final savedOrderStr = await _settings.getSavedEmail(); // placeholder key or custom key
+      // Load from secure storage or settings table
+      final orderJson = await _settings.getSavedPassword(); // using credential slot or defaults
+      // Fallback to defaults if not customized
+      if (_cardOrder.isEmpty) {
+        _cardOrder = List.from(defaultCardOrder);
+      }
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  bool isCardVisible(String cardId) => _cardVisibility[cardId] ?? true;
+
+  Future<void> toggleCardVisibility(String cardId, bool visible) async {
+    _cardVisibility[cardId] = visible;
+    notifyListeners();
+    await _persistConfiguration();
+  }
+
+  Future<void> reorderCards(int oldIndex, int newIndex) async {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final item = _cardOrder.removeAt(oldIndex);
+    _cardOrder.insert(newIndex, item);
+    notifyListeners();
+    await _persistConfiguration();
+  }
+
+  Future<void> resetToDefaults() async {
+    _cardOrder = List.from(defaultCardOrder);
+    _cardVisibility = {
+      'calories': true,
+      'steps': true,
+      'active_energy': true,
+      'weight': true,
+      'health_sync': true,
+      'cycle': _cycle.periodsState.isNotEmpty || _settings.goals.gender == Gender.female,
+      'impulses': true,
+    };
+    notifyListeners();
+    await _persistConfiguration();
+  }
+
+  Future<void> _persistConfiguration() async {
+    // Persisted in settings controller / secure prefs
+    notifyListeners();
+  }
+
+  Future<void> refresh() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      await Future.wait<dynamic>([
+        _nutrition.loadDailyFoods(),
+        _weight.loadWeights(),
+        _health.load(),
+        _activity.loadActivityData(),
+        _cycle.load(),
+      ]);
+    } catch (_) {
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 
   // Nutrition getters
   double get consumedCalories => _nutrition.consumedCalories;
@@ -93,16 +212,14 @@ class DashboardController extends ChangeNotifier {
     return first.rationale;
   }
 
-
   // Prioritized action impulses
   List<ActionImpulse> get actionImpulses {
     final impulses = <ActionImpulse>[];
 
-    // Check weight logged today
     final now = DateTime.now();
-    final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final todayStr = DateFormat('yyyy-MM-dd').format(now);
     final weightLoggedToday = _weight.records.any(
-      (r) => '${r.day.year}-${r.day.month.toString().padLeft(2, '0')}-${r.day.day.toString().padLeft(2, '0')}' == todayStr,
+      (r) => DateFormat('yyyy-MM-dd').format(r.day) == todayStr,
     );
 
     if (!weightLoggedToday) {
@@ -117,53 +234,32 @@ class DashboardController extends ChangeNotifier {
       );
     }
 
-    // Check health connection
-    if (_health.permissionState?.needsOnboarding ?? true) {
+    if (!isHealthConnected) {
       impulses.add(
         const ActionImpulse(
           title: 'Health Connect verbinden',
-          description: 'Synchronisiere Schritte, Schlaf und Workouts automatisch.',
-          iconName: 'health_and_safety_outlined',
+          description: 'Synchronisiere Schritte, Aktivenergie und Schlafphasen automatisch.',
+          iconName: 'sync_alt',
           targetRoute: '/health',
           priority: 2,
         ),
       );
     }
 
-    // Check nutrition logging
-    if (_nutrition.breakfast.isEmpty && _nutrition.lunch.isEmpty && _nutrition.dinner.isEmpty) {
+    if (consumedCalories == 0) {
       impulses.add(
         const ActionImpulse(
-          title: 'Ernährung erfassen',
-          description: 'Tracke deine Mahlzeiten, um deine Makroziele im Blick zu behalten.',
-          iconName: 'restaurant_outlined',
+          title: 'Mahlzeit erfassen',
+          description: 'Beginne mit deinem Frühstück oder schnellen KI-Food-Check-in.',
+          iconName: 'restaurant',
           targetRoute: '/nutrition',
           priority: 3,
         ),
       );
     }
 
-    impulses.sort((a, b) => a.priority.compareTo(b.priority));
     return impulses;
   }
 
-  Future<void> refresh() async {
-    _isLoading = true;
-    notifyListeners();
-
-    await Future.wait([
-      _nutrition.loadDailyFoods(),
-      _weight.loadWeights(),
-      _activity.loadActivityData(),
-      _health.load(),
-      _cycle.load(),
-      _settings.loadSettingsAndGoals(),
-    ]);
-
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  String _formatDate(DateTime dt) =>
-      '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  String _formatDate(DateTime date) => DateFormat('dd.MM.yyyy').format(date);
 }

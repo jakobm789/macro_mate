@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/ui/design_system.dart';
 import '../../../models/app_state.dart';
+import 'dashboard_config_sheet.dart';
 import 'dashboard_controller.dart';
 
 class TodayPage extends StatefulWidget {
@@ -13,6 +14,18 @@ class TodayPage extends StatefulWidget {
 }
 
 class _TodayPageState extends State<TodayPage> {
+  void _openConfigSheet(DashboardController controller) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => ChangeNotifierProvider.value(
+        value: controller,
+        child: const DashboardConfigSheet(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dashboard = context.watch<DashboardController?>();
@@ -37,7 +50,6 @@ class _TodayPageState extends State<TodayPage> {
         (appState.weightEntries.isNotEmpty ? appState.weightEntries.last.weight : null);
     final weightTrend = dashboard?.weightTrend;
 
-    final syncStatus = dashboard?.syncStatus;
     final lastSync = dashboard?.lastSyncTime;
     final healthError = dashboard?.healthErrorMessage;
 
@@ -46,10 +58,19 @@ class _TodayPageState extends State<TodayPage> {
     final cycleTip = dashboard?.discreteCycleTip;
     final impulses = dashboard?.actionImpulses ?? const [];
 
+    final cardOrder = dashboard?.cardOrder ?? DashboardController.defaultCardOrder;
+    final visibility = dashboard?.cardVisibility ?? {};
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Heute'),
         actions: [
+          if (dashboard != null)
+            IconButton(
+              icon: const Icon(Icons.tune),
+              tooltip: 'Dashboard anpassen',
+              onPressed: () => _openConfigSheet(dashboard),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Aktualisieren',
@@ -72,101 +93,34 @@ class _TodayPageState extends State<TodayPage> {
           children: [
             const SectionHeader(title: 'Dein Überblick'),
             const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final columns = constraints.maxWidth >= 600 ? 2 : 1;
-                return GridView.count(
-                  crossAxisCount: columns,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: columns == 1 ? 2.8 : 1.8,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  children: [
-                    KpiCard(
-                      title: 'Kalorien & Makros',
-                      value: '${consumedCal.round()} / $targetCal kcal',
-                      subtitle:
-                          'KH: ${consumedCarbs.round()}/${targetCarbs.round()}g · Protein: ${consumedProt.round()}/${targetProt.round()}g · Fett: ${consumedFat.round()}/${targetFat.round()}g',
-                      icon: Icons.local_fire_department_outlined,
-                      onTap: () => Navigator.pushNamed(context, '/nutrition'),
-                    ),
-                    KpiCard(
-                      title: 'Schritte & Distanz',
-                      value: '$steps Schritte',
-                      subtitle: steps == 0
-                          ? 'Health Connect verbinden'
-                          : '${distanceKm.toStringAsFixed(1)} km zurückgelegt',
-                      icon: Icons.directions_walk,
-                      onTap: () => Navigator.pushNamed(context, '/activity'),
-                    ),
-                    KpiCard(
-                      title: 'Aktivenergie',
-                      value: '${activeKcal.round()} kcal aktiv',
-                      subtitle: totalKcal != null
-                          ? 'Gesamtumsatz: ${totalKcal.round()} kcal'
-                          : 'Reine Aktivkalorien (getrennt von Grundumsatz)',
-                      icon: Icons.bolt,
-                      onTap: () => Navigator.pushNamed(context, '/activity'),
-                    ),
-                    KpiCard(
-                      title: 'Gewicht',
-                      value: weight == null
-                          ? '–'
-                          : '${weight.toStringAsFixed(1)} kg',
-                      subtitle: weightTrend != null
-                          ? '7-Tage-Trend: ${weightTrend >= 0 ? '+' : ''}${weightTrend.toStringAsFixed(1)} kg'
-                          : 'Letzter Messwert',
-                      icon: Icons.monitor_weight_outlined,
-                      onTap: () => Navigator.pushNamed(context, '/weight'),
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            const SectionHeader(title: 'Status & Hinweise'),
-            const SizedBox(height: 8),
-            Card(
-              child: Column(
-                children: [
-                  SyncStatus(
-                    lastSyncUtc: lastSync,
-                    error: healthError,
-                  ),
-                  if (cycleDay != null || cyclePhase != null || cycleTip != null) ...[
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.water_drop_outlined, color: Colors.purple),
-                      title: Text(cyclePhase != null
-                          ? 'Zyklustag $cycleDay · $cyclePhase'
-                          : 'Zyklus-Status'),
-                      subtitle: Text(cycleTip ?? 'Tippe für Zyklushistorie und Kalender'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.pushNamed(context, '/cycle'),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (impulses.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              const SectionHeader(title: 'Handlungsimpulse'),
-              const SizedBox(height: 8),
-              for (final impulse in impulses)
-                Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    leading: const Icon(Icons.lightbulb_outline),
-                    title: Text(impulse.title),
-                    subtitle: Text(impulse.description),
-                    trailing: FilledButton.tonal(
-                      onPressed: () => Navigator.pushNamed(context, impulse.targetRoute),
-                      child: const Text('Öffnen'),
-                    ),
-                  ),
+            for (final cardId in cardOrder)
+              if (visibility[cardId] != false) ...[
+                _buildCardById(
+                  context: context,
+                  cardId: cardId,
+                  consumedCal: consumedCal,
+                  targetCal: targetCal,
+                  consumedCarbs: consumedCarbs,
+                  targetCarbs: targetCarbs,
+                  consumedProt: consumedProt,
+                  targetProt: targetProt,
+                  consumedFat: consumedFat,
+                  targetFat: targetFat,
+                  steps: steps,
+                  distanceKm: distanceKm,
+                  activeKcal: activeKcal,
+                  totalKcal: totalKcal,
+                  weight: weight,
+                  weightTrend: weightTrend,
+                  lastSync: lastSync,
+                  healthError: healthError,
+                  cycleDay: cycleDay,
+                  cyclePhase: cyclePhase,
+                  cycleTip: cycleTip,
+                  impulses: impulses,
                 ),
-            ],
+                const SizedBox(height: 8),
+              ],
             const SizedBox(height: 16),
             const Center(
               child: Text(
@@ -179,5 +133,117 @@ class _TodayPageState extends State<TodayPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildCardById({
+    required BuildContext context,
+    required String cardId,
+    required double consumedCal,
+    required int targetCal,
+    required double consumedCarbs,
+    required double targetCarbs,
+    required double consumedProt,
+    required double targetProt,
+    required double consumedFat,
+    required double targetFat,
+    required int steps,
+    required double distanceKm,
+    required double activeKcal,
+    required double? totalKcal,
+    required double? weight,
+    required double? weightTrend,
+    required DateTime? lastSync,
+    required String? healthError,
+    required int? cycleDay,
+    required String? cyclePhase,
+    required String? cycleTip,
+    required List<ActionImpulse> impulses,
+  }) {
+    switch (cardId) {
+      case 'calories':
+        return KpiCard(
+          title: 'Kalorien & Makros',
+          value: '${consumedCal.round()} / $targetCal kcal',
+          subtitle:
+              'KH: ${consumedCarbs.round()}/${targetCarbs.round()}g · Protein: ${consumedProt.round()}/${targetProt.round()}g · Fett: ${consumedFat.round()}/${targetFat.round()}g',
+          icon: Icons.local_fire_department_outlined,
+          onTap: () => Navigator.pushNamed(context, '/nutrition'),
+        );
+      case 'steps':
+        return KpiCard(
+          title: 'Schritte & Distanz',
+          value: '$steps Schritte',
+          subtitle: steps == 0
+              ? 'Noch keine Schritte synchronisiert'
+              : '${distanceKm.toStringAsFixed(1)} km zurückgelegt',
+          icon: Icons.directions_walk,
+          onTap: () => Navigator.pushNamed(context, '/activity'),
+        );
+      case 'active_energy':
+        return KpiCard(
+          title: 'Aktivenergie',
+          value: '${activeKcal.round()} kcal aktiv',
+          subtitle: totalKcal != null
+              ? 'Gesamtumsatz: ${totalKcal.round()} kcal'
+              : 'Reine Aktivkalorien (getrennt vom Grundumsatz)',
+          icon: Icons.bolt,
+          onTap: () => Navigator.pushNamed(context, '/activity'),
+        );
+      case 'weight':
+        return KpiCard(
+          title: 'Gewicht',
+          value: weight == null ? '–' : '${weight.toStringAsFixed(1)} kg',
+          subtitle: weightTrend != null
+              ? '7-Tage-Trend: ${weightTrend >= 0 ? '+' : ''}${weightTrend.toStringAsFixed(1)} kg'
+              : 'Letzter Messwert',
+          icon: Icons.monitor_weight_outlined,
+          onTap: () => Navigator.pushNamed(context, '/weight'),
+        );
+      case 'health_sync':
+        return Card(
+          child: SyncStatus(
+            lastSyncUtc: lastSync,
+            error: healthError,
+          ),
+        );
+      case 'cycle':
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.water_drop_outlined, color: Colors.purple),
+            title: Text(cyclePhase != null
+                ? 'Zyklustag $cycleDay · $cyclePhase'
+                : 'Zyklus-Status'),
+            subtitle: Text(cycleTip ?? 'Tippe für Zyklushistorie und Kalender'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, '/cycle'),
+          ),
+        );
+      case 'impulses':
+        if (impulses.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: Text('Handlungsimpulse', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            ),
+            for (final impulse in impulses)
+              Card(
+                margin: const EdgeInsets.only(bottom: 6),
+                child: ListTile(
+                  leading: const Icon(Icons.lightbulb_outline),
+                  title: Text(impulse.title),
+                  subtitle: Text(impulse.description),
+                  trailing: FilledButton.tonal(
+                    onPressed: () => Navigator.pushNamed(context, impulse.targetRoute),
+                    child: const Text('Öffnen'),
+                  ),
+                ),
+              ),
+          ],
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 }
