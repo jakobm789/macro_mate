@@ -2,22 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:drift/drift.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/ui/design_system.dart';
+import '../../../models/app_state.dart';
+import 'activity_controller.dart';
 
 class ActivityPage extends StatefulWidget {
-  const ActivityPage({super.key, this.database});
+  const ActivityPage({super.key, this.database, this.controller});
 
   final AppDatabase? database;
+  final ActivityController? controller;
 
   @override
   State<ActivityPage> createState() => _ActivityPageState();
 }
 
 class _ActivityPageState extends State<ActivityPage> {
-  late final AppDatabase _database;
+  AppDatabase? _database;
+  ActivityController? _controller;
   bool _ownsDatabase = false;
+  bool _initialized = false;
   bool _loading = true;
   String? _error;
   List<WorkoutSessionRow> _workouts = const [];
@@ -25,43 +31,84 @@ class _ActivityPageState extends State<ActivityPage> {
   double? _heartRate;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.database != null) {
-      _database = widget.database!;
-    } else {
-      _database = AppDatabase();
-      _ownsDatabase = true;
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      if (widget.controller != null) {
+        _controller = widget.controller;
+      } else {
+        final fromProvider =
+            Provider.of<ActivityController?>(context, listen: false);
+        final fromAppState =
+            Provider.of<AppState?>(context, listen: false)?.activityController;
+        if (fromProvider != null) {
+          _controller = fromProvider;
+        } else if (fromAppState != null) {
+          _controller = fromAppState;
+        }
+      }
+
+      if (widget.database != null) {
+        _database = widget.database!;
+      } else if (_controller == null) {
+        _database = AppDatabase();
+        _ownsDatabase = true;
+      }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _load();
+        }
+      });
     }
-    _load();
   }
 
   @override
   void dispose() {
     if (_ownsDatabase) {
-      _database.close();
+      _database?.close();
     }
     super.dispose();
   }
 
   Future<void> _load() async {
+    if (_controller != null) {
+      await _controller!.loadActivityData();
+      if (!mounted) return;
+      if (_database != null) {
+        await _loadDatabaseExtras();
+      } else {
+        setState(() {
+          _loading = false;
+          _error = _controller!.errorMessage;
+        });
+      }
+      return;
+    }
+
+    await _loadDatabaseExtras();
+  }
+
+  Future<void> _loadDatabaseExtras() async {
+    if (_database == null) return;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final from = DateTime.now().toUtc().subtract(const Duration(days: 30));
-      final workouts = await (_database.select(_database.workoutSessions)
+      final workouts = await (_database!.select(_database!.workoutSessions)
             ..where((row) =>
                 row.startUtc.isBiggerOrEqualValue(from.toIso8601String()))
             ..orderBy([(row) => OrderingTerm.desc(row.startUtc)]))
           .get();
-      final sleep = await (_database.select(_database.sleepSessions)
+      final sleep = await (_database!.select(_database!.sleepSessions)
             ..where((row) =>
                 row.startUtc.isBiggerOrEqualValue(from.toIso8601String()))
             ..orderBy([(row) => OrderingTerm.desc(row.startUtc)]))
           .get();
-      final heartRows = await (_database.select(_database.healthRecords)
+      final heartRows = await (_database!.select(_database!.healthRecords)
             ..where((row) => row.type.equals('heartRate'))
             ..where((row) =>
                 row.startUtc.isBiggerOrEqualValue(from.toIso8601String())))
@@ -168,7 +215,7 @@ class _ActivityPageState extends State<ActivityPage> {
 class _WorkoutTile extends StatelessWidget {
   const _WorkoutTile({required this.database, required this.workout});
 
-  final AppDatabase database;
+  final AppDatabase? database;
   final WorkoutSessionRow workout;
 
   @override
@@ -188,7 +235,7 @@ class _WorkoutTile extends StatelessWidget {
           '${pace == null ? '' : ' · Pace ${pace.toStringAsFixed(1)} min/km'}\n'
           'Quelle: ${workout.sourceId}',
         ),
-        trailing: workout.routeStatus == 'available'
+        trailing: workout.routeStatus == 'available' && database != null
             ? IconButton(
                 tooltip: 'Route anzeigen',
                 icon: const Icon(Icons.map_outlined),
@@ -196,7 +243,7 @@ class _WorkoutTile extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) => WorkoutRoutePage(
-                      database: database,
+                      database: database!,
                       workout: workout,
                     ),
                   ),

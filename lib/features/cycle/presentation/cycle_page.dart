@@ -6,6 +6,7 @@ import '../../../core/database/app_database.dart';
 import '../data/drift_cycle_repository.dart';
 import '../domain/cycle_engine.dart';
 import '../domain/cycle_models.dart';
+import '../../../models/app_state.dart';
 import 'cycle_controller.dart';
 import 'cycle_import_preview_sheet.dart';
 import 'correlations_page.dart';
@@ -21,29 +22,43 @@ class CyclePage extends StatefulWidget {
 }
 
 class _CyclePageState extends State<CyclePage> {
-  late final AppDatabase _database;
-  late final CycleController _controller;
+  late CycleController _controller;
+  AppDatabase? _database;
   bool _ownsDatabase = false;
   bool _ownsController = false;
+  bool _initialized = false;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.controller != null) {
-      _controller = widget.controller!;
-    } else {
-      if (widget.database != null) {
-        _database = widget.database!;
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      if (widget.controller != null) {
+        _controller = widget.controller!;
       } else {
-        _database = AppDatabase();
-        _ownsDatabase = true;
+        final fromProvider =
+            Provider.of<CycleController?>(context, listen: false);
+        final fromAppState =
+            Provider.of<AppState?>(context, listen: false)?.cycleController;
+        if (fromProvider != null) {
+          _controller = fromProvider;
+        } else if (fromAppState != null) {
+          _controller = fromAppState;
+        } else {
+          if (widget.database != null) {
+            _database = widget.database!;
+          } else {
+            _database = AppDatabase();
+            _ownsDatabase = true;
+          }
+          _controller = CycleController(
+            repository: DriftCycleRepository(database: _database!),
+          )..load();
+          _ownsController = true;
+        }
       }
-      _controller = CycleController(
-        repository: DriftCycleRepository(database: _database),
-      )..load();
-      _ownsController = true;
     }
   }
 
@@ -53,7 +68,7 @@ class _CyclePageState extends State<CyclePage> {
       _controller.dispose();
     }
     if (_ownsDatabase) {
-      _database.close();
+      _database?.close();
     }
     super.dispose();
   }
@@ -246,27 +261,69 @@ class _CyclePageState extends State<CyclePage> {
   }
 
   Future<void> _openHealthImport() async {
-    final records = await _controller.previewHealthConnectImport();
+    final hasPerm = await _controller.hasMenstruationPermission();
     if (!mounted) return;
-    if (records.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Keine neuen Menstruationsdaten in Health Connect gefunden.',
+    if (!hasPerm) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Menstruationsdaten importieren'),
+          content: const Text(
+            'Health Connect benötigt deine ausdrückliche Zustimmung, um Menstruationsdaten zu lesen. '
+            'Deine Zyklusdaten bleiben stets lokal auf diesem Gerät gespeichert.',
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Berechtigung anfordern'),
+            ),
+          ],
         ),
       );
-      return;
+      if (proceed != true || !mounted) return;
     }
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => ChangeNotifierProvider.value(
-        value: _controller,
-        child: const CycleImportPreviewSheet(),
-      ),
-    );
+
+    final result = await _controller.previewHealthConnectImport();
+    if (!mounted) return;
+
+    switch (result) {
+      case MenstruationImportSuccess(:final conflicts):
+        if (conflicts.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Keine neuen Menstruationsdaten in Health Connect gefunden.',
+              ),
+            ),
+          );
+          return;
+        }
+        await showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          builder: (_) => ChangeNotifierProvider.value(
+            value: _controller,
+            child: const CycleImportPreviewSheet(),
+          ),
+        );
+      case MenstruationImportPermissionDenied(:final message):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      case MenstruationImportUnavailable(:final message):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      case MenstruationImportError(:final message):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+    }
   }
 
   @override

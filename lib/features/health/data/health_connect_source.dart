@@ -2,17 +2,23 @@ import 'dart:convert';
 
 import 'package:health/health.dart';
 
+import '../../../core/logging/app_logger.dart';
 import '../../cycle/domain/cycle_models.dart';
 import '../domain/health_models.dart';
 import 'health_data_source.dart';
 
 class HealthConnectSource implements HealthDataSource {
-  HealthConnectSource({Health? client}) : _client = client ?? Health();
+  HealthConnectSource({
+    Health? client,
+    AppLogger logger = const AppLogger(),
+  })  : _client = client ?? Health(),
+        _logger = logger;
 
   final Health _client;
+  final AppLogger _logger;
   bool _configured = false;
 
-  static const _types = <HealthDataType>[
+  static const _generalTypes = <HealthDataType>[
     HealthDataType.STEPS,
     HealthDataType.ACTIVE_ENERGY_BURNED,
     HealthDataType.BASAL_ENERGY_BURNED,
@@ -21,6 +27,9 @@ class HealthConnectSource implements HealthDataSource {
     HealthDataType.RESTING_HEART_RATE,
     HealthDataType.SLEEP_SESSION,
     HealthDataType.WORKOUT,
+  ];
+
+  static const _menstruationTypes = <HealthDataType>[
     HealthDataType.MENSTRUATION_FLOW,
   ];
 
@@ -46,7 +55,7 @@ class HealthConnectSource implements HealthDataSource {
   @override
   Future<HealthPermissionState> currentPermissions() async {
     await _configure();
-    final read = await _client.hasPermissions(_types) ?? false;
+    final read = await _client.hasPermissions(_generalTypes) ?? false;
     final history = await _client.isHealthDataHistoryAuthorized();
     final background = await _client.isHealthDataInBackgroundAuthorized();
     return HealthPermissionState(
@@ -62,7 +71,7 @@ class HealthConnectSource implements HealthDataSource {
     bool includeBackground = false,
   }) async {
     await _configure();
-    await _client.requestAuthorization(_types);
+    await _client.requestAuthorization(_generalTypes);
     if (includeHistory &&
         await _client.isHealthDataHistoryAuthorized() == false) {
       await _client.requestHealthDataHistoryAuthorization();
@@ -76,6 +85,20 @@ class HealthConnectSource implements HealthDataSource {
   }
 
   @override
+  Future<bool> hasMenstruationPermission() async {
+    await _configure();
+    return (await _client.hasPermissions(_menstruationTypes)) ?? false;
+  }
+
+  @override
+  Future<bool> requestMenstruationPermission() async {
+    await _configure();
+    final requested = await _client.requestAuthorization(_menstruationTypes);
+    return requested &&
+        ((await _client.hasPermissions(_menstruationTypes)) ?? false);
+  }
+
+  @override
   Future<void> revokePermissions() async {
     await _configure();
     await _client.revokePermissions();
@@ -85,7 +108,7 @@ class HealthConnectSource implements HealthDataSource {
   Future<List<HealthRecord>> read(DateTime startUtc, DateTime endUtc) async {
     await _configure();
     final points = await _client.getHealthDataFromTypes(
-      types: _types,
+      types: _generalTypes,
       startTime: startUtc.toUtc(),
       endTime: endUtc.toUtc(),
     );
@@ -115,9 +138,16 @@ class HealthConnectSource implements HealthDataSource {
     DateTime endUtc,
   ) async {
     await _configure();
+    final hasPerm = await hasMenstruationPermission();
+    if (!hasPerm) {
+      throw const HealthPermissionException(
+        'Health Connect Menstruationsberechtigung wurde nicht erteilt.',
+      );
+    }
+
     try {
       final points = await _client.getHealthDataFromTypes(
-        types: const [HealthDataType.MENSTRUATION_FLOW],
+        types: _menstruationTypes,
         startTime: startUtc.toUtc(),
         endTime: endUtc.toUtc(),
       );
@@ -153,8 +183,9 @@ class HealthConnectSource implements HealthDataSource {
         );
       }
       return records;
-    } catch (_) {
-      return const [];
+    } catch (e) {
+      _logger.error('readMenstruation', e);
+      rethrow;
     }
   }
 

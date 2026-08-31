@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/logging/app_logger.dart';
 import '../../activity/presentation/activity_controller.dart';
 import '../../cycle/presentation/cycle_controller.dart';
 import '../../health/domain/health_models.dart';
@@ -34,12 +35,14 @@ class DashboardController extends ChangeNotifier {
     required ActivityController activityController,
     required CycleController cycleController,
     required SettingsController settingsController,
+    AppLogger logger = const AppLogger(),
   })  : _nutrition = nutritionController,
         _weight = weightController,
         _health = healthController,
         _activity = activityController,
         _cycle = cycleController,
-        _settings = settingsController {
+        _settings = settingsController,
+        _logger = logger {
     _initDefaults();
   }
 
@@ -49,6 +52,7 @@ class DashboardController extends ChangeNotifier {
   final ActivityController _activity;
   final CycleController _cycle;
   final SettingsController _settings;
+  final AppLogger _logger;
 
   static const List<String> defaultCardOrder = [
     'calories',
@@ -137,7 +141,10 @@ class DashboardController extends ChangeNotifier {
       } else {
         _cardVisibility = defaults;
       }
-    } catch (_) {
+    } catch (e) {
+      _logger.warning(
+        'Fehler beim Laden der Dashboard-Konfiguration, Standardwerte werden verwendet: $e',
+      );
       _cardOrder = List.from(defaultCardOrder);
       _cardVisibility = _getDefaultVisibility();
     }
@@ -167,7 +174,9 @@ class DashboardController extends ChangeNotifier {
     _cardVisibility = _getDefaultVisibility();
     try {
       await _settings.resetDashboardConfig();
-    } catch (_) {}
+    } catch (e) {
+      _logger.error('resetDashboardConfig', e);
+    }
     notifyListeners();
   }
 
@@ -175,7 +184,9 @@ class DashboardController extends ChangeNotifier {
     try {
       await _settings.saveDashboardCardOrder(_cardOrder);
       await _settings.saveDashboardCardVisibility(_cardVisibility);
-    } catch (_) {}
+    } catch (e) {
+      _logger.error('persistDashboardConfiguration', e);
+    }
     notifyListeners();
   }
 
@@ -191,7 +202,8 @@ class DashboardController extends ChangeNotifier {
         _activity.loadActivityData(),
         _cycle.load(),
       ]);
-    } catch (_) {
+    } catch (e) {
+      _logger.error('dashboardRefresh', e);
     } finally {
       _isLoading = false;
       notifyListeners();

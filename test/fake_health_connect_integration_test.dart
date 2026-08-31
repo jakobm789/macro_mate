@@ -230,11 +230,13 @@ void main() {
       );
 
       // 3. Trigger preview import via CycleController
-      final staged = await cycleController.previewHealthConnectImport(
+      final result = await cycleController.previewHealthConnectImport(
         startUtc: DateTime.utc(2026, 6, 1),
         endUtc: DateTime.utc(2026, 8, 31),
       );
 
+      expect(result, isA<MenstruationImportSuccess>());
+      final staged = (result as MenstruationImportSuccess).conflicts;
       expect(staged.length, 2);
 
       // Verify conflict detected for overlapping record

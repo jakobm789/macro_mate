@@ -15,6 +15,10 @@ abstract interface class HealthDataSource {
 
   Future<List<HealthRecord>> read(DateTime startUtc, DateTime endUtc);
 
+  Future<bool> hasMenstruationPermission();
+
+  Future<bool> requestMenstruationPermission();
+
   Future<List<HealthMenstruationRecord>> readMenstruation(
     DateTime startUtc,
     DateTime endUtc,

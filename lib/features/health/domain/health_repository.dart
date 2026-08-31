@@ -33,6 +33,10 @@ abstract interface class HealthRepository {
 
   Future<List<SleepSessionDetail>> sleepSessions({int limit = 30});
 
+  Future<bool> hasMenstruationPermission();
+
+  Future<bool> requestMenstruationPermission();
+
   Future<List<HealthMenstruationRecord>> readMenstruation({
     required DateTime startUtc,
     required DateTime endUtc,

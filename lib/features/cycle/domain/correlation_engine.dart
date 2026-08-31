@@ -65,8 +65,9 @@ class CorrelationAnalysisResult {
   final String disclaimer;
 
   String get progressDescription {
-    if (hasSufficientData)
+    if (hasSufficientData) {
       return 'Ausreichend Daten für Trendanalysen vorhanden.';
+    }
     return '$observationDaysCount von $requiredDays Beobachtungstagen ($completedCyclesCount von $requiredCycles Zyklen) erfasst.';
   }
 }

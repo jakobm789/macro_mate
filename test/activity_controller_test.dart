@@ -113,6 +113,12 @@ class _FakeHealthRepository implements HealthRepository {
       ];
 
   @override
+  Future<bool> hasMenstruationPermission() async => true;
+
+  @override
+  Future<bool> requestMenstruationPermission() async => true;
+
+  @override
   Future<List<HealthMenstruationRecord>> readMenstruation({
     required DateTime startUtc,
     required DateTime endUtc,

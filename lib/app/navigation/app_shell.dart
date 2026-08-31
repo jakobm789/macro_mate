@@ -26,8 +26,8 @@ class _AppShellState extends State<AppShell> {
           children: [
             const TodayPage(),
             const MyHomePage(title: 'Ernährung'),
-            ActivityPage(database: widget.database),
-            CyclePage(database: widget.database),
+            const ActivityPage(),
+            const CyclePage(),
             const MorePage(),
           ],
         ),

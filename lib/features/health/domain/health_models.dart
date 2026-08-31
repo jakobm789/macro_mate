@@ -18,6 +18,14 @@ enum HealthAvailability {
 
 enum HealthSyncStatus { never, running, success, failed }
 
+class HealthPermissionException implements Exception {
+  const HealthPermissionException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'HealthPermissionException: $message';
+}
+
 class HealthSyncState {
   const HealthSyncState({
     required this.key,

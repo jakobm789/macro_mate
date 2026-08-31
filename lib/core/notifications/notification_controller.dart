@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import '../logging/app_logger.dart';
 import 'notification_models.dart';
 import 'notification_repository.dart';
 
@@ -9,11 +10,14 @@ class NotificationController extends ChangeNotifier {
   NotificationController({
     required NotificationRepository repository,
     FlutterLocalNotificationsPlugin? plugin,
+    AppLogger logger = const AppLogger(),
   })  : _repository = repository,
-        _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+        _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
+        _logger = logger;
 
   final NotificationRepository _repository;
   final FlutterLocalNotificationsPlugin _plugin;
+  final AppLogger _logger;
   static const _policy = NotificationPolicy();
 
   List<NotificationPreference> _preferences = [];
@@ -59,7 +63,9 @@ class NotificationController extends ChangeNotifier {
           AndroidInitializationSettings('@mipmap/ic_launcher');
       const initSettings = InitializationSettings(android: androidSettings);
       await _plugin.initialize(initSettings);
-    } catch (_) {}
+    } catch (e) {
+      _logger.error('pluginInitialize', e);
+    }
 
     await loadPreferences();
     _isInitialized = true;
@@ -103,7 +109,9 @@ class NotificationController extends ChangeNotifier {
       for (int i = 0; i < 20; i++) {
         await _plugin.cancel(baseId + i);
       }
-    } catch (_) {}
+    } catch (e) {
+      _logger.error('cancelCategory', e);
+    }
   }
 
   Future<void> rescheduleAll({
@@ -116,7 +124,9 @@ class NotificationController extends ChangeNotifier {
   }) async {
     try {
       await _plugin.cancelAll();
-    } catch (_) {}
+    } catch (e) {
+      _logger.error('cancelAll', e);
+    }
 
     final now = DateTime.now();
 
@@ -326,7 +336,9 @@ class NotificationController extends ChangeNotifier {
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
-    } catch (_) {}
+    } catch (e) {
+      _logger.error('scheduleDailyTimeNotification', e);
+    }
   }
 
   Future<void> _scheduleOneShotNotification({
@@ -364,6 +376,8 @@ class NotificationController extends ChangeNotifier {
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
       );
-    } catch (_) {}
+    } catch (e) {
+      _logger.error('scheduleOneShotNotification', e);
+    }
   }
 }

@@ -584,6 +584,16 @@ class DriftHealthRepository implements HealthRepository {
   }
 
   @override
+  Future<bool> hasMenstruationPermission() {
+    return _source.hasMenstruationPermission();
+  }
+
+  @override
+  Future<bool> requestMenstruationPermission() {
+    return _source.requestMenstruationPermission();
+  }
+
+  @override
   Future<List<HealthMenstruationRecord>> readMenstruation({
     required DateTime startUtc,
     required DateTime endUtc,

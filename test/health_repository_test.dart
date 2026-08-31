@@ -41,6 +41,12 @@ class _FakeHealthSource implements HealthDataSource {
   }
 
   @override
+  Future<bool> hasMenstruationPermission() async => true;
+
+  @override
+  Future<bool> requestMenstruationPermission() async => true;
+
+  @override
   Future<List<HealthMenstruationRecord>> readMenstruation(
     DateTime startUtc,
     DateTime endUtc,

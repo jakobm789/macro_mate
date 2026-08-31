@@ -1,23 +1,57 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/logging/app_logger.dart';
 import '../../../core/time/clock.dart';
+import '../../health/domain/health_models.dart';
 import '../../health/domain/health_repository.dart';
 import '../domain/cycle_engine.dart';
 import '../domain/cycle_models.dart';
 import '../domain/cycle_repository.dart';
+
+sealed class MenstruationImportResult {
+  const MenstruationImportResult();
+}
+
+class MenstruationImportSuccess extends MenstruationImportResult {
+  final List<CycleConflictItem> conflicts;
+  const MenstruationImportSuccess(this.conflicts);
+}
+
+class MenstruationImportPermissionDenied extends MenstruationImportResult {
+  final String message;
+  const MenstruationImportPermissionDenied([
+    this.message =
+        'Health Connect Menstruationsberechtigung wurde nicht erteilt.',
+  ]);
+}
+
+class MenstruationImportUnavailable extends MenstruationImportResult {
+  final String message;
+  const MenstruationImportUnavailable([
+    this.message = 'Health Connect ist auf diesem Gerät nicht verfügbar.',
+  ]);
+}
+
+class MenstruationImportError extends MenstruationImportResult {
+  final String message;
+  const MenstruationImportError(this.message);
+}
 
 class CycleController extends ChangeNotifier {
   CycleController({
     required CycleRepository repository,
     HealthRepository? healthRepository,
     Clock clock = const SystemClock(),
+    AppLogger logger = const AppLogger(),
   })  : _repository = repository,
         _healthRepository = healthRepository,
-        _clock = clock;
+        _clock = clock,
+        _logger = logger;
 
   final CycleRepository _repository;
   final HealthRepository? _healthRepository;
   final Clock _clock;
+  final AppLogger _logger;
   CycleProfile profileState = const CycleProfile();
   List<PeriodEntry> periodsState = const [];
   List<CycleDailyLog> logsState = const [];
@@ -99,19 +133,82 @@ class CycleController extends ChangeNotifier {
     });
   }
 
-  Future<List<CycleConflictItem>> previewHealthConnectImport({
+  Future<bool> hasMenstruationPermission() async {
+    if (_healthRepository == null) return false;
+    try {
+      return await _healthRepository.hasMenstruationPermission();
+    } catch (e) {
+      _logger.error('hasMenstruationPermission', e);
+      return false;
+    }
+  }
+
+  Future<bool> requestMenstruationPermission() async {
+    if (_healthRepository == null) return false;
+    try {
+      return await _healthRepository.requestMenstruationPermission();
+    } catch (e) {
+      _logger.error('requestMenstruationPermission', e);
+      return false;
+    }
+  }
+
+  Future<MenstruationImportResult> previewHealthConnectImport({
     DateTime? startUtc,
     DateTime? endUtc,
   }) async {
-    if (_healthRepository == null) return const [];
-    final now = _clock.now();
-    final start = startUtc ?? now.subtract(const Duration(days: 180));
-    final end = endUtc ?? now;
-    final records = await _healthRepository.readMenstruation(
-      startUtc: start.toUtc(),
-      endUtc: end.toUtc(),
-    );
-    return stageImportPreview(records);
+    if (_healthRepository == null) {
+      return const MenstruationImportUnavailable(
+        'Kein Health-Repository konfiguriert.',
+      );
+    }
+
+    try {
+      final availability = await _healthRepository.availability();
+      if (availability != HealthAvailability.available) {
+        return const MenstruationImportUnavailable(
+          'Health Connect ist nicht verfügbar oder benötigt ein Update.',
+        );
+      }
+
+      final hasPermission = await _healthRepository.hasMenstruationPermission();
+      if (!hasPermission) {
+        final granted = await _healthRepository.requestMenstruationPermission();
+        if (!granted) {
+          errorMessage =
+              'Health Connect Menstruationsberechtigung wurde nicht erteilt.';
+          notifyListeners();
+          return const MenstruationImportPermissionDenied();
+        }
+      }
+
+      isLoading = true;
+      errorMessage = null;
+      notifyListeners();
+
+      final now = _clock.now();
+      final start = startUtc ?? now.subtract(const Duration(days: 180));
+      final end = endUtc ?? now;
+      final records = await _healthRepository.readMenstruation(
+        startUtc: start.toUtc(),
+        endUtc: end.toUtc(),
+      );
+      final conflicts = await stageImportPreview(records);
+      return MenstruationImportSuccess(conflicts);
+    } on HealthPermissionException catch (e) {
+      errorMessage = e.message;
+      notifyListeners();
+      return MenstruationImportPermissionDenied(e.message);
+    } catch (e) {
+      _logger.error('previewHealthConnectImport', e);
+      final msg = 'Fehler beim Lesen der Menstruationsdaten: $e';
+      errorMessage = msg;
+      notifyListeners();
+      return MenstruationImportError(msg);
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<List<CycleConflictItem>> stageImportPreview(

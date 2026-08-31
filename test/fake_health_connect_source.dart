@@ -6,6 +6,7 @@ class FakeHealthConnectSource implements HealthDataSource {
   FakeHealthConnectSource({
     this.availability = HealthAvailability.available,
     HealthPermissionState? initialPermissions,
+    this.menstruationPermissionGranted = true,
   }) : permissions = initialPermissions ??
             const HealthPermissionState(
               readGranted: true,
@@ -15,6 +16,7 @@ class FakeHealthConnectSource implements HealthDataSource {
 
   HealthAvailability availability;
   HealthPermissionState permissions;
+  bool menstruationPermissionGranted;
   final List<HealthRecord> records = [];
   final List<HealthMenstruationRecord> menstruationRecords = [];
   bool shouldThrowOnRead = false;
@@ -36,6 +38,16 @@ class FakeHealthConnectSource implements HealthDataSource {
       backgroundGranted: includeBackground,
     );
     return permissions;
+  }
+
+  @override
+  Future<bool> hasMenstruationPermission() async =>
+      menstruationPermissionGranted;
+
+  @override
+  Future<bool> requestMenstruationPermission() async {
+    menstruationPermissionGranted = true;
+    return true;
   }
 
   @override
@@ -64,6 +76,11 @@ class FakeHealthConnectSource implements HealthDataSource {
   ) async {
     if (shouldThrowOnRead) {
       throw Exception('Simulierter Health Connect Verbindungsfehler');
+    }
+    if (!menstruationPermissionGranted) {
+      throw const HealthPermissionException(
+        'Health Connect Menstruationsberechtigung wurde nicht erteilt.',
+      );
     }
     return menstruationRecords.where((r) {
       return !r.startDay.isBefore(startUtc) && !r.startDay.isAfter(endUtc);

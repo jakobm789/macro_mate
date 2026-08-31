@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/logging/app_logger.dart';
 import '../domain/settings_models.dart';
 import '../domain/settings_repository.dart';
 
@@ -12,11 +13,14 @@ class DriftSettingsRepository implements SettingsRepository {
   DriftSettingsRepository({
     required AppDatabase database,
     FlutterSecureStorage? secureStorage,
+    AppLogger logger = const AppLogger(),
   })  : _database = database,
-        _secureStorage = secureStorage ?? const FlutterSecureStorage();
+        _secureStorage = secureStorage ?? const FlutterSecureStorage(),
+        _logger = logger;
 
   final AppDatabase _database;
   final FlutterSecureStorage _secureStorage;
+  final AppLogger _logger;
 
   static const String _secureEmailKey = 'credential_email';
   static const String _securePasswordKey = 'credential_password';
@@ -258,7 +262,9 @@ class DriftSettingsRepository implements SettingsRepository {
       if (decoded is List) {
         return decoded.map((e) => e.toString()).toList();
       }
-    } catch (_) {}
+    } catch (e) {
+      _logger.warning('Fehler beim Dekodieren der Dashboard-Reihenfolge: $e');
+    }
     return null;
   }
 
@@ -280,7 +286,11 @@ class DriftSettingsRepository implements SettingsRepository {
           (key, value) => MapEntry(key.toString(), value == true),
         );
       }
-    } catch (_) {}
+    } catch (e) {
+      _logger.warning(
+        'Fehler beim Dekodieren der Dashboard-Sichtbarkeiten: $e',
+      );
+    }
     return null;
   }
 
