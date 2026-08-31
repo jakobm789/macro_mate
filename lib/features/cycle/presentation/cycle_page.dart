@@ -8,6 +8,7 @@ import '../domain/cycle_engine.dart';
 import '../domain/cycle_models.dart';
 import 'cycle_controller.dart';
 import 'cycle_import_preview_sheet.dart';
+import 'correlations_page.dart';
 
 class CyclePage extends StatefulWidget {
   const CyclePage({super.key});
@@ -365,6 +366,25 @@ class _CyclePageState extends State<CyclePage> {
                         ),
                       ),
                     ),
+                  const SizedBox(height: 8),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.auto_graph, color: Colors.indigo),
+                      title: const Text('Explorative Zusammenhänge'),
+                      subtitle: const Text('Erfahre mehr über Wechselwirkungen zwischen Zyklus, Schlaf, Energie und Aktivität.'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ChangeNotifierProvider.value(
+                              value: _controller,
+                              child: const CorrelationsPage(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   FilledButton.tonalIcon(
                     onPressed: _controller.isLoading ? null : _saveTodayLog,
