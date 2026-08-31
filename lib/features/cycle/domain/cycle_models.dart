@@ -211,3 +211,75 @@ class CycleSymptomInsight {
   final String explanation;
 }
 
+class HealthMenstruationRecord {
+  const HealthMenstruationRecord({
+    required this.id,
+    required this.startDay,
+    this.endDay,
+    this.flow,
+    this.sourceName = 'Health Connect',
+    this.isImported = false,
+  });
+
+  final String id;
+  final DateTime startDay;
+  final DateTime? endDay;
+  final BleedingLevel? flow;
+  final String sourceName;
+  final bool isImported;
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'startDay': startDay.toIso8601String(),
+        'endDay': endDay?.toIso8601String(),
+        'flow': flow?.name,
+        'sourceName': sourceName,
+        'isImported': isImported,
+      };
+
+  factory HealthMenstruationRecord.fromMap(Map<String, dynamic> map) =>
+      HealthMenstruationRecord(
+        id: map['id'] as String,
+        startDay: DateTime.parse(map['startDay'] as String),
+        endDay: map['endDay'] != null
+            ? DateTime.tryParse(map['endDay'] as String)
+            : null,
+        flow: map['flow'] != null
+            ? BleedingLevel.values.firstWhere(
+                (b) => b.name == map['flow'],
+                orElse: () => BleedingLevel.medium,
+              )
+            : null,
+        sourceName: map['sourceName'] as String? ?? 'Health Connect',
+        isImported: map['isImported'] == true,
+      );
+}
+
+enum MenstruationConflictType {
+  none,
+  exactDuplicate,
+  overlap,
+  contains,
+}
+
+enum MenstruationConflictResolution {
+  keepLocal,
+  acceptImported,
+  merge,
+  skip,
+}
+
+class CycleConflictItem {
+  CycleConflictItem({
+    required this.importedRecord,
+    this.conflictingLocalPeriod,
+    this.conflictType = MenstruationConflictType.none,
+    this.chosenResolution = MenstruationConflictResolution.acceptImported,
+  });
+
+  final HealthMenstruationRecord importedRecord;
+  final PeriodEntry? conflictingLocalPeriod;
+  final MenstruationConflictType conflictType;
+  MenstruationConflictResolution chosenResolution;
+}
+

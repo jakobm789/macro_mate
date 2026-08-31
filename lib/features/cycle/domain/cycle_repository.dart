@@ -11,6 +11,8 @@ abstract interface class CycleRepository {
     required DateTime startDay,
     DateTime? endDay,
     BleedingLevel? flow,
+    String? id,
+    String source = 'local',
   });
 
   Future<void> updatePeriod({
@@ -18,6 +20,7 @@ abstract interface class CycleRepository {
     required DateTime startDay,
     DateTime? endDay,
     BleedingLevel? flow,
+    String? source,
   });
 
   Future<void> deletePeriod(String id);
@@ -31,4 +34,9 @@ abstract interface class CycleRepository {
   Future<CycleForecast?> recalculate({DateTime? today});
 
   Future<List<CyclePrediction>> predictions();
+
+  Future<List<CycleConflictItem>> detectImportConflicts(
+      List<HealthMenstruationRecord> importedRecords);
+
+  Future<int> applyMenstruationImport(List<CycleConflictItem> resolvedItems);
 }

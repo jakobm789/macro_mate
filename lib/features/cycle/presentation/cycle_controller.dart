@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/time/clock.dart';
+import '../domain/cycle_engine.dart';
 import '../domain/cycle_models.dart';
 import '../domain/cycle_repository.dart';
-import '../../../core/time/clock.dart';
 
 class CycleController extends ChangeNotifier {
   CycleController({
@@ -17,6 +18,7 @@ class CycleController extends ChangeNotifier {
   List<PeriodEntry> periodsState = const [];
   List<CycleDailyLog> logsState = const [];
   CycleForecast? forecastState;
+  List<CycleConflictItem> pendingImportConflicts = [];
   bool isLoading = false;
   String? errorMessage;
 
@@ -44,9 +46,9 @@ class CycleController extends ChangeNotifier {
     });
   }
 
-  Future<void> addPeriod(DateTime startDay, {DateTime? endDay}) async {
+  Future<void> addPeriod(DateTime startDay, {DateTime? endDay, BleedingLevel? flow, String source = 'local'}) async {
     await _run(() async {
-      await _repository.addPeriod(startDay: startDay, endDay: endDay);
+      await _repository.addPeriod(startDay: startDay, endDay: endDay, flow: flow, source: source);
       await _loadData();
     });
   }
@@ -56,6 +58,7 @@ class CycleController extends ChangeNotifier {
     required DateTime startDay,
     DateTime? endDay,
     BleedingLevel? flow,
+    String? source,
   }) async {
     await _run(() async {
       await _repository.updatePeriod(
@@ -63,6 +66,7 @@ class CycleController extends ChangeNotifier {
         startDay: startDay,
         endDay: endDay,
         flow: flow,
+        source: source,
       );
       await _loadData();
     });
@@ -82,20 +86,58 @@ class CycleController extends ChangeNotifier {
     });
   }
 
-  Future<void> _loadData() async {
-    final now = _clock.now();
-    periodsState = await _repository.periods();
-    logsState = await _repository.dailyLogs(
-      from: now.subtract(const Duration(days: 30)),
-    );
-    forecastState = await _repository.recalculate(today: now);
-  }
-
   Future<void> deleteLog(DateTime day) async {
     await _run(() async {
       await _repository.deleteDailyLog(day);
       await _loadData();
     });
+  }
+
+  Future<List<CycleConflictItem>> stageImportPreview(
+    List<HealthMenstruationRecord> records,
+  ) async {
+    final conflicts = await _repository.detectImportConflicts(records);
+    pendingImportConflicts = conflicts;
+    notifyListeners();
+    return conflicts;
+  }
+
+  void updateConflictResolution(int index, MenstruationConflictResolution resolution) {
+    if (index >= 0 && index < pendingImportConflicts.length) {
+      pendingImportConflicts[index].chosenResolution = resolution;
+      notifyListeners();
+    }
+  }
+
+  Future<int> applyStagedImport() async {
+    if (pendingImportConflicts.isEmpty) return 0;
+    var count = 0;
+    await _run(() async {
+      count = await _repository.applyMenstruationImport(pendingImportConflicts);
+      pendingImportConflicts = [];
+      await _loadData();
+    });
+    return count;
+  }
+
+  CycleHistoryStats getHistoryStats() {
+    return CycleEngine.historyStats(periodsState);
+  }
+
+  List<CycleSymptomInsight> getSymptomInsights() {
+    return CycleEngine.detectSymptomPatterns(
+      periods: periodsState,
+      logs: logsState,
+    );
+  }
+
+  Future<void> _loadData() async {
+    final now = _clock.now();
+    periodsState = await _repository.periods();
+    logsState = await _repository.dailyLogs(
+      from: now.subtract(const Duration(days: 90)),
+    );
+    forecastState = await _repository.recalculate(today: now);
   }
 
   Future<void> _run(Future<void> Function() action) async {

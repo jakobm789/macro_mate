@@ -71,6 +71,8 @@ class DriftCycleRepository implements CycleRepository {
     required DateTime startDay,
     DateTime? endDay,
     BleedingLevel? flow,
+    String? id,
+    String source = 'local',
   }) async {
     final day = CycleEngine.dateOnly(startDay);
     final end = endDay == null ? null : CycleEngine.dateOnly(endDay);
@@ -79,11 +81,11 @@ class DriftCycleRepository implements CycleRepository {
     }
     await _database.into(_database.periodEntries).insert(
           PeriodEntriesCompanion.insert(
-            id: _uuid.v4(),
+            id: id ?? _uuid.v4(),
             startDay: _formatDay(day),
             endDay: end == null ? const Value.absent() : Value(_formatDay(end)),
             flowJson: flow == null ? const Value.absent() : Value(flow.name),
-            source: const Value('local'),
+            source: Value(source),
             createdAtUtc: _clock.nowUtc().toIso8601String(),
           ),
         );
@@ -96,6 +98,7 @@ class DriftCycleRepository implements CycleRepository {
     required DateTime startDay,
     DateTime? endDay,
     BleedingLevel? flow,
+    String? source,
   }) async {
     final start = CycleEngine.dateOnly(startDay);
     final end = endDay == null ? null : CycleEngine.dateOnly(endDay);
@@ -109,6 +112,7 @@ class DriftCycleRepository implements CycleRepository {
         startDay: Value(_formatDay(start)),
         endDay: Value(end == null ? null : _formatDay(end)),
         flowJson: Value(flow?.name),
+        source: source != null ? Value(source) : const Value.absent(),
       ),
     );
     await recalculate(today: _clock.now());
@@ -134,51 +138,61 @@ class DriftCycleRepository implements CycleRepository {
         (log.sleepQuality! < 0 || log.sleepQuality! > 10)) {
       throw ArgumentError('Schlafqualität muss zwischen 0 und 10 liegen.');
     }
+    final day = CycleEngine.dateOnly(log.day);
     await _database.into(_database.cycleDailyLogs).insertOnConflictUpdate(
           CycleDailyLogsCompanion.insert(
-            day: _formatDay(log.day),
-            bleeding: Value(log.bleeding?.name),
+            day: _formatDay(day),
+            bleeding: log.bleeding == null
+                ? const Value.absent()
+                : Value(log.bleeding!.name),
             mood: Value(log.mood),
             pain: Value(log.pain),
             energy: Value(log.energy),
             sleepQuality: Value(log.sleepQuality),
             notes: Value(log.notes),
             tagsJson: Value(jsonEncode(log.tags)),
-            source: const Value('local'),
             updatedAtUtc: _clock.nowUtc().toIso8601String(),
           ),
         );
+    await recalculate(today: _clock.now());
   }
 
   @override
   Future<void> deleteDailyLog(DateTime day) async {
+    final d = CycleEngine.dateOnly(day);
     await (_database.delete(_database.cycleDailyLogs)
-          ..where((table) => table.day.equals(_formatDay(day))))
+          ..where((table) => table.day.equals(_formatDay(d))))
         .go();
+    await recalculate(today: _clock.now());
   }
 
   @override
   Future<List<CycleDailyLog>> dailyLogs({DateTime? from, DateTime? to}) async {
-    final query = _database.select(_database.cycleDailyLogs)
-      ..orderBy([(table) => OrderingTerm(expression: table.day)]);
+    var query = _database.select(_database.cycleDailyLogs);
     if (from != null) {
-      query.where((table) => table.day.isBiggerOrEqualValue(_formatDay(from)));
+      query = query
+        ..where((table) => table.day.isBiggerOrEqualValue(_formatDay(from)));
     }
     if (to != null) {
-      query.where((table) => table.day.isSmallerOrEqualValue(_formatDay(to)));
+      query = query
+        ..where((table) => table.day.isSmallerOrEqualValue(_formatDay(to)));
     }
-    final rows = await query.get();
+    final rows = await (query
+          ..orderBy([(table) => OrderingTerm(expression: table.day)]))
+        .get();
     return rows
         .map(
           (row) => CycleDailyLog(
             day: DateTime.parse(row.day),
-            bleeding: _flowFromName(row.bleeding),
+            bleeding: _flowFromJson(row.bleeding),
             mood: row.mood,
             pain: row.pain,
             energy: row.energy,
             sleepQuality: row.sleepQuality,
             notes: row.notes,
-            tags: (jsonDecode(row.tagsJson) as List).cast<String>(),
+            tags: row.tagsJson == null
+                ? const []
+                : List<String>.from(jsonDecode(row.tagsJson!)),
           ),
         )
         .toList();
@@ -186,15 +200,16 @@ class DriftCycleRepository implements CycleRepository {
 
   @override
   Future<CycleForecast?> recalculate({DateTime? today}) async {
-    final currentProfile = await profile();
+    final profileData = await profile();
+    final periodList = await periods();
     final result = CycleEngine.forecast(
-      periods: await periods(),
+      profile: profileData,
+      periods: periodList,
       today: today ?? _clock.now(),
-      profile: currentProfile,
     );
     await _database.transaction(() async {
       await _database.delete(_database.cyclePredictions).go();
-      if (result == null || !currentProfile.predictionsEnabled) return;
+      if (result == null) return;
       final calculatedAt = _clock.nowUtc().toIso8601String();
       for (final prediction in result.predictions) {
         await _database.into(_database.cyclePredictions).insert(
@@ -229,6 +244,134 @@ class DriftCycleRepository implements CycleRepository {
           ),
         )
         .toList();
+  }
+
+  @override
+  Future<List<CycleConflictItem>> detectImportConflicts(
+    List<HealthMenstruationRecord> importedRecords,
+  ) async {
+    final localPeriods = await periods();
+    final result = <CycleConflictItem>[];
+
+    for (final record in importedRecords) {
+      final importStart = CycleEngine.dateOnly(record.startDay);
+      final importEnd = record.endDay != null
+          ? CycleEngine.dateOnly(record.endDay!)
+          : importStart.add(const Duration(days: 4));
+
+      PeriodEntry? conflicting;
+      var conflictType = MenstruationConflictType.none;
+
+      for (final local in localPeriods) {
+        final localStart = CycleEngine.dateOnly(local.startDay);
+        final localEnd = local.endDay != null
+            ? CycleEngine.dateOnly(local.endDay!)
+            : localStart.add(const Duration(days: 4));
+
+        // Exact match
+        if (localStart.isAtSameMomentAs(importStart) &&
+            localEnd.isAtSameMomentAs(importEnd)) {
+          conflicting = local;
+          conflictType = MenstruationConflictType.exactDuplicate;
+          break;
+        }
+
+        // Overlap: localStart <= importEnd && importStart <= localEnd
+        if (!localStart.isAfter(importEnd) && !importStart.isAfter(localEnd)) {
+          conflicting = local;
+          if (!localStart.isAfter(importStart) && !localEnd.isBefore(importEnd)) {
+            conflictType = MenstruationConflictType.contains;
+          } else {
+            conflictType = MenstruationConflictType.overlap;
+          }
+          break;
+        }
+      }
+
+      final defaultResolution = conflictType == MenstruationConflictType.exactDuplicate
+          ? MenstruationConflictResolution.skip
+          : conflictType == MenstruationConflictType.none
+              ? MenstruationConflictResolution.acceptImported
+              : MenstruationConflictResolution.merge;
+
+      result.add(
+        CycleConflictItem(
+          importedRecord: record,
+          conflictingLocalPeriod: conflicting,
+          conflictType: conflictType,
+          chosenResolution: defaultResolution,
+        ),
+      );
+    }
+
+    return result;
+  }
+
+  @override
+  Future<int> applyMenstruationImport(List<CycleConflictItem> resolvedItems) async {
+    var importedCount = 0;
+
+    await _database.transaction(() async {
+      for (final item in resolvedItems) {
+        final record = item.importedRecord;
+        final importStart = CycleEngine.dateOnly(record.startDay);
+        final importEnd = record.endDay != null ? CycleEngine.dateOnly(record.endDay!) : null;
+
+        switch (item.chosenResolution) {
+          case MenstruationConflictResolution.skip:
+          case MenstruationConflictResolution.keepLocal:
+            // Do not modify anything
+            break;
+
+          case MenstruationConflictResolution.acceptImported:
+            if (item.conflictingLocalPeriod != null) {
+              await deletePeriod(item.conflictingLocalPeriod!.id);
+            }
+            await addPeriod(
+              startDay: importStart,
+              endDay: importEnd,
+              flow: record.flow,
+              id: 'hc_${record.id}',
+              source: record.sourceName,
+            );
+            importedCount++;
+            break;
+
+          case MenstruationConflictResolution.merge:
+            if (item.conflictingLocalPeriod != null) {
+              final local = item.conflictingLocalPeriod!;
+              final localStart = CycleEngine.dateOnly(local.startDay);
+              final localEnd = local.endDay != null ? CycleEngine.dateOnly(local.endDay!) : localStart;
+              final impEnd = importEnd ?? importStart;
+
+              final mergedStart = localStart.isBefore(importStart) ? localStart : importStart;
+              final mergedEnd = localEnd.isAfter(impEnd) ? localEnd : impEnd;
+
+              await updatePeriod(
+                id: local.id,
+                startDay: mergedStart,
+                endDay: mergedEnd,
+                flow: record.flow ?? local.flow,
+                source: 'merged (${record.sourceName})',
+              );
+              importedCount++;
+            } else {
+              await addPeriod(
+                startDay: importStart,
+                endDay: importEnd,
+                flow: record.flow,
+                id: 'hc_${record.id}',
+                source: record.sourceName,
+              );
+              importedCount++;
+            }
+            break;
+        }
+      }
+    });
+
+    await recalculate(today: _clock.now());
+    return importedCount;
   }
 
   static BleedingLevel? _flowFromJson(String? value) => _flowFromName(value);

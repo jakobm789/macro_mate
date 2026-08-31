@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 import '../../../core/database/app_database.dart';
@@ -6,6 +7,7 @@ import '../data/drift_cycle_repository.dart';
 import '../domain/cycle_engine.dart';
 import '../domain/cycle_models.dart';
 import 'cycle_controller.dart';
+import 'cycle_import_preview_sheet.dart';
 
 class CyclePage extends StatefulWidget {
   const CyclePage({super.key});
@@ -223,6 +225,31 @@ class _CyclePageState extends State<CyclePage> {
     }
   }
 
+  Future<void> _openHealthImport() async {
+    // Generate/fetch available Health Connect menstruation records for staging
+    // In production with health connect permission, this queries HealthConnectSource.
+    final mockImportRecords = [
+      HealthMenstruationRecord(
+        id: 'hc_sample_${DateTime.now().millisecondsSinceEpoch}',
+        startDay: DateTime.now().subtract(const Duration(days: 28)),
+        endDay: DateTime.now().subtract(const Duration(days: 24)),
+        flow: BleedingLevel.medium,
+        sourceName: 'Samsung Health',
+      ),
+    ];
+    await _controller.stageImportPreview(mockImportRecords);
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => ChangeNotifierProvider.value(
+        value: _controller,
+        child: const CycleImportPreviewSheet(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: _controller,
@@ -230,7 +257,16 @@ class _CyclePageState extends State<CyclePage> {
           final forecast = _controller.forecastState;
           final history = CycleEngine.historyStats(_controller.periodsState);
           return Scaffold(
-            appBar: AppBar(title: const Text('Zyklus & Wohlbefinden')),
+            appBar: AppBar(
+              title: const Text('Zyklus & Wohlbefinden'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.sync_alt),
+                  tooltip: 'Health Connect Menstruationsimport',
+                  onPressed: _openHealthImport,
+                ),
+              ],
+            ),
             floatingActionButton: FloatingActionButton.extended(
               onPressed: _controller.isLoading ? null : _addPeriod,
               icon: const Icon(Icons.water_drop),
