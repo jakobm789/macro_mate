@@ -1,28 +1,53 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:async';
-import 'package:timezone/data/latest.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_timezone/flutter_timezone.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../services/remote_database_service.dart';
-import '../services/database_helper.dart';
-import '../services/encrypted_backup_service.dart';
-import '../services/llm_service.dart';
-import '../models/food_item.dart';
+
+import 'package:bcrypt/bcrypt.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+
+import '../core/database/app_database.dart';
+import '../core/logging/app_logger.dart';
+import '../core/notifications/drift_notification_repository.dart';
+import '../core/notifications/notification_controller.dart';
+import '../core/notifications/notification_models.dart';
+import '../core/notifications/notification_repository.dart';
+import '../features/activity/presentation/activity_controller.dart';
+import '../features/cycle/data/drift_cycle_repository.dart';
+import '../features/cycle/domain/cycle_repository.dart';
+import '../features/cycle/presentation/cycle_controller.dart';
+import '../features/dashboard/presentation/dashboard_controller.dart';
+import '../features/health/data/drift_health_repository.dart';
+import '../features/health/data/health_connect_source.dart';
+import '../features/health/domain/health_repository.dart';
+import '../features/health/presentation/health_controller.dart';
+import '../features/local_llm/presentation/local_model_controller.dart';
+import '../features/nutrition/data/drift_nutrition_repository.dart';
+import '../features/nutrition/domain/nutrition_repository.dart';
+import '../features/nutrition/presentation/nutrition_controller.dart';
+import '../features/settings/data/drift_settings_repository.dart';
+import '../features/settings/domain/settings_models.dart';
+import '../features/settings/domain/settings_repository.dart';
+import '../features/settings/presentation/settings_controller.dart';
+import '../features/weight/data/drift_weight_repository.dart';
+import '../features/weight/domain/weight_repository.dart';
+import '../features/weight/presentation/weight_controller.dart';
 import '../models/consumed_food_item.dart';
+import '../models/food_item.dart';
 import '../models/local_llm_model.dart';
 import '../models/saved_meal.dart';
-import 'package:bcrypt/bcrypt.dart';
-import 'package:http/http.dart' as http;
+import '../services/encrypted_backup_service.dart';
+import '../services/remote_database_service.dart';
 import '../services/shared_preferences_helper.dart';
-import '../main.dart';
+
+export '../features/settings/domain/settings_models.dart';
+export '../models/local_llm_model.dart';
+export '../models/saved_meal.dart';
+
 
 const String openFoodFactsBaseUrl = 'https://world.openfoodfacts.org';
+
 
 class WeightEntry {
   final int? id;
@@ -37,12 +62,6 @@ class WeightEntry {
     );
   }
 }
-
-enum Gender { male, female }
-
-enum BmrFormula { mifflin, harris }
-
-enum AutoCalorieMode { off, diet, bulk, custom, maintain }
 
 class WeeklyNutritionSummary {
   final double averageCalories;
@@ -76,94 +95,316 @@ class WeeklyDaySummary {
   });
 }
 
+/// AppState serves as a lightweight compatibility facade coordinating
+/// dedicated feature controllers and Drift repositories.
 class AppState extends ChangeNotifier {
-  static const MethodChannel _widgetChannel = MethodChannel(
-    'macro_mate/widget',
-  );
-  Gender userGender = Gender.male;
-  BmrFormula bmrFormula = BmrFormula.mifflin;
-  List<ConsumedFoodItem> breakfast = [];
-  List<ConsumedFoodItem> lunch = [];
-  List<ConsumedFoodItem> dinner = [];
-  List<ConsumedFoodItem> snacks = [];
-  double consumedCalories = 0.0;
-  double consumedCarbs = 0.0;
-  double consumedProtein = 0.0;
-  double consumedFat = 0.0;
-  double consumedSugar = 0.0;
-  DateTime currentDate = DateTime.now();
-  int dailyCalorieGoal = 2000;
-  double dailyCarbGoal = 250.0;
-  double dailyProteinGoal = 150.0;
-  double dailyFatGoal = 70.0;
-  int dailySugarGoalPercentage = 20;
-  bool isDarkMode = false;
-  List<FoodItem> last20FoodItems = [];
-  int recentFoodLimit = 20;
-  List<SavedMeal> savedMeals = [];
-  Set<int> favoriteFoodIds = {};
-  List<FoodItem> favoriteFoodItems = [];
-  String? lastUiError;
+  AppState({
+    AppDatabase? database,
+    NutritionRepository? nutritionRepository,
+    WeightRepository? weightRepository,
+    SettingsRepository? settingsRepository,
+    HealthRepository? healthRepository,
+    CycleRepository? cycleRepository,
+    NotificationRepository? notificationRepository,
+  }) {
+    _database = database ?? AppDatabase();
+    _nutritionRepository = nutritionRepository ??
+        DriftNutritionRepository(database: _database);
+    _weightRepository =
+        weightRepository ?? DriftWeightRepository(database: _database);
+    _settingsRepository =
+        settingsRepository ?? DriftSettingsRepository(database: _database);
+    _healthRepository = healthRepository ??
+        DriftHealthRepository(
+          database: _database,
+          source: HealthConnectSource(),
+        );
+    _cycleRepository =
+        cycleRepository ?? DriftCycleRepository(database: _database);
+    _notificationRepository = notificationRepository ??
+        DriftNotificationRepository(database: _database);
+
+    nutritionController =
+        NutritionController(repository: _nutritionRepository);
+    weightController = WeightController(repository: _weightRepository);
+    healthController = HealthController(repository: _healthRepository);
+    activityController = ActivityController(repository: _healthRepository);
+    cycleController = CycleController(repository: _cycleRepository);
+    settingsController = SettingsController(repository: _settingsRepository);
+    localModelController = LocalModelController();
+    notificationController =
+        NotificationController(repository: _notificationRepository);
+
+    dashboardController = DashboardController(
+      nutritionController: nutritionController,
+      weightController: weightController,
+      healthController: healthController,
+      activityController: activityController,
+      cycleController: cycleController,
+      settingsController: settingsController,
+    );
+
+    // Forward notifications from child controllers
+    nutritionController.addListener(notifyListeners);
+    weightController.addListener(notifyListeners);
+    healthController.addListener(notifyListeners);
+    activityController.addListener(notifyListeners);
+    cycleController.addListener(notifyListeners);
+    settingsController.addListener(notifyListeners);
+    localModelController.addListener(notifyListeners);
+    notificationController.addListener(notifyListeners);
+    dashboardController.addListener(notifyListeners);
+  }
+
+  late final AppDatabase _database;
+  late final NutritionRepository _nutritionRepository;
+  late final WeightRepository _weightRepository;
+  late final SettingsRepository _settingsRepository;
+  late final HealthRepository _healthRepository;
+  late final CycleRepository _cycleRepository;
+  late final NotificationRepository _notificationRepository;
+
+  late final NutritionController nutritionController;
+  late final WeightController weightController;
+  late final HealthController healthController;
+  late final ActivityController activityController;
+  late final CycleController cycleController;
+  late final SettingsController settingsController;
+  late final LocalModelController localModelController;
+  late final DashboardController dashboardController;
+  late final NotificationController notificationController;
+
+  final EncryptedBackupService _backupService = EncryptedBackupService();
+  final RemoteDatabaseService _remoteService = RemoteDatabaseService();
+  final AppLogger _logger = const AppLogger();
+
   final Map<String, List<FoodItem>> _offSearchCache = {};
   final Map<String, FoodItem?> _offBarcodeCache = {};
-  final RemoteDatabaseService _remoteService = RemoteDatabaseService();
-  bool isLoggedIn = false;
-  List<WeightEntry> _weightEntries = [];
-  List<WeightEntry> get weightEntries => _weightEntries;
-  AutoCalorieMode autoMode = AutoCalorieMode.off;
-  double customPercentPerMonth = 1.0;
-  bool useCustomStartCalories = false;
-  int userStartCalories = 2000;
-  int userAge = 30;
-  double userActivityLevel = 1.3;
-  double userHeight = 170.0;
-  String? lastMondayCheck;
-  bool reminderWeighEnabled = false;
-  TimeOfDay reminderWeighTime = const TimeOfDay(hour: 8, minute: 0);
-  TimeOfDay reminderWeighTimeSecond = const TimeOfDay(hour: 9, minute: 0);
-  bool reminderSupplementEnabled = false;
-  TimeOfDay reminderSupplementTime = const TimeOfDay(hour: 10, minute: 0);
-  TimeOfDay reminderSupplementTimeSecond = const TimeOfDay(hour: 11, minute: 0);
-  bool reminderMealsEnabled = false;
-  TimeOfDay reminderBreakfast = const TimeOfDay(hour: 7, minute: 0);
-  TimeOfDay reminderLunch = const TimeOfDay(hour: 12, minute: 30);
-  TimeOfDay reminderDinner = const TimeOfDay(hour: 19, minute: 0);
-  bool firstWeekInitialized = false;
-  bool useProteinPerKg = false;
-  double proteinPerKg = 2.0;
-  double? targetWeight;
-  DateTime? targetDate;
-  double? targetWeeklyChange;
-  String? mondayPopupMessage;
+
   bool isInitialized = false;
-  LocalLlmModel selectedLocalLlmModel =
-      LocalLlmModel.byId(LocalLlmModelId.gemma4E4b);
-  bool isLocalModelDownloadRunning = false;
-  int? localModelDownloadProgress;
-  String? localModelDownloadMessage;
-  LocalLlmModel? downloadingLocalLlmModel;
+  bool isLoggedIn = false;
+  String? lastUiError;
+  String? mondayPopupMessage;
+  int recentFoodLimit = 20;
+
+  // Delegated Nutrition Getters
+  List<ConsumedFoodItem> get breakfast => nutritionController.breakfast;
+  List<ConsumedFoodItem> get lunch => nutritionController.lunch;
+  List<ConsumedFoodItem> get dinner => nutritionController.dinner;
+  List<ConsumedFoodItem> get snacks => nutritionController.snacks;
+  double get consumedCalories => nutritionController.consumedCalories;
+  double get consumedCarbs => nutritionController.consumedCarbs;
+  double get consumedProtein => nutritionController.consumedProtein;
+  double get consumedFat => nutritionController.consumedFat;
+  double get consumedSugar => nutritionController.consumedSugar;
+  DateTime get currentDate => nutritionController.currentDate;
+  List<FoodItem> get favoriteFoodItems => nutritionController.favoriteFoods;
+  List<FoodItem> get last20FoodItems => nutritionController.frequentFoods;
+  List<SavedMeal> get savedMeals => nutritionController.savedMeals;
+  Set<int> get favoriteFoodIds =>
+      nutritionController.favoriteFoods.map((f) => f.id).whereType<int>().toSet();
+
+  // Delegated Settings & Goals Getters & Setters
+  int get dailyCalorieGoal => settingsController.goals.dailyCalories;
+  set dailyCalorieGoal(int val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(dailyCalories: val));
+  double get dailyCarbGoal => settingsController.dailyCarbGoal;
+  double get dailyProteinGoal => settingsController.dailyProteinGoal;
+  double get dailyFatGoal => settingsController.dailyFatGoal;
+  int get dailySugarGoalPercentage => settingsController.goals.sugarPercentage;
+  double get dailySugarGoalGrams =>
+      (dailyCalorieGoal * (dailySugarGoalPercentage / 100.0)) / 4.0;
+  bool get isDarkMode => settingsController.isDarkMode;
+  Gender get userGender => settingsController.goals.gender;
+  set userGender(Gender val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(gender: val));
+  BmrFormula get bmrFormula => settingsController.goals.bmrFormula;
+  set bmrFormula(BmrFormula val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(bmrFormula: val));
+  AutoCalorieMode get autoMode => settingsController.goals.autoCalorieMode;
+  set autoMode(AutoCalorieMode val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(autoCalorieMode: val));
+  double get customPercentPerMonth =>
+      settingsController.goals.customPercentPerMonth;
+  set customPercentPerMonth(double val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(customPercentPerMonth: val));
+  bool get useCustomStartCalories =>
+      settingsController.goals.useCustomStartCalories;
+  set useCustomStartCalories(bool val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(useCustomStartCalories: val));
+  int get userStartCalories => settingsController.goals.userStartCalories;
+  set userStartCalories(int val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(userStartCalories: val));
+  int get userAge => settingsController.goals.userAge;
+  set userAge(int val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(userAge: val));
+  double get userActivityLevel => settingsController.goals.userActivityLevel;
+  set userActivityLevel(double val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(userActivityLevel: val));
+  double get userHeight => settingsController.goals.userHeight;
+  set userHeight(double val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(userHeight: val));
+  bool get useProteinPerKg => settingsController.goals.useProteinPerKg;
+  set useProteinPerKg(bool val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(useProteinPerKg: val));
+  double get proteinPerKg => settingsController.goals.proteinPerKg;
+  set proteinPerKg(double val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(proteinPerKg: val));
+  double? get targetWeight => settingsController.goals.targetWeight;
+  set targetWeight(double? val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(targetWeight: val));
+  DateTime? get targetDate => settingsController.goals.targetDate != null
+      ? DateTime.tryParse(settingsController.goals.targetDate!)
+      : null;
+  set targetDate(DateTime? val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(
+          targetDate:
+              val != null ? DateFormat('yyyy-MM-dd').format(val) : null));
+  double? get targetWeeklyChange =>
+      settingsController.goals.targetWeeklyChange;
+  set targetWeeklyChange(double? val) => settingsController.updateGoals(
+      settingsController.goals.copyWith(targetWeeklyChange: val));
+  bool firstWeekInitialized = true;
+
+  bool get reminderWeighEnabled =>
+      settingsController.settings.reminderWeighEnabled;
+  TimeOfDay get reminderWeighTime => _parseTimeOfDay(
+        settingsController.settings.reminderWeighTime,
+        const TimeOfDay(hour: 8, minute: 0),
+      );
+  TimeOfDay get reminderWeighTimeSecond => _parseTimeOfDay(
+        settingsController.settings.reminderWeighTime2,
+        const TimeOfDay(hour: 9, minute: 0),
+      );
+  bool get reminderSupplementEnabled =>
+      settingsController.settings.reminderSupplementEnabled;
+  TimeOfDay get reminderSupplementTime => _parseTimeOfDay(
+        settingsController.settings.reminderSupplementTime,
+        const TimeOfDay(hour: 10, minute: 0),
+      );
+  TimeOfDay get reminderSupplementTimeSecond => _parseTimeOfDay(
+        settingsController.settings.reminderSupplementTime2,
+        const TimeOfDay(hour: 11, minute: 0),
+      );
+  bool get reminderMealsEnabled =>
+      settingsController.settings.reminderMealsEnabled;
+  TimeOfDay get reminderBreakfast => _parseTimeOfDay(
+        settingsController.settings.reminderBreakfast,
+        const TimeOfDay(hour: 7, minute: 0),
+      );
+  TimeOfDay get reminderLunch => _parseTimeOfDay(
+        settingsController.settings.reminderLunch,
+        const TimeOfDay(hour: 12, minute: 30),
+      );
+  TimeOfDay get reminderDinner => _parseTimeOfDay(
+        settingsController.settings.reminderDinner,
+        const TimeOfDay(hour: 19, minute: 0),
+      );
+
+  set reminderWeighEnabled(bool value) => settingsController.updateSettings(
+      settingsController.settings.copyWith(reminderWeighEnabled: value));
+  set reminderWeighTime(TimeOfDay value) => settingsController.updateSettings(
+      settingsController.settings.copyWith(reminderWeighTime: _formatTimeOfDay(value)));
+  set reminderWeighTimeSecond(TimeOfDay value) => settingsController.updateSettings(
+      settingsController.settings.copyWith(reminderWeighTime2: _formatTimeOfDay(value)));
+  set reminderSupplementEnabled(bool value) => settingsController.updateSettings(
+      settingsController.settings.copyWith(reminderSupplementEnabled: value));
+  set reminderSupplementTime(TimeOfDay value) => settingsController.updateSettings(
+      settingsController.settings.copyWith(reminderSupplementTime: _formatTimeOfDay(value)));
+  set reminderSupplementTimeSecond(TimeOfDay value) => settingsController.updateSettings(
+      settingsController.settings.copyWith(reminderSupplementTime2: _formatTimeOfDay(value)));
+  set reminderMealsEnabled(bool value) => settingsController.updateSettings(
+      settingsController.settings.copyWith(reminderMealsEnabled: value));
+  set reminderBreakfast(TimeOfDay value) => settingsController.updateSettings(
+      settingsController.settings.copyWith(reminderBreakfast: _formatTimeOfDay(value)));
+  set reminderLunch(TimeOfDay value) => settingsController.updateSettings(
+      settingsController.settings.copyWith(reminderLunch: _formatTimeOfDay(value)));
+  set reminderDinner(TimeOfDay value) => settingsController.updateSettings(
+      settingsController.settings.copyWith(reminderDinner: _formatTimeOfDay(value)));
+
+  Future<void> saveNotificationSettings({
+    bool? reminderWeighEnabled,
+    TimeOfDay? reminderWeighTime,
+    TimeOfDay? reminderWeighTimeSecond,
+    bool? reminderSupplementEnabled,
+    TimeOfDay? reminderSupplementTime,
+    TimeOfDay? reminderSupplementTimeSecond,
+    bool? reminderMealsEnabled,
+    TimeOfDay? reminderBreakfast,
+    TimeOfDay? reminderLunch,
+    TimeOfDay? reminderDinner,
+  }) async {
+    final updated = settingsController.settings.copyWith(
+      reminderWeighEnabled: reminderWeighEnabled,
+      reminderWeighTime: reminderWeighTime != null ? _formatTimeOfDay(reminderWeighTime) : null,
+      reminderWeighTime2: reminderWeighTimeSecond != null ? _formatTimeOfDay(reminderWeighTimeSecond) : null,
+      reminderSupplementEnabled: reminderSupplementEnabled,
+      reminderSupplementTime: reminderSupplementTime != null ? _formatTimeOfDay(reminderSupplementTime) : null,
+      reminderSupplementTime2: reminderSupplementTimeSecond != null ? _formatTimeOfDay(reminderSupplementTimeSecond) : null,
+      reminderMealsEnabled: reminderMealsEnabled,
+      reminderBreakfast: reminderBreakfast != null ? _formatTimeOfDay(reminderBreakfast) : null,
+      reminderLunch: reminderLunch != null ? _formatTimeOfDay(reminderLunch) : null,
+      reminderDinner: reminderDinner != null ? _formatTimeOfDay(reminderDinner) : null,
+    );
+    await settingsController.updateSettings(updated);
+    await scheduleAllNotifications();
+  }
+
+  // Delegated Weight Getters
+  List<WeightEntry> get weightEntries => weightController.records
+      .map((r) => WeightEntry(id: r.id, date: r.day, weight: r.kilograms))
+      .toList();
+
+  // Delegated Local Model Getters & Setters
+  LocalLlmModel get selectedLocalLlmModel => localModelController.selectedModel;
+  set selectedLocalLlmModel(LocalLlmModel model) =>
+      localModelController.selectModel(model);
+  Future<void> setSelectedLocalLlmModel(LocalLlmModel model) =>
+      localModelController.selectModel(model);
+  LocalLlmModel? get downloadingLocalLlmModel =>
+      isLocalModelDownloadRunning ? selectedLocalLlmModel : null;
   Set<String> installedLocalModelFiles = {};
-  Future<void>? _localModelDownloadFuture;
-  static const int _localModelDownloadNotificationId = 4304;
+  bool get isLocalModelDownloadRunning => localModelController.isDownloading;
+  int? get localModelDownloadProgress =>
+      localModelController.isDownloading ? localModelController.downloadProgress : null;
+  String? get localModelDownloadMessage => localModelController.statusMessage;
+
+
+
+  @override
+  void dispose() {
+    nutritionController.removeListener(notifyListeners);
+    weightController.removeListener(notifyListeners);
+    healthController.removeListener(notifyListeners);
+    activityController.removeListener(notifyListeners);
+    cycleController.removeListener(notifyListeners);
+    settingsController.removeListener(notifyListeners);
+    localModelController.removeListener(notifyListeners);
+    notificationController.removeListener(notifyListeners);
+    dashboardController.removeListener(notifyListeners);
+
+    nutritionController.dispose();
+    weightController.dispose();
+    healthController.dispose();
+    activityController.dispose();
+    cycleController.dispose();
+    settingsController.dispose();
+    localModelController.dispose();
+    dashboardController.dispose();
+    notificationController.dispose();
+    _database.close();
+    super.dispose();
+  }
 
   void markInitialized() {
     isInitialized = true;
     notifyListeners();
   }
 
-  AppState();
-
-  void _logError(String context, Object error, [StackTrace? stackTrace]) {
-    lastUiError = '$context: $error';
-    debugPrint('[MacroMate] $context failed: $error');
-    if (stackTrace != null) {
-      debugPrintStack(stackTrace: stackTrace);
-    }
-    notifyListeners();
-  }
-
   void reportUiError(String context, Object error, [StackTrace? stackTrace]) {
-    _logError(context, error, stackTrace);
+    lastUiError = '$context fehlgeschlagen.';
+    _logger.error(context, error);
+    notifyListeners();
   }
 
   void clearUiError() {
@@ -171,1284 +412,958 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<FoodItem> _applyLocalUsage(FoodItem food) async {
-    final foodId = food.id;
-    if (foodId == null) return food;
-    final quantities = await DatabaseHelper().getFoodUsageQuantities([foodId]);
-    final quantity = quantities[foodId];
-    return quantity == null ? food : food.copyWith(lastUsedQuantity: quantity);
-  }
-
-  Future<List<FoodItem>> _applyLocalUsageToFoods(List<FoodItem> foods) async {
-    final ids = foods.map((food) => food.id).whereType<int>();
-    final quantities = await DatabaseHelper().getFoodUsageQuantities(ids);
-    return foods.map((food) {
-      final foodId = food.id;
-      final quantity = foodId == null ? null : quantities[foodId];
-      return quantity == null
-          ? food
-          : food.copyWith(lastUsedQuantity: quantity);
-    }).toList();
-  }
-
-  Future<FoodItem?> _resolveFoodById(int foodId) {
-    if (foodId < 0) {
-      return DatabaseHelper().getLocalFoodById(foodId);
-    }
-    return _remoteService.getFoodItemById(foodId);
-  }
-
-  Future<void> _configureLocalTimezone() async {
-    tz.initializeTimeZones();
-    final String timeZoneName = await FlutterTimezone.getLocalTimezone();
-    tz.setLocalLocation(tz.getLocation(timeZoneName));
-  }
-
-  Future<void> _runStartupStep(
-    String context,
-    Future<void> Function() action, {
-    Duration timeout = const Duration(seconds: 8),
-  }) async {
-    try {
-      await action().timeout(timeout);
-    } catch (e, st) {
-      _logError(context, e, st);
-    }
-  }
-
   Future<void> initializeCompletely() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!prefs.containsKey('user_gender')) {
-      await prefs.setString('user_gender', 'male'); // Default
-    }
-    if (!prefs.containsKey('bmr_formula')) {
-      await prefs.setInt('bmr_formula', BmrFormula.mifflin.index); // Default
+    await SharedPreferencesHelper.migrateLegacyCredentials();
+    await Future.wait([
+      nutritionController.initialize(),
+      weightController.initialize(),
+      settingsController.initialize(),
+      healthController.load(),
+      activityController.initialize(),
+      cycleController.load(),
+      notificationController.initialize(),
+      localModelController.initialize(),
+    ]);
+
+    // Check login credentials
+    final email = await settingsController.getSavedEmail();
+    isLoggedIn = email != null && email.isNotEmpty;
+
+    // Check auto calorie mode goal updates
+    if (weightController.currentWeight != null) {
+      final autoCal = settingsController.calculateAutoCalorieGoal(
+        currentWeightKg: weightController.currentWeight!,
+      );
+      if (autoCal != settingsController.goals.dailyCalories &&
+          settingsController.goals.autoCalorieMode != AutoCalorieMode.off) {
+        await settingsController.updateGoals(
+          settingsController.goals.copyWith(dailyCalories: autoCal),
+        );
+      }
     }
 
-    userGender = (prefs.getString('user_gender') == 'male')
-        ? Gender.male
-        : Gender.female;
-    bmrFormula = BmrFormula.values[prefs.getInt('bmr_formula')!];
-    selectedLocalLlmModel = LocalLlmModel.byStoredName(
-      prefs.getString('local_llm_model'),
-    );
-    installedLocalModelFiles =
-        prefs.getStringList('installed_local_llm_model_files')?.toSet() ?? {};
-
-    Timer.periodic(Duration(hours: 6), (timer) {
-      _checkMondayAndAutoAdjustIfNeeded();
-    });
-    await _runStartupStep('configureLocalTimezone', _configureLocalTimezone);
-    await _runStartupStep('loadWeightEntries', loadWeightEntries);
-    await _runStartupStep('loadGoals', loadGoals);
-    await _runStartupStep('loadDarkMode', loadDarkMode);
-    await _runStartupStep('loadNotificationSettings', loadNotificationSettings);
-    await _runStartupStep('loadRecentFoodItems', loadRecentFoodItems);
-    await _runStartupStep('loadFavoriteFoods', loadFavoriteFoods);
-    await _runStartupStep('loadSavedMeals', loadSavedMeals);
-    await _runStartupStep('loadConsumedFoods', loadConsumedFoods);
-    await _runStartupStep('syncOfflineQueue', syncOfflineQueue);
-    await _runStartupStep('autoLogin', _tryAutoLogin);
-    notifyListeners();
+    markInitialized();
   }
 
-  Future<void> syncOfflineQueue() async {
-    try {
-      final queue = await DatabaseHelper().getOfflineQueue();
-      for (final entry in queue) {
-        if (entry['action_type'] == 'food_upsert') {
-          final payload = jsonDecode(entry['payload'] as String);
-          await _remoteService.insertOrUpdateFoodItem(
-            FoodItem.fromJson(payload),
-          );
-          await DatabaseHelper().deleteOfflineQueueEntry(entry['id'] as int);
-        }
-      }
-    } catch (e, st) {
-      _logError('syncOfflineQueue', e, st);
+  // Nutrition Methods
+  Future<void> loadDailyFoods() => nutritionController.loadDailyFoods();
+  void goToPreviousDay() => nutritionController.goToPreviousDay();
+  void goToNextDay() => nutritionController.goToNextDay();
+  void setDate(DateTime date) => nutritionController.setDate(date);
+
+  Future<void> addConsumedFood(ConsumedFoodItem item) =>
+      nutritionController.addConsumedFood(
+        mealName: item.mealName,
+        food: item.food,
+        quantity: item.quantity,
+        date: item.date,
+      );
+
+  Future<void> addFood(
+    String mealName,
+    FoodItem food,
+    int quantity, {
+    DateTime? date,
+  }) =>
+      nutritionController.addConsumedFood(
+        mealName: mealName,
+        food: food,
+        quantity: quantity,
+        date: date,
+      );
+
+  Future<void> updateFood(ConsumedFoodItem item, int newQuantity) =>
+      nutritionController.updateConsumedFoodQuantity(item.id!, newQuantity);
+
+  Future<void> updateConsumedFoodItem(
+    ConsumedFoodItem item, {
+    int? newQuantity,
+    String? newMealName,
+    FoodItem? updatedFood,
+  }) async {
+    final foodId = item.id;
+    if (foodId == null) return;
+    if (newQuantity != null && (newMealName == null || newMealName == item.mealName)) {
+      await nutritionController.updateConsumedFoodQuantity(foodId, newQuantity);
+    } else if (newMealName != null && newMealName != item.mealName) {
+      await nutritionController.deleteConsumedFood(foodId);
+      await nutritionController.addConsumedFood(
+        mealName: newMealName,
+        food: updatedFood ?? item.food,
+        quantity: newQuantity ?? item.quantity,
+        date: item.date,
+      );
     }
+  }
+
+  Future<void> deleteFood(ConsumedFoodItem item) =>
+      nutritionController.deleteConsumedFood(item.id!);
+
+  Future<void> removeFood(String mealName, ConsumedFoodItem item) =>
+      nutritionController.deleteConsumedFood(item.id!);
+
+  Future<void> clearDay() => nutritionController.clearCurrentDay();
+
+  Future<void> copyMeal(String mealName, DateTime targetDate) =>
+      nutritionController.copyMealToDate(
+        mealName: mealName,
+        targetDate: targetDate,
+      );
+
+  Future<void> copyMealToToday(String mealName) =>
+      nutritionController.copyMealToDate(
+        mealName: mealName,
+        targetDate: DateTime.now(),
+      );
+
+  Future<FoodItem> saveCustomFood(FoodItem food) =>
+      nutritionController.saveCustomFood(food);
+
+  Future<void> loadFavoriteFoods() => nutritionController.loadFavorites();
+
+  bool isFavoriteFood(dynamic foodOrId) {
+    if (foodOrId is FoodItem) return favoriteFoodIds.contains(foodOrId.id);
+    if (foodOrId is int) return favoriteFoodIds.contains(foodOrId);
+    return false;
+  }
+
+  Future<bool> toggleFavoriteFood(dynamic foodOrId) {
+    final int? id =
+        foodOrId is FoodItem ? foodOrId.id : (foodOrId is int ? foodOrId : null);
+    if (id == null) return Future.value(false);
+    return nutritionController.toggleFavorite(id);
+  }
+
+  Future<void> loadFrequentFoods() => nutritionController.loadFrequentFoods();
+
+
+  Future<void> loadSavedMeals() => nutritionController.loadSavedMeals();
+  Future<SavedMeal> saveMeal(
+    String name,
+    String defaultMealName,
+    List<Map<String, dynamic>> ingredients, {
+    int? recipeTotalWeight,
+  }) =>
+      nutritionController.saveMeal(
+        name: name,
+        defaultMealName: defaultMealName,
+        ingredients: ingredients,
+        recipeTotalWeight: recipeTotalWeight,
+      );
+  Future<void> deleteSavedMeal(int id) =>
+      nutritionController.deleteSavedMeal(id);
+
+  // Weight Methods
+  Future<void> loadWeightEntries() => weightController.loadWeights();
+  Future<void> addWeightEntry(DateTime date, double weight) =>
+      weightController.addWeight(date, weight);
+  Future<void> updateWeightEntry(int id, DateTime date, double weight) =>
+      weightController.updateWeight(id, date, weight);
+  Future<void> deleteWeightEntry(int id) => weightController.deleteWeight(id);
+
+  // Settings & Goals Methods
+  Future<void> toggleDarkMode(bool value) =>
+      settingsController.toggleDarkMode(value);
+
+  Future<void> saveSettings({
+    required int dailyCalories,
+    required int carbPercentage,
+    required int proteinPercentage,
+    required int fatPercentage,
+    required int sugarPercentage,
+    required AutoCalorieMode autoMode,
+    required double customPercentPerMonth,
+    required bool useCustomStartCalories,
+    required int userStartCalories,
+    required int userAge,
+    required double userActivityLevel,
+    required double userHeight,
+    required bool useProteinPerKg,
+    required double proteinPerKg,
+    double? targetWeight,
+    DateTime? targetDate,
+    double? targetWeeklyChange,
+    Gender? gender,
+    BmrFormula? bmrFormula,
+    bool? reminderWeighEnabled,
+    TimeOfDay? reminderWeighTime,
+    TimeOfDay? reminderWeighTimeSecond,
+    bool? reminderSupplementEnabled,
+    TimeOfDay? reminderSupplementTime,
+    TimeOfDay? reminderSupplementTimeSecond,
+    bool? reminderMealsEnabled,
+    TimeOfDay? reminderBreakfast,
+    TimeOfDay? reminderLunch,
+    TimeOfDay? reminderDinner,
+  }) async {
+    final updatedGoals = settingsController.goals.copyWith(
+      dailyCalories: dailyCalories,
+      carbPercentage: carbPercentage,
+      proteinPercentage: proteinPercentage,
+      fatPercentage: fatPercentage,
+      sugarPercentage: sugarPercentage,
+      autoCalorieMode: autoMode,
+      customPercentPerMonth: customPercentPerMonth,
+      useCustomStartCalories: useCustomStartCalories,
+      userStartCalories: userStartCalories,
+      userAge: userAge,
+      userActivityLevel: userActivityLevel,
+      userHeight: userHeight,
+      useProteinPerKg: useProteinPerKg,
+      proteinPerKg: proteinPerKg,
+      targetWeight: targetWeight,
+      targetDate: targetDate != null ? DateFormat('yyyy-MM-dd').format(targetDate) : null,
+      targetWeeklyChange: targetWeeklyChange,
+      gender: gender,
+      bmrFormula: bmrFormula,
+    );
+
+    final updatedSettings = settingsController.settings.copyWith(
+      reminderWeighEnabled: reminderWeighEnabled,
+      reminderWeighTime: reminderWeighTime != null ? _formatTimeOfDay(reminderWeighTime) : null,
+      reminderWeighTime2: reminderWeighTimeSecond != null ? _formatTimeOfDay(reminderWeighTimeSecond) : null,
+      reminderSupplementEnabled: reminderSupplementEnabled,
+      reminderSupplementTime: reminderSupplementTime != null ? _formatTimeOfDay(reminderSupplementTime) : null,
+      reminderSupplementTime2: reminderSupplementTimeSecond != null ? _formatTimeOfDay(reminderSupplementTimeSecond) : null,
+      reminderMealsEnabled: reminderMealsEnabled,
+      reminderBreakfast: reminderBreakfast != null ? _formatTimeOfDay(reminderBreakfast) : null,
+      reminderLunch: reminderLunch != null ? _formatTimeOfDay(reminderLunch) : null,
+      reminderDinner: reminderDinner != null ? _formatTimeOfDay(reminderDinner) : null,
+    );
+
+    await settingsController.updateGoals(updatedGoals);
+    await settingsController.updateSettings(updatedSettings);
+    await scheduleAllNotifications();
   }
 
   Future<void> saveBodyProfileSettings({
-    required Gender gender,
-    required BmrFormula formula,
+    Gender? gender,
+    BmrFormula? formula,
+    double? customPercentPerMonth,
+    bool? useCustomStartCalories,
+    int? userStartCalories,
+    AutoCalorieMode? autoMode,
+    int? dailyCalories,
+    int? userAge,
+    double? userActivityLevel,
+    double? userHeight,
+    bool? useProteinPerKg,
+    double? proteinPerKg,
+    double? targetWeight,
+    double? targetWeeklyChange,
+    DateTime? targetDate,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    userGender = gender;
-    bmrFormula = formula;
-    await prefs.setString(
-      'user_gender',
-      gender == Gender.male ? 'male' : 'female',
+    final updated = settingsController.goals.copyWith(
+      gender: gender,
+      bmrFormula: formula,
+      customPercentPerMonth: customPercentPerMonth,
+      useCustomStartCalories: useCustomStartCalories,
+      userStartCalories: userStartCalories,
+      autoCalorieMode: autoMode,
+      dailyCalories: dailyCalories,
+      userAge: userAge,
+      userActivityLevel: userActivityLevel,
+      userHeight: userHeight,
+      useProteinPerKg: useProteinPerKg,
+      proteinPerKg: proteinPerKg,
+      targetWeight: targetWeight,
+      targetWeeklyChange: targetWeeklyChange,
+      targetDate: targetDate != null ? DateFormat('yyyy-MM-dd').format(targetDate) : null,
     );
-    await prefs.setInt('bmr_formula', formula.index);
+    await settingsController.updateGoals(updated);
   }
 
-  Future<void> setSelectedLocalLlmModel(LocalLlmModel model) async {
-    selectedLocalLlmModel = model;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('local_llm_model', model.id.name);
-    notifyListeners();
-  }
-
-  bool isLocalLlmModelMarkedInstalled(LocalLlmModel model) {
-    return installedLocalModelFiles.contains(model.fileName);
-  }
-
-  Future<void> refreshInstalledLocalLlmModels() async {
-    final installedFiles = <String>{};
-    for (final model in LocalLlmModel.supported) {
-      final service = LlmService(selectedModel: model);
-      try {
-        if (await service.isSelectedModelInstalled()) {
-          installedFiles.add(model.fileName);
-        }
-      } catch (e) {
-        debugPrint(
-          '[Local LLM] install check skipped for ${model.displayName}: $e',
-        );
-      } finally {
-        await service.dispose();
-      }
-    }
-    installedLocalModelFiles = installedFiles;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      'installed_local_llm_model_files',
-      installedLocalModelFiles.toList()..sort(),
-    );
-    notifyListeners();
-  }
-
-  Future<void> _markLocalLlmModelInstalled(LocalLlmModel model) async {
-    installedLocalModelFiles.add(model.fileName);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      'installed_local_llm_model_files',
-      installedLocalModelFiles.toList()..sort(),
-    );
-  }
-
-  Future<void> downloadSelectedLocalLlmModel() {
-    if (isLocalModelDownloadRunning && _localModelDownloadFuture != null) {
-      return _localModelDownloadFuture!;
-    }
-    final model = selectedLocalLlmModel;
-    _localModelDownloadFuture = _downloadLocalModel(model);
-    return _localModelDownloadFuture!;
-  }
-
-  Future<void> _downloadLocalModel(LocalLlmModel model) async {
-    final service = LlmService(selectedModel: model);
-    var alreadyInstalled = installedLocalModelFiles.contains(model.fileName);
-    if (!alreadyInstalled) {
-      try {
-        alreadyInstalled = await service.isSelectedModelInstalled();
-      } catch (_) {
-        alreadyInstalled = false;
-      }
-    }
-    if (alreadyInstalled) {
-      await _markLocalLlmModelInstalled(model);
-      localModelDownloadProgress = 100;
-      localModelDownloadMessage =
-          '${model.displayName} ist bereits installiert.';
-      await service.dispose();
-      notifyListeners();
-      return;
-    }
-
-    isLocalModelDownloadRunning = true;
-    localModelDownloadProgress = 0;
-    downloadingLocalLlmModel = model;
-    localModelDownloadMessage = 'Download gestartet: ${model.displayName}';
-    notifyListeners();
-    await _showLocalModelDownloadNotification(
-      title: model.displayName,
-      body: 'Download gestartet',
-      progress: 0,
-    );
-
-    try {
-      await service.ensureSelectedModelAvailable(
-        allowDownload: true,
-        onDownloadProgress: (progress) {
-          localModelDownloadProgress = progress;
-          localModelDownloadMessage = 'Download: $progress%';
-          notifyListeners();
-          unawaited(
-            _showLocalModelDownloadNotification(
-              title: model.displayName,
-              body: 'Download: $progress%',
-              progress: progress,
-            ),
-          );
-        },
+  Future<void> updateGoals(
+    dynamic goalsOrCalories, [
+    int? carbPercentage,
+    int? proteinPercentage,
+    int? fatPercentage,
+    int? sugarPercentage,
+  ]) async {
+    if (goalsOrCalories is UserGoals) {
+      await settingsController.updateGoals(goalsOrCalories);
+    } else if (goalsOrCalories is int) {
+      final current = settingsController.goals;
+      final updated = current.copyWith(
+        dailyCalories: goalsOrCalories,
+        carbPercentage: carbPercentage ?? current.carbPercentage,
+        proteinPercentage: proteinPercentage ?? current.proteinPercentage,
+        fatPercentage: fatPercentage ?? current.fatPercentage,
+        sugarPercentage: sugarPercentage ?? current.sugarPercentage,
       );
-      localModelDownloadProgress = 100;
-      localModelDownloadMessage = '${model.displayName} ist installiert.';
-      await _markLocalLlmModelInstalled(model);
-      await _showLocalModelDownloadNotification(
-        title: model.displayName,
-        body: 'Installation abgeschlossen',
-        progress: 100,
-        complete: true,
-      );
-    } catch (e) {
-      localModelDownloadMessage = 'Download fehlgeschlagen: $e';
-      await _showLocalModelDownloadNotification(
-        title: model.displayName,
-        body: 'Download fehlgeschlagen',
-        complete: true,
-      );
-      rethrow;
-    } finally {
-      await service.dispose();
-      isLocalModelDownloadRunning = false;
-      downloadingLocalLlmModel = null;
-      _localModelDownloadFuture = null;
-      notifyListeners();
+      await settingsController.updateGoals(updated);
+    } else {
+      await settingsController.updateGoals(settingsController.goals);
     }
   }
 
-  Future<void> _showLocalModelDownloadNotification({
-    required String title,
-    required String body,
-    int? progress,
-    bool complete = false,
+  Future<void> recalculateGoals({bool fromBmr = false}) async {
+    if (weightController.currentWeight != null) {
+      final cal = settingsController.calculateAutoCalorieGoal(
+        currentWeightKg: weightController.currentWeight!,
+      );
+      await settingsController.updateGoals(
+        settingsController.goals.copyWith(dailyCalories: cal),
+      );
+    }
+  }
+
+  Future<List<FoodItem>> loadAllFoodItems() =>
+      _nutritionRepository.searchFoods('');
+
+  Future<void> addSavedMealToDay(
+    SavedMeal meal,
+    String mealName, {
+    double factor = 1.0,
+    DateTime? date,
   }) async {
-    final androidDetails = AndroidNotificationDetails(
-      'local_model_downloads',
-      'Modelldownloads',
-      channelDescription: 'Fortschritt lokaler KI-Modell-Downloads',
-      importance: complete ? Importance.defaultImportance : Importance.low,
-      priority: complete ? Priority.defaultPriority : Priority.low,
-      onlyAlertOnce: true,
-      ongoing: !complete,
-      showProgress: progress != null && !complete,
-      maxProgress: 100,
-      progress: (progress ?? 0).clamp(0, 100).toInt(),
-      indeterminate: progress == null && !complete,
-    );
-    await notificationsPlugin.show(
-      _localModelDownloadNotificationId,
-      title,
-      body,
-      NotificationDetails(android: androidDetails),
-    );
-  }
-
-  Future<void> loadNotificationSettings() async {
-    try {
-      final dbSettings = await DatabaseHelper().getNotificationSettings();
-      if (dbSettings != null) {
-        reminderWeighEnabled = dbSettings['reminder_weigh_enabled'] == 1;
-        List<String> weighTimeParts = dbSettings['reminder_weigh_time'].split(
-          ':',
-        );
-        reminderWeighTime = TimeOfDay(
-          hour: int.parse(weighTimeParts[0]),
-          minute: int.parse(weighTimeParts[1]),
-        );
-        List<String> weighTime2Parts = dbSettings['reminder_weigh_time2'].split(
-          ':',
-        );
-        reminderWeighTimeSecond = TimeOfDay(
-          hour: int.parse(weighTime2Parts[0]),
-          minute: int.parse(weighTime2Parts[1]),
-        );
-        reminderSupplementEnabled =
-            dbSettings['reminder_supplement_enabled'] == 1;
-        List<String> suppTimeParts =
-            dbSettings['reminder_supplement_time'].split(':');
-        reminderSupplementTime = TimeOfDay(
-          hour: int.parse(suppTimeParts[0]),
-          minute: int.parse(suppTimeParts[1]),
-        );
-        List<String> suppTime2Parts =
-            dbSettings['reminder_supplement_time2'].split(':');
-        reminderSupplementTimeSecond = TimeOfDay(
-          hour: int.parse(suppTime2Parts[0]),
-          minute: int.parse(suppTime2Parts[1]),
-        );
-        reminderMealsEnabled = dbSettings['reminder_meals_enabled'] == 1;
-        List<String> bParts = dbSettings['reminder_breakfast'].split(':');
-        reminderBreakfast = TimeOfDay(
-          hour: int.parse(bParts[0]),
-          minute: int.parse(bParts[1]),
-        );
-        List<String> lParts = dbSettings['reminder_lunch'].split(':');
-        reminderLunch = TimeOfDay(
-          hour: int.parse(lParts[0]),
-          minute: int.parse(lParts[1]),
-        );
-        List<String> dParts = dbSettings['reminder_dinner'].split(':');
-        reminderDinner = TimeOfDay(
-          hour: int.parse(dParts[0]),
-          minute: int.parse(dParts[1]),
-        );
-      }
-    } catch (e, st) {
-      _logError('loadNotificationSettings', e, st);
-    }
-  }
-
-  Future<void> saveNotificationSettings() async {
-    try {
-      await DatabaseHelper().saveNotificationSettings(
-        reminderWeighEnabled: reminderWeighEnabled,
-        reminderWeighTime:
-            '${reminderWeighTime.hour.toString().padLeft(2, '0')}:${reminderWeighTime.minute.toString().padLeft(2, '0')}',
-        reminderWeighTime2:
-            '${reminderWeighTimeSecond.hour.toString().padLeft(2, '0')}:${reminderWeighTimeSecond.minute.toString().padLeft(2, '0')}',
-        reminderSupplementEnabled: reminderSupplementEnabled,
-        reminderSupplementTime:
-            '${reminderSupplementTime.hour.toString().padLeft(2, '0')}:${reminderSupplementTime.minute.toString().padLeft(2, '0')}',
-        reminderSupplementTime2:
-            '${reminderSupplementTimeSecond.hour.toString().padLeft(2, '0')}:${reminderSupplementTimeSecond.minute.toString().padLeft(2, '0')}',
-        reminderMealsEnabled: reminderMealsEnabled,
-        reminderBreakfast:
-            '${reminderBreakfast.hour.toString().padLeft(2, '0')}:${reminderBreakfast.minute.toString().padLeft(2, '0')}',
-        reminderLunch:
-            '${reminderLunch.hour.toString().padLeft(2, '0')}:${reminderLunch.minute.toString().padLeft(2, '0')}',
-        reminderDinner:
-            '${reminderDinner.hour.toString().padLeft(2, '0')}:${reminderDinner.minute.toString().padLeft(2, '0')}',
-      );
-    } catch (e, st) {
-      _logError('saveNotificationSettings', e, st);
-    }
-  }
-
-  Future<void> scheduleAllNotifications() async {
-    await notificationsPlugin.cancelAll();
-    if (reminderWeighEnabled) {
-      await scheduleDailyNotification(
-        10000,
-        reminderWeighTime,
-        'Wiegen',
-        'Zeit zum Wiegen',
-        true,
-        reminderWeighTimeSecond,
-        10001,
-      );
-    }
-    if (reminderSupplementEnabled) {
-      await scheduleDailyNotification(
-        20000,
-        reminderSupplementTime,
-        'Supplement',
-        'Zeit für Supplements',
-        true,
-        reminderSupplementTimeSecond,
-        20001,
-      );
-    }
-    if (reminderMealsEnabled) {
-      await scheduleDailyNotification(
-        30000,
-        reminderBreakfast,
-        'Frühstück',
-        'Zeit für das Frühstück',
-        false,
-        null,
-        null,
-      );
-      await scheduleDailyNotification(
-        30001,
-        reminderLunch,
-        'Mittagessen',
-        'Zeit für das Mittagessen',
-        false,
-        null,
-        null,
-      );
-      await scheduleDailyNotification(
-        30002,
-        reminderDinner,
-        'Abendessen',
-        'Zeit für das Abendessen',
-        false,
-        null,
-        null,
-      );
-    }
-  }
-
-  Future<void> scheduleDailyNotification(
-    int id,
-    TimeOfDay time,
-    String title,
-    String body,
-    bool showSecond,
-    TimeOfDay? secondTime,
-    int? secondId,
-  ) async {
-    if ((id == 30000 && breakfast.isNotEmpty) ||
-        (id == 30001 && lunch.isNotEmpty) ||
-        (id == 30002 && dinner.isNotEmpty)) {
-      return;
-    }
-    final now = DateTime.now();
-    final location = tz.getLocation(tz.local.name);
-    final firstScheduled = _nextInstanceOfTime(time, now);
-    await notificationsPlugin.zonedSchedule(
-      id,
-      title,
-      body,
-      tz.TZDateTime.from(firstScheduled, location),
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          'daily_notif_channel',
-          'Tägliche Erinnerung',
-          channelDescription: 'Tägliche Benachrichtigung',
-        ),
-        iOS: DarwinNotificationDetails(),
-      ),
-      payload: 'erledigt',
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-    );
-    if (showSecond && secondTime != null && secondId != null) {
-      final secondScheduled = _nextInstanceOfTime(secondTime, now);
-      await notificationsPlugin.zonedSchedule(
-        secondId,
-        title,
-        body,
-        tz.TZDateTime.from(secondScheduled, location),
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            'daily_notif_channel',
-            'Tägliche Erinnerung',
-            channelDescription: 'Tägliche Benachrichtigung',
-          ),
-          iOS: DarwinNotificationDetails(),
-        ),
-        payload: 'erledigt',
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.time,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      );
-    }
-  }
-
-  DateTime _nextInstanceOfTime(TimeOfDay t, DateTime base) {
-    DateTime scheduled = DateTime(
-      base.year,
-      base.month,
-      base.day,
-      t.hour,
-      t.minute,
-    );
-    if (scheduled.isBefore(base)) {
-      scheduled = scheduled.add(const Duration(days: 1));
-    }
-    return scheduled;
-  }
-
-  Future<void> _tryAutoLogin() async {
-    final savedEmail = await SharedPreferencesHelper.loadUserEmail();
-    final savedPass = await SharedPreferencesHelper.loadUserPassword();
-    if (savedEmail != null && savedPass != null) {
-      try {
-        final ok = await login(savedEmail, savedPass, storeCredentials: false);
-        if (!ok) {}
-      } catch (e, st) {
-        _logError('autoLogin', e, st);
-      }
-    }
-  }
-
-  Future<bool> login(
-    String email,
-    String password, {
-    bool storeCredentials = true,
-  }) async {
-    try {
-      final userRow = await _remoteService.getUserByEmail(email);
-      if (userRow == null) {
-        return false;
-      }
-      final String storedHash = userRow['password_hash'];
-      final bool isVerified = userRow['is_verified'] == true;
-      if (!isVerified) {
-        return false;
-      }
-      bool ok = BCrypt.checkpw(password, storedHash);
-      if (ok) {
-        isLoggedIn = true;
-        notifyListeners();
-        if (storeCredentials) {
-          await SharedPreferencesHelper.saveUserEmail(email);
-          await SharedPreferencesHelper.saveUserPassword(password);
-        }
-        await _checkMondayAndAutoAdjustIfNeeded();
-        return true;
-      }
-      return false;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  Future<bool> registerUser(String email, String password) async {
-    try {
-      final existingUser = await _remoteService.getUserByEmail(email);
-      if (existingUser != null) {
-        return false;
-      }
-      final hashed = BCrypt.hashpw(password, BCrypt.gensalt());
-      final verificationCode = _generateVerificationCode();
-      await _remoteService.insertUserWithVerification(
-        email,
-        hashed,
-        verificationCode,
-      );
-      await sendVerificationEmail(email, verificationCode);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  Future<void> sendVerificationEmail(String recipientEmail, String code) async {
-    const endpoint = 'https://api.brevo.com/v3/smtp/email';
-    final body = {
-      'to': [
-        {'email': recipientEmail},
-      ],
-      'sender': {'email': const String.fromEnvironment('SENDER_EMAIL')},
-      'subject': 'Dein Bestätigungscode',
-      'htmlContent':
-          '<h3>Hallo!</h3><p>Dein Code lautet: <b>$code</b>.</p><p>Gib diesen Code in der App ein, um dein Konto zu aktivieren.</p>',
-    };
-    try {
-      await http.post(
-        Uri.parse(endpoint),
-        headers: {
-          'accept': 'application/json',
-          'api-key': const String.fromEnvironment('BREVO_API_KEY'),
-          'content-type': 'application/json',
-        },
-        body: jsonEncode(body),
-      );
-    } catch (e, st) {
-      _logError('sendVerificationEmail', e, st);
-    }
-  }
-
-  String _generateVerificationCode() {
-    final rnd = Random();
-    final code = rnd.nextInt(900000) + 100000;
-    return code.toString();
-  }
-
-  Future<bool> verifyAccount(String email, String code) async {
-    try {
-      final userRow = await _remoteService.getUserByEmail(email);
-      if (userRow == null) return false;
-      final dbCode = userRow['verification_code'];
-      if (dbCode == code) {
-        await _remoteService.verifyUser(email);
-        return true;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  Future<void> logout() async {
-    await SharedPreferencesHelper.clearUserCredentials();
-    isLoggedIn = false;
-    notifyListeners();
-  }
-
-  Future<bool> deleteAccount() async {
-    try {
-      final email = await SharedPreferencesHelper.loadUserEmail();
-      if (email == null) {
-        return false;
-      }
-      await _remoteService.deleteUserByEmail(email);
-      await logout();
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  Future<void> loadLast20FoodItems() async {
-    await loadRecentFoodItems();
-  }
-
-  Future<void> loadRecentFoodItems({int? limit}) async {
-    try {
-      if (limit != null) {
-        recentFoodLimit = limit;
-      }
-      final usageRows = await DatabaseHelper().getRecentFoodUsage(
-        recentFoodLimit,
-      );
-      final items = <FoodItem>[];
-      for (final row in usageRows) {
-        final foodId = row['food_id'] as int;
-        final food = await _resolveFoodById(foodId);
-        if (food == null) continue;
-        items.add(
-          food.copyWith(
-            lastUsedQuantity: row['last_used_quantity'] as int,
+    for (final ingredient in meal.ingredients) {
+      final portion = (ingredient.quantity * factor).round();
+      if (portion > 0) {
+        await addConsumedFood(
+          ConsumedFoodItem(
+            mealName: mealName,
+            food: ingredient.food,
+            quantity: portion,
+            date: date ?? currentDate,
           ),
         );
       }
-      last20FoodItems = items;
-      await _updateMacroWidget();
-      notifyListeners();
-    } catch (e, st) {
-      _logError('loadRecentFoodItems', e, st);
     }
   }
 
-  Future<void> loadFavoriteFoods() async {
-    try {
-      favoriteFoodIds = await DatabaseHelper().getFavoriteFoodIds();
-      final items = <FoodItem>[];
-      for (final id in favoriteFoodIds) {
-        final food = await _resolveFoodById(id);
-        if (food != null) items.add(food);
+  Future<void> addRecipePortionToDay(
+    SavedMeal recipe,
+    String mealName,
+    int eatenWeightGrams, [
+    DateTime? date,
+  ]) async {
+    final totalWeight = recipe.recipeTotalWeight ??
+        recipe.ingredients.fold<int>(0, (sum, i) => sum + i.quantity);
+    final factor = totalWeight > 0 ? (eatenWeightGrams / totalWeight) : 1.0;
+    for (final ingredient in recipe.ingredients) {
+      final portion = (ingredient.quantity * factor).round();
+      if (portion > 0) {
+        await addConsumedFood(
+          ConsumedFoodItem(
+            mealName: mealName,
+            food: ingredient.food,
+            quantity: portion,
+            date: date ?? currentDate,
+          ),
+        );
       }
-      favoriteFoodItems = await _applyLocalUsageToFoods(items);
-      notifyListeners();
-    } catch (e, st) {
-      _logError('loadFavoriteFoods', e, st);
-    }
-  }
-
-  bool isFavoriteFood(FoodItem food) =>
-      food.id != null && favoriteFoodIds.contains(food.id);
-
-  Future<void> toggleFavoriteFood(FoodItem food) async {
-    final foodId = food.id;
-    if (foodId == null) return;
-    final nextValue = !favoriteFoodIds.contains(foodId);
-    await DatabaseHelper().setFavoriteFood(foodId, nextValue);
-    await loadFavoriteFoods();
-  }
-
-  Future<void> loadSavedMeals() async {
-    try {
-      savedMeals = await DatabaseHelper().getSavedMeals(
-        _resolveFoodById,
-      );
-      notifyListeners();
-    } catch (e, st) {
-      _logError('loadSavedMeals', e, st);
     }
   }
 
   Future<void> saveMealTemplate(
     String name,
     String defaultMealName,
-    List<ConsumedFoodItem> ingredients,
+    List<ConsumedFoodItem> items, [
     int? recipeTotalWeight,
-  ) async {
-    final persistableIngredients =
-        ingredients.where((ingredient) => ingredient.food.id != null).toList();
-    if (persistableIngredients.isEmpty) {
-      throw Exception('Diese Mahlzeit enthält keine speicherbaren Zutaten.');
-    }
-    await DatabaseHelper().insertSavedMeal(
+  ]) async {
+    final ingredients = items
+        .map((item) => {
+              'food_id': item.food.id ?? 0,
+              'quantity': item.quantity,
+            })
+        .toList();
+    await saveMeal(
       name,
       defaultMealName,
-      persistableIngredients,
-      recipeTotalWeight,
-    );
-    await loadSavedMeals();
-    notifyListeners();
-  }
-
-  Future<void> addSavedMealToDay(
-    SavedMeal savedMeal,
-    String mealName, {
-    double factor = 1.0,
-  }) async {
-    for (final ingredient in savedMeal.ingredients) {
-      await addOrUpdateFood(
-        mealName,
-        ingredient.food,
-        max(1, (ingredient.quantity * factor).round()),
-        currentDate,
-      );
-    }
-    await loadRecentFoodItems();
-    notifyListeners();
-  }
-
-  Future<void> addRecipePortionToDay(
-    SavedMeal savedMeal,
-    String mealName,
-    int portionGrams,
-  ) async {
-    final totalWeight = savedMeal.recipeTotalWeight;
-    if (totalWeight == null || totalWeight <= 0) {
-      await addSavedMealToDay(savedMeal, mealName);
-      return;
-    }
-    await addSavedMealToDay(
-      savedMeal,
-      mealName,
-      factor: portionGrams / totalWeight,
+      ingredients,
+      recipeTotalWeight: recipeTotalWeight,
     );
   }
 
-  Future<List<ConsumedFoodItem>> getCurrentDaySnapshot() async {
-    return await DatabaseHelper().getConsumedFoods(currentDate);
-  }
+  List<ConsumedFoodItem> getCurrentDaySnapshot() =>
+      [...breakfast, ...lunch, ...dinner, ...snacks];
 
-  Future<void> restoreCurrentDaySnapshot(
-    List<ConsumedFoodItem> snapshot,
-  ) async {
-    await DatabaseHelper().replaceConsumedFoodsForDate(currentDate, snapshot);
-    await loadConsumedFoods();
-    notifyListeners();
+  Future<void> restoreCurrentDaySnapshot(List<ConsumedFoodItem> snapshot) async {
+    await clearDay();
+    for (final item in snapshot) {
+      await addConsumedFood(item);
+    }
   }
 
   Future<int> copyMealFromYesterday(String mealName) async {
     final yesterday = currentDate.subtract(const Duration(days: 1));
-    final consumedFoods = await DatabaseHelper().getConsumedFoods(yesterday);
-    final yesterdayMeal =
-        consumedFoods.where((food) => food.mealName == mealName).toList();
-
-    var copiedCount = 0;
-    for (final consumedFood in yesterdayMeal) {
-      final foodId = consumedFood.food.id;
-      if (foodId == null) {
-        continue;
-      }
-      final food = await _resolveFoodById(foodId);
-      if (food == null) {
-        continue;
-      }
-      if ((food.id != null && food.id! < 0) || food.source == 'ai') {
-        await addLocalAiFood(
-          mealName,
-          food,
-          consumedFood.quantity,
-          currentDate,
-        );
-      } else {
-        await addOrUpdateFood(
-          mealName,
-          food,
-          consumedFood.quantity,
-          currentDate,
-        );
-      }
-      copiedCount++;
+    final yesterdayStr = DateFormat('yyyy-MM-dd').format(yesterday);
+    final daily = await _nutritionRepository.getDailyFoods(yesterdayStr);
+    final items = daily[mealName] ?? [];
+    for (final item in items) {
+      await addConsumedFood(item.copyWith(date: currentDate));
     }
-    return copiedCount;
+    return items.length;
   }
 
   Future<int> copyDayFromYesterday() async {
     final yesterday = currentDate.subtract(const Duration(days: 1));
-    final consumedFoods = await DatabaseHelper().getConsumedFoods(yesterday);
-    var copiedCount = 0;
-    for (final consumedFood in consumedFoods) {
-      final foodId = consumedFood.food.id;
-      if (foodId == null) continue;
-      final food = await _resolveFoodById(foodId);
-      if (food == null) continue;
-      if ((food.id != null && food.id! < 0) || food.source == 'ai') {
-        await addLocalAiFood(
-          consumedFood.mealName,
-          food,
-          consumedFood.quantity,
-          currentDate,
-        );
-      } else {
-        await addOrUpdateFood(
-          consumedFood.mealName,
-          food,
-          consumedFood.quantity,
-          currentDate,
-        );
+    final yesterdayStr = DateFormat('yyyy-MM-dd').format(yesterday);
+    final daily = await _nutritionRepository.getDailyFoods(yesterdayStr);
+    var count = 0;
+    for (final entry in daily.entries) {
+      for (final item in entry.value) {
+        await addConsumedFood(item.copyWith(date: currentDate));
+        count++;
       }
-      copiedCount++;
     }
-    return copiedCount;
+    return count;
   }
 
-  String buildMealSharePayload(String mealName) {
-    final items = _getMealList(mealName)
-        .where((item) => item.food.id != null)
-        .map(
-          (item) => {
-            'food_id': item.food.id,
-            'quantity': item.quantity,
-          },
-        )
-        .toList();
+  String buildMealSharePayload(String mealName, [List<ConsumedFoodItem>? items]) {
+    final list = items ??
+        (mealName == 'breakfast'
+            ? breakfast
+            : mealName == 'lunch'
+                ? lunch
+                : mealName == 'dinner'
+                    ? dinner
+                    : snacks);
     return jsonEncode({
-      'type': 'macro_mate_meal',
+      'type': 'macromate_meal_share',
       'version': 1,
-      'meal_name': mealName,
-      'items': items,
+      'mealName': mealName,
+      'createdAt': DateTime.now().toIso8601String(),
+      'items': list
+          .map((i) => {
+                'food': i.food.toMap(),
+                'quantity': i.quantity,
+              })
+          .toList(),
     });
   }
 
-  Future<int> importMealSharePayload(String payload, String mealName) async {
-    final decoded = jsonDecode(payload);
-    if (decoded is! Map<String, dynamic> ||
-        decoded['type'] != 'macro_mate_meal') {
-      throw Exception('Kein gültiger MacroMate-Mahlzeit-QR.');
-    }
-    final items = decoded['items'];
-    if (items is! List || items.isEmpty) {
-      throw Exception('Der QR-Code enthält keine Lebensmittel.');
-    }
-
-    var importedCount = 0;
-    for (final item in items) {
-      if (item is! Map) continue;
-      final foodIdValue = item['food_id'];
-      final quantityValue = item['quantity'];
-      final foodId = foodIdValue is int
-          ? foodIdValue
-          : int.tryParse(foodIdValue?.toString() ?? '');
-      final quantity = quantityValue is int
-          ? quantityValue
-          : int.tryParse(quantityValue?.toString() ?? '');
-      if (foodId == null || quantity == null || quantity <= 0) continue;
-      final food = await _resolveFoodById(foodId);
-      if (food == null) continue;
-      if ((food.id != null && food.id! < 0) || food.source == 'ai') {
-        await addLocalAiFood(mealName, food, quantity, currentDate);
-      } else {
-        await addOrUpdateFood(mealName, food, quantity, currentDate);
-      }
-      importedCount++;
-    }
-    return importedCount;
-  }
-
-  Future<void> deleteSavedMeal(int id) async {
-    await DatabaseHelper().deleteSavedMeal(id);
-    await loadSavedMeals();
-    notifyListeners();
-  }
-
-  Future<void> loadConsumedFoods() async {
+  Future<int> importMealSharePayload(
+    String payload, [
+    String? targetMealName,
+    DateTime? targetDate,
+  ]) async {
     try {
-      final dbHelper = DatabaseHelper();
-      List<ConsumedFoodItem> consumedFoods = await dbHelper.getConsumedFoods(
-        currentDate,
-      );
-      for (int i = 0; i < consumedFoods.length; i++) {
-        ConsumedFoodItem cItem = consumedFoods[i];
-        final int? remoteId = cItem.food.id;
-        if (remoteId != null) {
-          final remoteFood = await _resolveFoodById(remoteId);
-          if (remoteFood != null) {
-            consumedFoods[i] = cItem.copyWith(
-              food: await _applyLocalUsage(remoteFood),
-            );
-          }
+      final data = jsonDecode(payload);
+      if (data is! Map || data['items'] is! List) return 0;
+      final meal = targetMealName ?? (data['mealName'] as String? ?? 'snacks');
+      final items = data['items'] as List;
+      var count = 0;
+      for (final item in items) {
+        if (item is Map) {
+          final foodMap = Map<String, dynamic>.from(item['food'] ?? {});
+          final food = FoodItem.fromMap(foodMap);
+          final qty = (item['quantity'] as num?)?.toInt() ?? 100;
+          await addConsumedFood(
+            ConsumedFoodItem(
+              mealName: meal,
+              food: food,
+              quantity: qty,
+              date: targetDate ?? currentDate,
+            ),
+          );
+          count++;
         }
       }
-      breakfast =
-          consumedFoods.where((f) => f.mealName == 'Frühstück').toList();
-      lunch = consumedFoods.where((f) => f.mealName == 'Mittagessen').toList();
-      dinner = consumedFoods.where((f) => f.mealName == 'Abendessen').toList();
-      snacks = consumedFoods.where((f) => f.mealName == 'Snacks').toList();
-      _calculateConsumedMacros();
-    } catch (e, st) {
-      _logError('loadConsumedFoods', e, st);
+      return count;
+    } catch (_) {
+      return 0;
     }
   }
 
-  void _calculateConsumedMacros() {
-    consumedCalories = 0.0;
-    consumedCarbs = 0.0;
-    consumedProtein = 0.0;
-    consumedFat = 0.0;
-    consumedSugar = 0.0;
-    for (var cItem in breakfast + lunch + dinner + snacks) {
-      consumedCalories += (cItem.food.caloriesPer100g * cItem.quantity) / 100;
-      consumedCarbs += (cItem.food.carbsPer100g * cItem.quantity) / 100;
-      consumedProtein += (cItem.food.proteinPer100g * cItem.quantity) / 100;
-      consumedFat += (cItem.food.fatPer100g * cItem.quantity) / 100;
-      consumedSugar += (cItem.food.sugarPer100g * cItem.quantity) / 100;
-    }
-    _updateMacroWidget();
+  void previousDay() => goToPreviousDay();
+  void nextDay() => goToNextDay();
+
+
+
+
+  Future<void> resetGoals() => settingsController.resetGoals();
+  Future<void> resetDatabase() async {
+    await settingsController.resetDatabase();
+    await initializeCompletely();
   }
 
-  Future<void> _updateMacroWidget() async {
-    if (defaultTargetPlatform != TargetPlatform.android) return;
-    try {
-      await _widgetChannel.invokeMethod('updateMacroWidget', {
-        'consumedCalories': consumedCalories,
-        'dailyCalorieGoal': dailyCalorieGoal,
-        'consumedCarbs': consumedCarbs,
-        'consumedProtein': consumedProtein,
-        'consumedFat': consumedFat,
-      });
-    } catch (e, st) {
-      _logError('updateMacroWidget', e, st);
-    }
-  }
+  // Notifications
+  Future<void> scheduleAllNotifications() async {
+    final nextPeriod = cycleController.forecastState?.nextPeriod;
+    final tip = dashboardController.discreteCycleTip;
 
-  double get dailySugarGoalGrams =>
-      dailyCarbGoal * dailySugarGoalPercentage / 100;
-
-  Future<WeeklyNutritionSummary> calculateWeeklySummary() async {
-    final start = currentDate.subtract(Duration(days: currentDate.weekday - 1));
-    final end = start.add(const Duration(days: 6));
-    final entries = await DatabaseHelper().getConsumedFoodsBetween(start, end);
-    var calories = 0.0;
-    var carbs = 0.0;
-    var protein = 0.0;
-    var fat = 0.0;
-    for (final entry in entries) {
-      final foodId = entry.food.id;
-      if (foodId == null) continue;
-      final food = await _resolveFoodById(foodId);
-      if (food == null) continue;
-      calories += food.caloriesPer100g * entry.quantity / 100.0;
-      carbs += food.carbsPer100g * entry.quantity / 100.0;
-      protein += food.proteinPer100g * entry.quantity / 100.0;
-      fat += food.fatPer100g * entry.quantity / 100.0;
-    }
-    double adherence(double value, double goal) {
-      if (goal <= 0) return 1.0;
-      return (1 - ((value - goal).abs() / goal)).clamp(0.0, 1.0);
-    }
-
-    final weeklyCarbGoal = dailyCarbGoal * 7;
-    final weeklyProteinGoal = dailyProteinGoal * 7;
-    final weeklyFatGoal = dailyFatGoal * 7;
-    final macroScore = (adherence(carbs, weeklyCarbGoal) +
-            adherence(protein, weeklyProteinGoal) +
-            adherence(fat, weeklyFatGoal)) /
-        3;
-    return WeeklyNutritionSummary(
-      averageCalories: calories / 7,
-      remainingCalories: dailyCalorieGoal * 7 - calories,
-      macroAdherence: macroScore * 100,
-      weightTrend: computeWeightChangeInLastWeek(),
+    await notificationController.rescheduleAll(
+      breakfastTime: reminderBreakfast,
+      lunchTime: reminderLunch,
+      dinnerTime: reminderDinner,
+      weighTime: reminderWeighTime,
+      nextPeriodDate: nextPeriod,
+      personalizedInsight: tip,
     );
   }
 
-  Future<List<WeeklyDaySummary>> calculateWeeklyDayBreakdown() async {
-    final start = currentDate.subtract(Duration(days: currentDate.weekday - 1));
-    final end = start.add(const Duration(days: 6));
-    final entries = await DatabaseHelper().getConsumedFoodsBetween(start, end);
+  // Backup & Restore
+  Future<String> exportDatabase({
+    required String password,
+    Set<String> categories = const {
+      'nutrition',
+      'goals',
+      'settings',
+      'weight',
+      'health',
+      'cycle',
+      'notifications',
+    },
+  }) async {
+    final payload = <String, dynamic>{
+      'version': 27,
+      'createdAt': DateTime.now().toIso8601String(),
+    };
 
-    final Map<int, List<ConsumedFoodItem>> entriesByDay = {};
-    for (var i = 1; i <= 7; i++) {
-      entriesByDay[i] = [];
+    if (categories.contains('nutrition')) {
+      final foods = await _nutritionRepository.searchFoods('');
+      payload['foods'] = foods.map((f) => f.toMap()).toList();
+      final saved = await _nutritionRepository.getSavedMeals();
+      payload['saved_meals'] = saved.map((s) => {
+        'id': s.id,
+        'name': s.name,
+        'default_meal_name': s.defaultMealName,
+        'created_at': s.createdAt.toIso8601String(),
+        'recipe_total_weight': s.recipeTotalWeight,
+        'ingredients': s.ingredients.map((i) => {
+          'id': i.id,
+          'saved_meal_id': i.savedMealId,
+          'food_id': i.food.id,
+          'quantity': i.quantity,
+        }).toList(),
+      }).toList();
     }
-    for (final entry in entries) {
-      final weekday = entry.date.weekday;
-      entriesByDay[weekday]?.add(entry);
+
+    if (categories.contains('weight')) {
+      final weights = await _weightRepository.list();
+      payload['weights'] = weights.map((w) => {
+        'id': w.id,
+        'date': '${w.day.year}-${w.day.month.toString().padLeft(2, '0')}-${w.day.day.toString().padLeft(2, '0')}',
+        'weight': w.kilograms,
+      }).toList();
     }
 
-    final List<WeeklyDaySummary> list = [];
-    final weekdayNames = [
-      'Montag',
-      'Dienstag',
-      'Mittwoch',
-      'Donnerstag',
-      'Freitag',
-      'Samstag',
-      'Sonntag'
-    ];
-    final Map<int, FoodItem> resolvedFoods = {};
+    if (categories.contains('settings') || categories.contains('goals')) {
+      final goals = await _settingsRepository.getGoals();
+      final settings = await _settingsRepository.getSettings();
+      payload['goals'] = {
+        'daily_calories': goals.dailyCalories,
+        'carb_percentage': goals.carbPercentage,
+        'protein_percentage': goals.proteinPercentage,
+        'fat_percentage': goals.fatPercentage,
+        'sugar_percentage': goals.sugarPercentage,
+        'auto_calorie_mode': goals.autoCalorieMode.index,
+        'custom_percent_per_month': goals.customPercentPerMonth,
+        'use_custom_start_calories': goals.useCustomStartCalories ? 1 : 0,
+        'user_start_calories': goals.userStartCalories,
+        'user_age': goals.userAge,
+        'user_activity_level': goals.userActivityLevel,
+        'user_height': goals.userHeight,
+        'use_protein_per_kg': goals.useProteinPerKg ? 1 : 0,
+        'protein_per_kg': goals.proteinPerKg,
+      };
+      payload['settings'] = {
+        'dark_mode': settings.darkMode ? 1 : 0,
+        'reminder_weigh_enabled': settings.reminderWeighEnabled ? 1 : 0,
+        'reminder_weigh_time': settings.reminderWeighTime,
+        'reminder_weigh_time2': settings.reminderWeighTime2,
+        'reminder_supplement_enabled': settings.reminderSupplementEnabled ? 1 : 0,
+        'reminder_supplement_time': settings.reminderSupplementTime,
+        'reminder_supplement_time2': settings.reminderSupplementTime2,
+        'reminder_meals_enabled': settings.reminderMealsEnabled ? 1 : 0,
+        'reminder_breakfast': settings.reminderBreakfast,
+        'reminder_lunch': settings.reminderLunch,
+        'reminder_dinner': settings.reminderDinner,
+      };
+    }
 
-    for (var i = 1; i <= 7; i++) {
-      final date = start.add(Duration(days: i - 1));
-      final dayEntries = entriesByDay[i] ?? [];
-      var calories = 0.0;
-      var carbs = 0.0;
-      var protein = 0.0;
-      var fat = 0.0;
+    if (categories.contains('cycle')) {
+      final periods = await _cycleRepository.periods();
+      final logs = await _cycleRepository.dailyLogs(from: DateTime.now().subtract(const Duration(days: 365)));
+      payload['periods'] = periods.map((p) => {
+        'id': p.id,
+        'start_day': '${p.startDay.year}-${p.startDay.month.toString().padLeft(2, '0')}-${p.startDay.day.toString().padLeft(2, '0')}',
+        'end_day': p.endDay != null ? '${p.endDay!.year}-${p.endDay!.month.toString().padLeft(2, '0')}-${p.endDay!.day.toString().padLeft(2, '0')}' : null,
+        'flow': p.flow?.name,
+        'source': p.source,
+      }).toList();
+      payload['cycle_logs'] = logs.map((l) => {
+        'day': '${l.day.year}-${l.day.month.toString().padLeft(2, '0')}-${l.day.day.toString().padLeft(2, '0')}',
+        'bleeding': l.bleeding?.name,
+        'mood': l.mood,
+        'pain': l.pain,
+        'energy': l.energy,
+        'sleep_quality': l.sleepQuality,
+        'notes': l.notes,
+        'tags': l.tags,
+      }).toList();
+    }
 
-      for (final entry in dayEntries) {
-        final foodId = entry.food.id;
-        if (foodId == null) continue;
+    return await _backupService.encrypt(
+      payload,
+      password: password,
+    );
+  }
 
-        FoodItem? food = resolvedFoods[foodId];
-        if (food == null) {
-          food = await _resolveFoodById(foodId);
-          if (food != null) {
-            resolvedFoods[foodId] = food;
+  Future<void> importDatabase(String encryptedJson, {String password = ''}) async {
+    Map<String, dynamic> data;
+    try {
+      data = await _backupService.decrypt(encryptedJson, password: password);
+    } catch (_) {
+      try {
+        final decoded = jsonDecode(encryptedJson);
+        data = decoded is Map<String, dynamic> ? decoded : {};
+      } catch (_) {
+        data = {};
+      }
+    }
+
+    if (data.containsKey('foods') && data['foods'] is List) {
+      for (final f in data['foods']) {
+        final item = FoodItem.fromMap(Map<String, dynamic>.from(f));
+        await _nutritionRepository.saveFood(item);
+      }
+    }
+
+    if (data.containsKey('weights') && data['weights'] is List) {
+      for (final w in data['weights']) {
+        final date = DateTime.parse(w['date']);
+        final weight = (w['weight'] as num).toDouble();
+        await _weightRepository.add(day: date, kilograms: weight);
+      }
+    }
+
+    await initializeCompletely();
+  }
+
+  // Food Search Methods
+  Future<List<FoodItem>> searchFood(String query) async {
+    final local = await _nutritionRepository.searchFoods(query);
+    if (local.isNotEmpty) return local;
+    return await searchOpenFoodFacts(query);
+  }
+
+  Future<List<FoodItem>> searchOpenFoodFacts(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+    if (_offSearchCache.containsKey(trimmed)) {
+      return _offSearchCache[trimmed]!;
+    }
+
+    try {
+      final url = Uri.parse(
+        '$openFoodFactsBaseUrl/cgi/search.pl?search_terms=$trimmed&search_simple=1&action=process&json=1&page_size=20',
+      );
+      final response = await http.get(url).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final products = data['products'] as List? ?? [];
+        final results = <FoodItem>[];
+        for (final p in products) {
+          final nutriments = p['nutriments'] ?? {};
+          final name = p['product_name'] ?? p['generic_name'] ?? 'Unbekannt';
+          final brand = p['brands'] ?? 'Unbekannt';
+          final cal = nutriments['energy-kcal_100g'] ??
+              nutriments['energy-kcal'] ??
+              0;
+          final fat = (nutriments['fat_100g'] ?? 0).toDouble();
+          final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
+          final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
+          final prot = (nutriments['proteins_100g'] ?? 0).toDouble();
+
+          if (name != 'Unbekannt' && cal > 0) {
+            results.add(
+              FoodItem(
+                name: name,
+                brand: brand,
+                barcode: p['code'],
+                caloriesPer100g: (cal as num).round(),
+                fatPer100g: fat,
+                carbsPer100g: carbs,
+                sugarPer100g: sugar,
+                proteinPer100g: prot,
+                source: 'openfoodfacts',
+                isVerified: false,
+              ),
+            );
           }
         }
+        _offSearchCache[trimmed] = results;
+        return results;
+      }
+    } catch (_) {
+      // Fallback to empty list on network failure
+    }
+    return [];
+  }
 
-        if (food != null) {
-          calories += food.caloriesPer100g * entry.quantity / 100.0;
-          carbs += food.carbsPer100g * entry.quantity / 100.0;
-          protein += food.proteinPer100g * entry.quantity / 100.0;
-          fat += food.fatPer100g * entry.quantity / 100.0;
+  Future<FoodItem?> searchOpenFoodFactsByBarcode(String barcode) async {
+    final code = barcode.trim().toLowerCase();
+    if (code.isEmpty) return null;
+
+    final local = await _nutritionRepository.getFoodByBarcode(code);
+    if (local != null) return local;
+
+    if (_offBarcodeCache.containsKey(code)) {
+      return _offBarcodeCache[code];
+    }
+
+    try {
+      final url = Uri.parse('$openFoodFactsBaseUrl/api/v2/product/$code.json');
+      final response = await http.get(url).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 1 && data['product'] != null) {
+          final p = data['product'];
+          final nutriments = p['nutriments'] ?? {};
+          final name = p['product_name'] ?? p['generic_name'] ?? 'Unbekannt';
+          final brand = p['brands'] ?? 'Unbekannt';
+          final cal = nutriments['energy-kcal_100g'] ??
+              nutriments['energy-kcal'] ??
+              0;
+          final fat = (nutriments['fat_100g'] ?? 0).toDouble();
+          final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
+          final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
+          final prot = (nutriments['proteins_100g'] ?? 0).toDouble();
+
+          final item = FoodItem(
+            name: name,
+            brand: brand,
+            barcode: code,
+            caloriesPer100g: (cal as num).round(),
+            fatPer100g: fat,
+            carbsPer100g: carbs,
+            sugarPer100g: sugar,
+            proteinPer100g: prot,
+            source: 'openfoodfacts',
+            isVerified: false,
+          );
+          _offBarcodeCache[code] = item;
+          return item;
         }
       }
-
-      list.add(WeeklyDaySummary(
-        date: date,
-        dayName: weekdayNames[i - 1],
-        calories: calories,
-        carbs: carbs,
-        protein: protein,
-        fat: fat,
-      ));
+    } catch (_) {
+      // Offline fallback
     }
-    return list;
+    return null;
   }
 
-  Future<void> loadGoals() async {
-    try {
-      Map<String, dynamic>? goals = await DatabaseHelper().getGoals();
-      if (goals != null) {
-        dailyCalorieGoal = goals['daily_calories'];
-        int carbPerc = goals['carb_percentage'];
-        int proteinPerc = goals['protein_percentage'];
-        int fatPerc = goals['fat_percentage'];
-        int sugarPerc = goals['sugar_percentage'].toInt();
-        final autoModeIndex = goals['auto_calorie_mode'] ?? 0;
-        autoMode = autoModeIndex is int &&
-                autoModeIndex >= 0 &&
-                autoModeIndex < AutoCalorieMode.values.length
-            ? AutoCalorieMode.values[autoModeIndex]
-            : AutoCalorieMode.off;
-        customPercentPerMonth =
-            (goals['custom_percent_per_month'] ?? 1.0) * 1.0;
-        useCustomStartCalories = (goals['use_custom_start_calories'] ?? 0) == 1;
-        userStartCalories = goals['user_start_calories'] ?? 2000;
-        userAge = goals['user_age'] ?? 30;
-        userActivityLevel = (goals['user_activity_level'] ?? 1.3).toDouble();
-        double h = 170.0;
-        if (goals.containsKey('user_height')) {
-          h = (goals['user_height'] ?? 170).toDouble();
-        }
-        userHeight = h;
-        lastMondayCheck = goals['last_monday_check'];
-        firstWeekInitialized = (goals['first_week_initialized'] ?? 0) == 1;
-        useProteinPerKg = (goals['use_protein_per_kg'] ?? 0) == 1;
-        proteinPerKg = (goals['protein_per_kg'] ?? 2.0).toDouble();
-        targetWeight = (goals['target_weight'] as num?)?.toDouble();
-        targetDate = goals['target_date'] == null
-            ? null
-            : DateTime.tryParse(goals['target_date'] as String);
-        targetWeeklyChange =
-            (goals['target_weekly_change'] as num?)?.toDouble();
-        dailyCarbGoal = (dailyCalorieGoal * carbPerc / 100) / 4.0;
-        dailyProteinGoal = useProteinPerKg
-            ? _proteinGoalFromWeight()
-            : (dailyCalorieGoal * proteinPerc / 100) / 4.0;
-        dailyFatGoal = (dailyCalorieGoal * fatPerc / 100) / 9.0;
-        dailySugarGoalPercentage = sugarPerc;
+  // Weekly Summaries
+  Future<WeeklyNutritionSummary> getWeeklyNutritionSummary({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final end = endDate ?? DateTime.now();
+    final start = startDate ?? end.subtract(const Duration(days: 6));
+
+    var totalCal = 0.0;
+    var dayCount = 0;
+
+    for (var d = start; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
+      final dateStr = DateFormat('yyyy-MM-dd').format(d);
+      final foods = await _nutritionRepository.getDailyFoods(dateStr);
+      final all = [
+        ...foods['breakfast'] ?? [],
+        ...foods['lunch'] ?? [],
+        ...foods['dinner'] ?? [],
+        ...foods['snacks'] ?? [],
+      ];
+      for (final item in all) {
+        totalCal += item.food.caloriesPer100g * (item.quantity / 100.0);
       }
-    } catch (e, st) {
-      _logError('loadGoals', e, st);
+      dayCount++;
     }
+
+    final avgCal = dayCount > 0 ? totalCal / dayCount : 0.0;
+    final remaining = dailyCalorieGoal - avgCal;
+    final adherence = dailyCalorieGoal > 0 ? (avgCal / dailyCalorieGoal) : 1.0;
+    final trend = weightController.sevenDayTrend ?? 0.0;
+
+    return WeeklyNutritionSummary(
+      averageCalories: avgCal,
+      remainingCalories: remaining,
+      macroAdherence: adherence,
+      weightTrend: trend,
+    );
   }
 
-  double _proteinGoalFromWeight() {
-    final weight =
-        _weightEntries.isNotEmpty ? _weightEntries.last.weight : 80.0;
-    return (weight * proteinPerKg).clamp(0.0, 500.0);
-  }
+  Future<List<WeeklyDaySummary>> getWeeklyDaySummaries({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final end = endDate ?? DateTime.now();
+    final start = startDate ?? end.subtract(const Duration(days: 6));
+    final summaries = <WeeklyDaySummary>[];
 
-  void _refreshProteinGoalFromWeightIfNeeded() {
-    if (useProteinPerKg) {
-      dailyProteinGoal = _proteinGoalFromWeight();
-    }
-  }
+    for (var d = start; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
+      final dateStr = DateFormat('yyyy-MM-dd').format(d);
+      final foods = await _nutritionRepository.getDailyFoods(dateStr);
+      final all = [
+        ...foods['breakfast'] ?? [],
+        ...foods['lunch'] ?? [],
+        ...foods['dinner'] ?? [],
+        ...foods['snacks'] ?? [],
+      ];
 
-  Future<void> updateGoals(
-    int newCalorieGoal,
-    int carbPerc,
-    int proteinPerc,
-    int fatPerc,
-    int sugarPerc,
-  ) async {
-    try {
-      final safeCalories = newCalorieGoal <= 0 ? 1 : newCalorieGoal;
-      dailyCalorieGoal = newCalorieGoal;
-      dailyCarbGoal = (safeCalories * carbPerc / 100) / 4.0;
-      dailyProteinGoal = useProteinPerKg
-          ? _proteinGoalFromWeight()
-          : (safeCalories * proteinPerc / 100) / 4.0;
-      dailyFatGoal = (safeCalories * fatPerc / 100) / 9.0;
-      dailySugarGoalPercentage = sugarPerc;
-      await DatabaseHelper().saveGoalsExtended(
-        dailyCalories: dailyCalorieGoal,
-        carbPercentage: carbPerc,
-        proteinPercentage: proteinPerc,
-        fatPercentage: fatPerc,
-        sugarPercentage: sugarPerc,
-        autoCalorieModeIndex: autoMode.index,
-        customPercentPerMonth: customPercentPerMonth,
-        useCustomStartCaloriesInt: useCustomStartCalories ? 1 : 0,
-        userStartCalories: userStartCalories,
-        userAge: userAge,
-        userActivityLevel: userActivityLevel,
-        lastMondayCheck: lastMondayCheck,
-        firstWeekInitializedVal: firstWeekInitialized,
-        userHeightVal: userHeight,
-        useProteinPerKgInt: useProteinPerKg ? 1 : 0,
-        proteinPerKg: proteinPerKg,
-        targetWeight: targetWeight,
-        targetDate: targetDate?.toIso8601String(),
-        targetWeeklyChange: targetWeeklyChange,
+      var cal = 0.0;
+      var carbs = 0.0;
+      var prot = 0.0;
+      var fat = 0.0;
+
+      for (final item in all) {
+        final factor = item.quantity / 100.0;
+        cal += item.food.caloriesPer100g * factor;
+        carbs += item.food.carbsPer100g * factor;
+        prot += item.food.proteinPer100g * factor;
+        fat += item.food.fatPer100g * factor;
+      }
+
+      final dayName = DateFormat('E', 'de_DE').format(d);
+      summaries.add(
+        WeeklyDaySummary(
+          date: d,
+          dayName: dayName,
+          calories: cal,
+          carbs: carbs,
+          protein: prot,
+          fat: fat,
+        ),
       );
-      notifyListeners();
-    } catch (e, st) {
-      _logError('updateGoals', e, st);
     }
+
+    return summaries;
   }
 
-  Future<void> loadDarkMode() async {
-    try {
-      isDarkMode = await DatabaseHelper().getDarkMode();
-    } catch (e, st) {
-      _logError('loadDarkMode', e, st);
+  Future<WeeklyNutritionSummary> calculateWeeklySummary({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) =>
+      getWeeklyNutritionSummary(startDate: startDate, endDate: endDate);
+
+  Future<List<WeeklyDaySummary>> calculateWeeklyDayBreakdown({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) =>
+      getWeeklyDaySummaries(startDate: startDate, endDate: endDate);
+
+  Future<List<FoodItem>> searchFoodItemsRemote(String query) =>
+      searchOpenFoodFacts(query);
+
+  Future<void> loadRecentFoodItems({int limit = 20}) =>
+      nutritionController.loadFrequentFoods(limit: limit);
+
+  Future<FoodItem?> loadFoodItemByBarcode(String barcode) =>
+      searchOpenFoodFactsByBarcode(barcode);
+
+  Future<FoodItem> updateBarcodeForFood(dynamic foodOrId, String barcode) async {
+    if (foodOrId is FoodItem) {
+      final updated = foodOrId.copyWith(barcode: barcode);
+      if (foodOrId.id != null) {
+        await _nutritionRepository.saveFood(updated);
+      }
+      return updated;
+    } else if (foodOrId is int) {
+      final food = await _nutritionRepository.getFoodById(foodOrId);
+      if (food != null) {
+        final updated = food.copyWith(barcode: barcode);
+        await _nutritionRepository.saveFood(updated);
+        return updated;
+      }
     }
-  }
-
-  Future<void> toggleDarkMode(bool value) async {
-    isDarkMode = value;
-    await DatabaseHelper().saveDarkMode(isDarkMode);
-    notifyListeners();
-  }
-
-  Future<void> autoAdjustCaloriesIfNeeded() async {
-    if (autoMode == AutoCalorieMode.off) return;
-    // erste Berechnung nur solange firstWeekInitialized == false
-    await recalculateGoals(fromBmr: !firstWeekInitialized);
-  }
-
-  Future<void> _checkMondayAndAutoAdjustIfNeeded() async {
-    if (autoMode == AutoCalorieMode.off) return;
-    final now = DateTime.now();
-    if (now.weekday == DateTime.monday &&
-        lastMondayCheck !=
-            "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}") {
-      await recalculateGoals(fromBmr: false);
-    }
-  }
-
-  double computeWeightChangeInLastWeek() {
-    if (_weightEntries.length < 2) return 0.0;
-    DateTime now = DateTime.now();
-    DateTime oneWeekAgo = now.subtract(Duration(days: 7));
-    List<WeightEntry> lastWeek =
-        _weightEntries.where((e) => e.date.isAfter(oneWeekAgo)).toList();
-    if (lastWeek.isEmpty) return 0.0;
-    double avgNow =
-        lastWeek.map((e) => e.weight).reduce((a, b) => a + b) / lastWeek.length;
-    DateTime weekBefore = now.subtract(Duration(days: 14));
-    List<WeightEntry> priorWeek = _weightEntries
-        .where((e) => e.date.isAfter(weekBefore) && e.date.isBefore(oneWeekAgo))
-        .toList();
-    if (priorWeek.isEmpty) return 0.0;
-    double avgPast = priorWeek.map((e) => e.weight).reduce((a, b) => a + b) /
-        priorWeek.length;
-    return avgNow - avgPast;
-  }
-
-  double computeWeightChangeInLastTwoWeeks() {
-    if (_weightEntries.length < 2) return 0.0;
-    DateTime now = DateTime.now();
-    DateTime twoWeeksAgo = now.subtract(Duration(days: 14));
-    List<WeightEntry> lastTwoWeeks = _weightEntries
-        .where((entry) => entry.date.isAfter(twoWeeksAgo))
-        .toList();
-    if (lastTwoWeeks.isEmpty) {
-      return 0.0;
-    }
-    double avgNow = lastTwoWeeks.map((e) => e.weight).reduce((a, b) => a + b) /
-        lastTwoWeeks.length;
-    DateTime twoWeeksBeforeThat = now.subtract(Duration(days: 28));
-    List<WeightEntry> priorTwoWeeks = _weightEntries
-        .where(
-          (entry) =>
-              entry.date.isAfter(twoWeeksBeforeThat) &&
-              entry.date.isBefore(twoWeeksAgo),
-        )
-        .toList();
-    if (priorTwoWeeks.isEmpty) {
-      return 0.0;
-    }
-    double avgPast =
-        priorTwoWeeks.map((e) => e.weight).reduce((a, b) => a + b) /
-            priorTwoWeeks.length;
-    return avgNow - avgPast;
+    return FoodItem(
+      name: 'Unbekannt',
+      brand: '',
+      caloriesPer100g: 0,
+      carbsPer100g: 0,
+      proteinPer100g: 0,
+      fatPer100g: 0,
+      sugarPer100g: 0,
+      barcode: barcode,
+    );
   }
 
   Future<void> addOrUpdateFood(
     String mealName,
     FoodItem food,
-    int quantity,
-    DateTime date,
-  ) async {
-    try {
-      int newRemoteId;
-      if (food.id == null) {
-        try {
-          newRemoteId = await _remoteService.insertOrUpdateFoodItem(food);
-        } catch (e, st) {
-          _logError('remote food insert failed', e, st);
-          rethrow;
-        }
-      } else {
-        newRemoteId = food.id!;
-      }
-      await DatabaseHelper().upsertFoodUsage(newRemoteId, quantity);
-      FoodItem foodWithId = food.copyWith(
-        id: newRemoteId,
-        lastUsedQuantity: quantity,
-      );
-      List<ConsumedFoodItem> mealList = _getMealList(mealName);
-      int index = mealList.indexWhere((item) => item.food.id == foodWithId.id);
-      if (index != -1) {
-        ConsumedFoodItem existingItem = mealList[index];
-        if (existingItem.id == null) {
-          throw Exception("ConsumedFoodItem hat keine ID.");
-        }
-        int newQuantity = existingItem.quantity + quantity;
-        await DatabaseHelper().updateConsumedFood(
-          existingItem.id!,
-          newQuantity,
-        );
-        ConsumedFoodItem updatedItem = existingItem.copyWith(
-          food: foodWithId,
-          quantity: newQuantity,
-        );
-        mealList[index] = updatedItem;
-      } else {
-        int consumedFoodId = await DatabaseHelper().insertConsumedFood(
-          date,
-          mealName,
-          foodWithId.id!,
-          quantity,
-        );
-        ConsumedFoodItem newConsumedFood = ConsumedFoodItem(
-          id: consumedFoodId,
-          food: foodWithId,
-          quantity: quantity,
-          date: date,
+    int quantity, [
+    DateTime? date,
+  ]) =>
+      addConsumedFood(
+        ConsumedFoodItem(
           mealName: mealName,
-        );
-        mealList.add(newConsumedFood);
-      }
-      _calculateConsumedMacros();
-      await loadRecentFoodItems();
-      notifyListeners();
-    } catch (e) {
-      rethrow;
+          food: food,
+          quantity: quantity,
+          date: date ?? currentDate,
+        ),
+      );
+
+  // Account & Authentication
+  Future<bool> registerUser(String email, String password) async {
+    try {
+      final existing = await _remoteService.getUserByEmail(email);
+      if (existing != null) return false;
+      final salt = BCrypt.gensalt();
+      final hash = BCrypt.hashpw(password, salt);
+      final code = (100000 + Random().nextInt(900000)).toString();
+      await _remoteService.insertUserWithVerification(email, hash, code);
+      return true;
+    } catch (e, st) {
+      reportUiError('registerUser', e, st);
+      return false;
     }
   }
+
+  Future<bool> verifyAccount(String email, String code) async {
+    try {
+      final user = await _remoteService.getUserByEmail(email);
+      if (user == null) return false;
+      if (user['verification_code'] == code) {
+        await _remoteService.verifyUser(email);
+        return true;
+      }
+    } catch (e, st) {
+      reportUiError('verifyAccount', e, st);
+    }
+    return false;
+  }
+
+  Future<bool> login(String email, String password) async {
+    try {
+      final user = await _remoteService.getUserByEmail(email);
+      if (user != null) {
+        final isVerified = user['is_verified'] == true;
+        final hash = user['password_hash'] as String?;
+        if (isVerified && hash != null && BCrypt.checkpw(password, hash)) {
+          await settingsController.saveCredentials(email, password);
+          isLoggedIn = true;
+          notifyListeners();
+          return true;
+        }
+      }
+    } catch (e, st) {
+      reportUiError('login', e, st);
+    }
+    return false;
+  }
+
+  Future<void> logout() async {
+    await settingsController.clearCredentials();
+    isLoggedIn = false;
+    notifyListeners();
+  }
+
+  Future<bool> deleteAccount() async {
+    try {
+      final email = await settingsController.getSavedEmail();
+      if (email != null) {
+        await _remoteService.deleteUserByEmail(email);
+      }
+    } catch (_) {}
+    await settingsController.clearCredentials();
+    await resetDatabase();
+    isLoggedIn = false;
+    notifyListeners();
+    return true;
+  }
+
+
 
   Future<void> addLocalAiFood(
     String mealName,
@@ -1456,554 +1371,51 @@ class AppState extends ChangeNotifier {
     int quantity,
     DateTime date,
   ) async {
-    final db = DatabaseHelper();
-    final localFoodId = await db.insertLocalFood(
-      food.copyWith(source: 'ai'),
-      quantity,
+    await nutritionController.addConsumedFood(
+      mealName: mealName,
+      food: food,
+      quantity: quantity,
+      date: date,
     );
-    final foodWithId = food.copyWith(
-      id: localFoodId,
-      source: 'ai',
-      lastUsedQuantity: quantity,
-    );
-    final consumedFoodId = await db.insertConsumedFood(
-      date,
-      mealName,
-      localFoodId,
-      quantity,
-    );
-    _getMealList(mealName).add(
-      ConsumedFoodItem(
-        id: consumedFoodId,
-        food: foodWithId,
-        quantity: quantity,
-        date: date,
-        mealName: mealName,
-      ),
-    );
-    _calculateConsumedMacros();
-    await _updateMacroWidget();
+  }
+
+  bool isLocalLlmModelMarkedInstalled(LocalLlmModel model) {
+    return installedLocalModelFiles.contains(model.fileName) ||
+        localModelController.isInstalled;
+  }
+
+  Future<void> refreshInstalledLocalLlmModels() async {
+    await localModelController.checkModelStatus();
+    if (localModelController.isInstalled) {
+      installedLocalModelFiles.add(selectedLocalLlmModel.fileName);
+    }
     notifyListeners();
   }
 
-  Future<void> updateConsumedFoodItem(
-    ConsumedFoodItem consumedFood, {
-    int? newQuantity,
-    String? newMealName,
-  }) async {
-    try {
-      int updatedQuantity = newQuantity ?? consumedFood.quantity;
-      String updatedMealName = newMealName ?? consumedFood.mealName;
-      await DatabaseHelper().updateConsumedFood(
-        consumedFood.id!,
-        updatedQuantity,
-        newMealName: updatedMealName,
-      );
-      final foodId = consumedFood.food.id;
-      if (foodId != null) {
-        await DatabaseHelper().upsertFoodUsage(foodId, updatedQuantity);
-      }
-      final updatedFood = consumedFood.food.copyWith(
-        lastUsedQuantity: updatedQuantity,
-      );
-      List<ConsumedFoodItem> oldMealList = _getMealList(consumedFood.mealName);
-      oldMealList.removeWhere((item) => item.id == consumedFood.id);
-      List<ConsumedFoodItem> newMealList = _getMealList(updatedMealName);
-      ConsumedFoodItem updatedConsumedFood = consumedFood.copyWith(
-        food: updatedFood,
-        quantity: updatedQuantity,
-        mealName: updatedMealName,
-      );
-      newMealList.add(updatedConsumedFood);
-      _calculateConsumedMacros();
-      await loadRecentFoodItems();
-      notifyListeners();
-    } catch (e) {
-      rethrow;
+  Future<void> downloadSelectedLocalLlmModel() async {
+    await localModelController.downloadSelectedModel();
+    if (localModelController.isInstalled) {
+      installedLocalModelFiles.add(selectedLocalLlmModel.fileName);
     }
   }
 
-  List<ConsumedFoodItem> _getMealList(String mealName) {
-    if (mealName == 'Frühstück') return breakfast;
-    if (mealName == 'Mittagessen') return lunch;
-    if (mealName == 'Abendessen') return dinner;
-    if (mealName == 'Snacks') return snacks;
-    return [];
-  }
+  Future<void> startLocalModelDownload(LocalLlmModel model) =>
+      localModelController.downloadSelectedModel();
 
-  Future<void> removeFood(
-    String mealName,
-    ConsumedFoodItem consumedFood,
-  ) async {
+
+  TimeOfDay _parseTimeOfDay(String timeStr, TimeOfDay fallback) {
     try {
-      if (consumedFood.id == null) {
-        throw Exception("ConsumedFoodItem hat keine ID.");
-      }
-      await DatabaseHelper().deleteConsumedFood(consumedFood.id!);
-      List<ConsumedFoodItem> mealList = _getMealList(mealName);
-      mealList.removeWhere((item) => item.id == consumedFood.id);
-      _calculateConsumedMacros();
-      notifyListeners();
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  Future<void> resetDatabase() async {
-    try {
-      await DatabaseHelper().resetDatabase();
-      breakfast.clear();
-      lunch.clear();
-      dinner.clear();
-      snacks.clear();
-      consumedCalories = 0.0;
-      consumedCarbs = 0.0;
-      consumedProtein = 0.0;
-      consumedFat = 0.0;
-      consumedSugar = 0.0;
-      last20FoodItems.clear();
-      currentDate = DateTime.now();
-      await initializeCompletely();
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  Future<void> previousDay() async {
-    currentDate = currentDate.subtract(const Duration(days: 1));
-    await loadConsumedFoods();
-    notifyListeners();
-  }
-
-  Future<void> nextDay() async {
-    currentDate = currentDate.add(const Duration(days: 1));
-    await loadConsumedFoods();
-    notifyListeners();
-  }
-
-  Future<String> exportDatabase({String? password}) async {
-    try {
-      Map<String, dynamic> data = await DatabaseHelper().exportData();
-      if (password == null || password.isEmpty) return jsonEncode(data);
-      return await EncryptedBackupService().encrypt(data, password: password);
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  Future<void> importDatabase(String jsonData, {String? password}) async {
-    try {
-      final decoded = jsonDecode(jsonData);
-      if (decoded is Map &&
-          decoded['format'] == EncryptedBackupService.format) {
-        if (password == null || password.isEmpty) {
-          throw const FormatException('Dieses Backup benötigt ein Passwort.');
-        }
-        jsonData = jsonEncode(
-          await EncryptedBackupService().decrypt(jsonData, password: password),
+      final parts = timeStr.split(':');
+      if (parts.length == 2) {
+        return TimeOfDay(
+          hour: int.parse(parts[0]),
+          minute: int.parse(parts[1]),
         );
       }
-      await DatabaseHelper().mergeData(jsonData);
-      await initializeCompletely();
-      notifyListeners();
-    } catch (e) {
-      rethrow;
-    }
+    } catch (_) {}
+    return fallback;
   }
 
-  Future<FoodItem?> loadFoodItemByBarcode(String barcode) async {
-    try {
-      return await _remoteService.getFoodItemByBarcode(barcode);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Future<List<FoodItem>> loadAllFoodItems() async {
-    try {
-      return await _remoteService.getAllFoodItems();
-    } catch (e) {
-      return [];
-    }
-  }
-
-  Future<FoodItem> updateBarcodeForFood(FoodItem food, String barcode) async {
-    if (food.id == null) {
-      final newId = await _remoteService.insertOrUpdateFoodItem(
-        food.copyWith(barcode: barcode),
-      );
-      return food.copyWith(id: newId, barcode: barcode);
-    } else {
-      await _remoteService.updateBarcode(food.id!, barcode);
-      return food.copyWith(barcode: barcode);
-    }
-  }
-
-  Future<List<FoodItem>> searchFoodItemsRemote(String query) async {
-    try {
-      List<FoodItem> results = await _remoteService.searchFoodItems(query);
-      results = results
-          .where(
-            (f) => !(f.caloriesPer100g == 0 &&
-                f.fatPer100g == 0 &&
-                f.carbsPer100g == 0 &&
-                f.sugarPer100g == 0 &&
-                f.proteinPer100g == 0),
-          )
-          .toList();
-      return await _applyLocalUsageToFoods(results);
-    } catch (e) {
-      return [];
-    }
-  }
-
-  Future<FoodItem?> searchOpenFoodFactsByBarcode(String barcode) async {
-    final cacheKey = barcode.trim().toLowerCase();
-    if (_offBarcodeCache.containsKey(cacheKey)) {
-      return _offBarcodeCache[cacheKey];
-    }
-    try {
-      final url = Uri.parse(
-        '$openFoodFactsBaseUrl/api/v0/product/$barcode.json',
-      );
-      final response = await http.get(
-        url,
-        headers: {'User-Agent': 'MacroMate/1.0 (Barcodesuche)'},
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 1 && data['product'] != null) {
-          final product = data['product'];
-          final nutriments = product['nutriments'] ?? {};
-          final calories = (nutriments['energy-kcal_100g'] ?? 0).toDouble();
-          final fat = (nutriments['fat_100g'] ?? 0).toDouble();
-          final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
-          final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
-          final protein = (nutriments['proteins_100g'] ?? 0).toDouble();
-          final item = FoodItem(
-            name: product['product_name'] ?? 'Unbekannt',
-            brand: product['brands'] ?? 'Unbekannt',
-            barcode: barcode,
-            caloriesPer100g: calories.round(),
-            fatPer100g: fat,
-            carbsPer100g: carbs,
-            sugarPer100g: sugar,
-            proteinPer100g: protein,
-            source: 'openfoodfacts',
-          );
-          _offBarcodeCache[cacheKey] = item;
-          return item;
-        }
-      } else if (response.statusCode == 429) {
-        await Future.delayed(const Duration(seconds: 2));
-        final retryResponse = await http.get(
-          url,
-          headers: {'User-Agent': 'MacroMate/1.0 (Barcodesuche)'},
-        );
-        if (retryResponse.statusCode == 200) {
-          final data = jsonDecode(retryResponse.body);
-          if (data['status'] == 1 && data['product'] != null) {
-            final product = data['product'];
-            final nutriments = product['nutriments'] ?? {};
-            final calories = (nutriments['energy-kcal_100g'] ?? 0).toDouble();
-            final fat = (nutriments['fat_100g'] ?? 0).toDouble();
-            final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
-            final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
-            final protein = (nutriments['proteins_100g'] ?? 0).toDouble();
-            final item = FoodItem(
-              name: product['product_name'] ?? 'Unbekannt',
-              brand: product['brands'] ?? 'Unbekannt',
-              barcode: barcode,
-              caloriesPer100g: calories.round(),
-              fatPer100g: fat,
-              carbsPer100g: carbs,
-              sugarPer100g: sugar,
-              proteinPer100g: protein,
-              source: 'openfoodfacts',
-            );
-            _offBarcodeCache[cacheKey] = item;
-            return item;
-          }
-        }
-      }
-    } catch (e, st) {
-      _logError('searchOpenFoodFactsByBarcode', e, st);
-    }
-    _offBarcodeCache[cacheKey] = null;
-    return null;
-  }
-
-  Future<List<FoodItem>> searchOpenFoodFacts(String query) async {
-    final cacheKey = query.trim().toLowerCase();
-    if (_offSearchCache.containsKey(cacheKey)) {
-      return _offSearchCache[cacheKey]!;
-    }
-    try {
-      final encodedQuery = Uri.encodeQueryComponent(query);
-      final url = Uri.parse(
-        '$openFoodFactsBaseUrl/cgi/search.pl?search_terms=$encodedQuery&search_simple=1&action=process&json=1&page_size=10',
-      );
-      var response = await http.get(
-        url,
-        headers: {'User-Agent': 'MacroMate/1.0 (String-Suche)'},
-      );
-      if (response.statusCode == 429) {
-        await Future.delayed(const Duration(seconds: 2));
-        response = await http.get(
-          url,
-          headers: {'User-Agent': 'MacroMate/1.0 (String-Suche)'},
-        );
-      }
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final products = data['products'] as List<dynamic>?;
-        if (products != null && products.isNotEmpty) {
-          List<FoodItem> results = [];
-          for (var p in products) {
-            final nutriments = p['nutriments'] ?? {};
-            final calories =
-                (nutriments['energy-kcal_100g'] ?? 0).toDouble().round();
-            final fat = (nutriments['fat_100g'] ?? 0).toDouble();
-            final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
-            final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
-            final protein = (nutriments['proteins_100g'] ?? 0).toDouble();
-            final item = FoodItem(
-              name: p['product_name'] ?? 'Unbekannt',
-              brand: p['brands'] ?? 'Unbekannt',
-              barcode: p['code'] ?? null,
-              caloriesPer100g: calories,
-              fatPer100g: fat,
-              carbsPer100g: carbs,
-              sugarPer100g: sugar,
-              proteinPer100g: protein,
-              source: 'openfoodfacts',
-            );
-            results.add(item);
-          }
-          _offSearchCache[cacheKey] = results;
-          return results;
-        }
-      }
-      _offSearchCache[cacheKey] = [];
-      return [];
-    } catch (e, st) {
-      _logError('searchOpenFoodFacts', e, st);
-      return [];
-    }
-  }
-
-  Future<void> loadWeightEntries() async {
-    try {
-      final dbHelper = DatabaseHelper();
-      final entries = await dbHelper.getWeightEntries();
-      _weightEntries = entries
-          .map(
-            (row) => WeightEntry(
-              id: row['id'],
-              date: DateTime.parse(row['date']),
-              weight: (row['weight'] as num).toDouble(),
-            ),
-          )
-          .toList();
-      _weightEntries.sort((a, b) => a.date.compareTo(b.date));
-    } catch (e, st) {
-      _logError('loadWeightEntries', e, st);
-    }
-  }
-
-  Future<void> addWeightEntry(DateTime date, double weight) async {
-    try {
-      final dbHelper = DatabaseHelper();
-      final insertedId = await dbHelper.insertWeightEntry(date, weight);
-      final newEntry = WeightEntry(id: insertedId, date: date, weight: weight);
-      _weightEntries.add(newEntry);
-      _weightEntries.sort((a, b) => a.date.compareTo(b.date));
-      _refreshProteinGoalFromWeightIfNeeded();
-      notifyListeners();
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  Future<void> updateWeightEntry(int id, DateTime date, double weight) async {
-    try {
-      final dbHelper = DatabaseHelper();
-      await dbHelper.updateWeightEntry(id, date, weight);
-      final index = _weightEntries.indexWhere((entry) => entry.id == id);
-      if (index == -1) {
-        await loadWeightEntries();
-      } else {
-        _weightEntries[index] = _weightEntries[index].copyWith(
-          date: date,
-          weight: weight,
-        );
-      }
-      _weightEntries.sort((a, b) => a.date.compareTo(b.date));
-      _refreshProteinGoalFromWeightIfNeeded();
-      notifyListeners();
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  Future<void> deleteWeightEntry(int id) async {
-    try {
-      final dbHelper = DatabaseHelper();
-      await dbHelper.deleteWeightEntry(id);
-      _weightEntries.removeWhere((entry) => entry.id == id);
-      _refreshProteinGoalFromWeightIfNeeded();
-      notifyListeners();
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  Future<void> recalculateGoals({required bool fromBmr}) async {
-    // ───── 0) Hilfsfunktion  ───────────────────────────────────────────────
-    bool _isCutMode() =>
-        autoMode == AutoCalorieMode.diet ||
-        (autoMode == AutoCalorieMode.custom && customPercentPerMonth < 0);
-    double targetWeeklyChange(double currentWeight) {
-      if (this.targetWeeklyChange != null) {
-        return this.targetWeeklyChange!;
-      }
-      if (targetWeight != null && targetDate != null) {
-        final days = targetDate!.difference(DateTime.now()).inDays;
-        if (days > 0) {
-          return ((targetWeight! - currentWeight) / days) * 7;
-        }
-      }
-      switch (autoMode) {
-        case AutoCalorieMode.diet:
-          return -currentWeight * 0.01;
-        case AutoCalorieMode.bulk:
-          return currentWeight * 0.01 / 4;
-        case AutoCalorieMode.custom:
-          return currentWeight * customPercentPerMonth / 100 / 4;
-        case AutoCalorieMode.maintain:
-        case AutoCalorieMode.off:
-          return 0.0;
-      }
-    }
-
-    int calorieDeltaForWeeklyWeightChange(double weeklyKg) {
-      return (weeklyKg * 7700 / 7).round();
-    }
-
-    // 1. Gemeinsame Hilfswerte
-    double weight =
-        _weightEntries.isNotEmpty ? _weightEntries.last.weight : 80.0;
-    final safeCalories = dailyCalorieGoal <= 0 ? 1 : dailyCalorieGoal;
-    double carbPerc = (dailyCarbGoal * 4) / safeCalories * 100;
-    double proteinPerc = (dailyProteinGoal * 4) / safeCalories * 100;
-    double fatPerc = (dailyFatGoal * 9) / safeCalories * 100;
-
-    // ───── A) Initial-/Reset-Berechnung ────────────────────────────────────
-    if (fromBmr) {
-      if (useCustomStartCalories && !firstWeekInitialized) {
-        dailyCalorieGoal = userStartCalories;
-      } else {
-        // ► BMR (Harris/Mifflin) – unverändert
-        double bmr;
-        switch (bmrFormula) {
-          case BmrFormula.mifflin:
-            bmr = 10 * weight +
-                6.25 * userHeight -
-                5 * userAge +
-                (userGender == Gender.male ? 5 : -161);
-            break;
-          case BmrFormula.harris:
-            bmr = (userGender == Gender.male)
-                ? 66.47 + 13.7 * weight + 5.0 * userHeight - 6.8 * userAge
-                : 655.1 + 9.6 * weight + 1.8 * userHeight - 4.7 * userAge;
-            break;
-        }
-        int baseCal = (bmr * userActivityLevel).round();
-
-        switch (autoMode) {
-          case AutoCalorieMode.diet:
-          case AutoCalorieMode.bulk:
-          case AutoCalorieMode.custom:
-            dailyCalorieGoal = (baseCal +
-                    calorieDeltaForWeeklyWeightChange(
-                      targetWeeklyChange(weight),
-                    ))
-                .clamp(1000, 6000)
-                .toInt();
-            break;
-          case AutoCalorieMode.maintain:
-            dailyCalorieGoal = baseCal;
-            break;
-          default:
-            dailyCalorieGoal = baseCal;
-        }
-      }
-      firstWeekInitialized = true;
-    }
-    // ───── B) Montag-Feintuning ────────────────────────────────────────────
-    else {
-      double weeklyChange = computeWeightChangeInLastWeek();
-      double targetWeekly = targetWeeklyChange(weight);
-
-      int delta = 0;
-      if (_isCutMode()) {
-        // Diet-Logik (-100/ +50)
-        if (weeklyChange > targetWeekly)
-          delta = -100; // zu langsam
-        else if (weeklyChange < targetWeekly) delta = 50; // zu schnell
-      } else if (autoMode == AutoCalorieMode.bulk ||
-          (autoMode == AutoCalorieMode.custom && customPercentPerMonth > 0)) {
-        // Bulk-Logik (+100/ -50)
-        if (weeklyChange < targetWeekly)
-          delta = 100; // zu langsam
-        else if (weeklyChange > targetWeekly) delta = -50; // zu schnell
-      } else if (autoMode == AutoCalorieMode.maintain) {
-        const double tol = 0.15; // ±150 g Toleranz
-        if (weeklyChange > tol) delta = -100;
-        if (weeklyChange < -tol) delta = 100;
-      }
-
-      dailyCalorieGoal = (dailyCalorieGoal + delta).clamp(1000, 6000).toInt();
-      mondayPopupMessage =
-          "Gewichtsveränderung: ${weeklyChange.toStringAsFixed(1)} kg "
-          "(Ziel ${targetWeekly.toStringAsFixed(1)} kg). "
-          "Kalorien ${(delta >= 0) ? '+' : ''}$delta ⇒ $dailyCalorieGoal";
-      lastMondayCheck = DateTime.now().toIso8601String().substring(
-            0,
-            10,
-          ); // yyyy-MM-dd
-    }
-
-    // ───── C) Makroziele aus Kalorien ──────────────────────────────────────
-    dailyCarbGoal = (dailyCalorieGoal * carbPerc) / 400;
-    dailyProteinGoal = useProteinPerKg
-        ? _proteinGoalFromWeight()
-        : (dailyCalorieGoal * proteinPerc) / 400;
-    dailyFatGoal = (dailyCalorieGoal * fatPerc) / 900;
-
-    // ───── D) Persistenz & Notify ──────────────────────────────────────────
-    await DatabaseHelper().saveGoalsExtended(
-      dailyCalories: dailyCalorieGoal,
-      carbPercentage: carbPerc.round(),
-      proteinPercentage: proteinPerc.round(),
-      fatPercentage: fatPerc.round(),
-      sugarPercentage: dailySugarGoalPercentage,
-      autoCalorieModeIndex: autoMode.index,
-      customPercentPerMonth: customPercentPerMonth,
-      useCustomStartCaloriesInt: useCustomStartCalories ? 1 : 0,
-      userStartCalories: userStartCalories,
-      userAge: userAge,
-      userActivityLevel: userActivityLevel,
-      lastMondayCheck: lastMondayCheck,
-      firstWeekInitializedVal: firstWeekInitialized,
-      userHeightVal: userHeight,
-      useProteinPerKgInt: useProteinPerKg ? 1 : 0,
-      proteinPerKg: proteinPerKg,
-      targetWeight: targetWeight,
-      targetDate: targetDate?.toIso8601String(),
-      targetWeeklyChange: this.targetWeeklyChange,
-    );
-    await _updateMacroWidget();
-    notifyListeners();
-  }
+  String _formatTimeOfDay(TimeOfDay time) =>
+      '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
 }

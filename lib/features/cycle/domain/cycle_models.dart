@@ -109,3 +109,36 @@ class CycleForecast {
         ),
       ];
 }
+
+class CycleHistoryStats {
+  const CycleHistoryStats({
+    required this.cycleLengths,
+    required this.periodLengths,
+    required this.medianCycleLength,
+    required this.medianPeriodLength,
+    required this.cycleStandardDeviation,
+  });
+
+  final List<int> cycleLengths;
+  final List<int> periodLengths;
+  final int? medianCycleLength;
+  final int? medianPeriodLength;
+  final double? cycleStandardDeviation;
+
+  bool get hasEnoughData => cycleLengths.length >= 2;
+}
+
+class CycleSymptomInsight {
+  const CycleSymptomInsight({
+    required this.phaseName,
+    required this.symptomName,
+    required this.occurrenceCount,
+    required this.explanation,
+  });
+
+  final String phaseName;
+  final String symptomName;
+  final int occurrenceCount;
+  final String explanation;
+}
+

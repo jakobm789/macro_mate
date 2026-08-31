@@ -7,7 +7,9 @@ plugins {
 
 android {
     namespace = "com.example.macro_mate"
-    compileSdk = 36
+    // flutter_secure_storage 11 targets the current Android API; API 37 is
+    // backwards-compatible with the app's minSdk 26.
+    compileSdk = 37
     ndkVersion = "28.2.13676358"
 
     compileOptions {

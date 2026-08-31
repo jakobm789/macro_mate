@@ -47,8 +47,8 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  file_picker: ^12.1.2
-  share_plus: ^13.3.0
+  file_picker: ^8.1.7
+  share_plus: ^10.1.4
   http: ^1.2.2
   bcrypt: ^1.1.3
   fl_chart: ^0.70.1
@@ -58,29 +58,35 @@ dependencies:
   image_picker: ^1.1.2
   speech_to_text: ^7.4.0
   flutter_gemma: ^0.16.3
+  # Flutter's Android registrant emits this plugin in release builds; keeping
+  # it direct makes the generated Java dependency resolvable.
+  integration_test:
+    sdk: flutter
   # Typed, reactive SQLite access. It opens the existing food_database.db so
   # the sqflite-to-Drift migration can remain incremental and lossless.
-  drift: ^2.34.3
-  uuid: ^4.6.0
-  health: ^13.3.2
+  drift: ^2.24.0
+  uuid: ^4.5.1
+  health: ^13.0.0
   workmanager: ^0.10.9
   cryptography: ^2.7.0
+  flutter_secure_storage: ^9.2.2
+  table_calendar: ^3.1.2
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
 
 dev_dependencies:
   rename: ^3.0.2
   flutter_launcher_icons: ^0.14.2
   mockito: ^5.0.0
-  integration_test:
-    sdk: flutter
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
   speech_to_text_platform_interface: ^2.4.0
-  # 2.16 requires meta 1.18.3; Flutter 3.44.1 pins meta 1.18.0.
-  build_runner: ^2.15.1
-  drift_dev: ^2.34.5
+  build_runner: ^2.4.14
+  drift_dev: ^2.24.0
   mocktail: ^1.0.5
-  sqflite_common_ffi: ^2.4.2+1
+  sqflite_common_ffi: ^2.3.4
+
 
 flutter_launcher_icons:
   android: true

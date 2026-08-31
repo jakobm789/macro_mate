@@ -9,6 +9,7 @@ class _FakeHealthSource implements HealthDataSource {
   _FakeHealthSource(this.records);
 
   final List<HealthRecord> records;
+  final reads = <({DateTime start, DateTime end})>[];
 
   @override
   Future<HealthAvailability> getAvailability() async =>
@@ -33,8 +34,10 @@ class _FakeHealthSource implements HealthDataSource {
   Future<void> revokePermissions() async {}
 
   @override
-  Future<List<HealthRecord>> read(DateTime startUtc, DateTime endUtc) async =>
-      records;
+  Future<List<HealthRecord>> read(DateTime startUtc, DateTime endUtc) async {
+    reads.add((start: startUtc, end: endUtc));
+    return records;
+  }
 }
 
 HealthRecord _record({
@@ -84,5 +87,25 @@ void main() {
     expect(summaries.single.activeCalories, 350);
     expect(summaries.single.averageHeartRate, 75);
     expect(summaries.single.sleepMinutes, 420);
+
+    final syncStates = await repository.syncStates();
+    expect(syncStates, hasLength(HealthMetric.values.length));
+    expect(
+        syncStates.every((state) => state.status == HealthSyncStatus.success),
+        isTrue);
+    final sources = await repository.sources();
+    expect(sources.single.recordCount, 5);
+    final sleepRows = await database.select(database.sleepSessions).get();
+    expect(sleepRows, hasLength(1));
+
+    await repository.sync(
+      startUtc: DateTime.utc(2026, 8, 1),
+      endUtc: DateTime.utc(2026, 8, 31),
+    );
+    expect(source.reads, hasLength(2));
+    expect(
+      source.reads.last.start,
+      DateTime.utc(2026, 8, 30, 2, 30),
+    );
   });
 }

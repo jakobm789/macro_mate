@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/app_state.dart';
-import '../models/food_item.dart';
 import '../models/consumed_food_item.dart';
 
 enum EditingMode { quantity, macros }
@@ -50,7 +49,6 @@ class EditFoodSheet extends StatelessWidget {
                   );
                 },
               ),
-
             if (mode == EditingMode.quantity) const Divider(),
             if (mode == EditingMode.quantity)
               ListTile(
@@ -90,7 +88,8 @@ class EditFoodSheet extends StatelessWidget {
                           .removeFood(consumedFood.mealName, consumedFood);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('${consumedFood.food.name} wurde gelöscht.'),
+                          content:
+                              Text('${consumedFood.food.name} wurde gelöscht.'),
                         ),
                       );
                       onFoodEdited();
@@ -179,7 +178,8 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
     try {
       setState(() => _isLoading = true);
 
-      await Provider.of<AppState>(context, listen: false).updateConsumedFoodItem(
+      await Provider.of<AppState>(context, listen: false)
+          .updateConsumedFoodItem(
         widget.consumedFood,
         newQuantity: newQuantity,
         newMealName: selectedMeal,
@@ -188,8 +188,8 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Menge aktualisiert.')),
       );
-      widget.onFoodEdited(); 
-      Navigator.pop(context); 
+      widget.onFoodEdited();
+      Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler beim Aktualisieren: $e')),
@@ -204,7 +204,8 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
     setState(() => _isLoading = true);
 
     try {
-      await appState.removeFood(widget.consumedFood.mealName, widget.consumedFood);
+      await appState.removeFood(
+          widget.consumedFood.mealName, widget.consumedFood);
 
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -229,13 +230,14 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         child: Container(
-          width: double.infinity, 
+          width: double.infinity,
           padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 16.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, 
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
@@ -289,8 +291,10 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text('Kalorien: ${_partialCalories.toStringAsFixed(1)} kcal'),
-                      Text('Kohlenhydrate: ${_partialCarbs.toStringAsFixed(1)} g'),
+                      Text(
+                          'Kalorien: ${_partialCalories.toStringAsFixed(1)} kcal'),
+                      Text(
+                          'Kohlenhydrate: ${_partialCarbs.toStringAsFixed(1)} g'),
                       Text('Proteine: ${_partialProtein.toStringAsFixed(1)} g'),
                       Text('Fette: ${_partialFat.toStringAsFixed(1)} g'),
                       Text('Zucker: ${_partialSugar.toStringAsFixed(1)} g'),
@@ -319,7 +323,8 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
                   ),
                   const SizedBox(width: 16),
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                    style:
+                        ElevatedButton.styleFrom(backgroundColor: Colors.red),
                     onPressed: _isLoading ? null : _deleteItem,
                     child: _isLoading
                         ? const SizedBox(

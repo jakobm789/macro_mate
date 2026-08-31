@@ -9,6 +9,7 @@ import 'package:macro_mate/models/app_state.dart';
 import 'package:macro_mate/models/local_llm_model.dart';
 import 'package:macro_mate/widgets/ai_food_sheet.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Helper: build a JSON speech result string.
 ///
@@ -34,6 +35,7 @@ void main() {
     late AppState appState;
 
     setUp(() {
+      SharedPreferences.setMockInitialValues({});
       platform = SpeechToTextPlatform.instance as MethodChannelSpeechToText;
 
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

@@ -4,14 +4,20 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/time/clock.dart';
 import '../domain/cycle_engine.dart';
 import '../domain/cycle_models.dart';
 import '../domain/cycle_repository.dart';
 
 class DriftCycleRepository implements CycleRepository {
-  DriftCycleRepository({required AppDatabase database}) : _database = database;
+  DriftCycleRepository({
+    required AppDatabase database,
+    Clock clock = const SystemClock(),
+  })  : _database = database,
+        _clock = clock;
 
   final AppDatabase _database;
+  final Clock _clock;
   static const _uuid = Uuid();
 
   @override
@@ -67,23 +73,67 @@ class DriftCycleRepository implements CycleRepository {
     BleedingLevel? flow,
   }) async {
     final day = CycleEngine.dateOnly(startDay);
+    final end = endDay == null ? null : CycleEngine.dateOnly(endDay);
+    if (end != null && end.isBefore(day)) {
+      throw ArgumentError('Das Periodenende darf nicht vor dem Beginn liegen.');
+    }
     await _database.into(_database.periodEntries).insert(
           PeriodEntriesCompanion.insert(
             id: _uuid.v4(),
             startDay: _formatDay(day),
-            endDay: endDay == null
-                ? const Value.absent()
-                : Value(_formatDay(endDay)),
+            endDay: end == null ? const Value.absent() : Value(_formatDay(end)),
             flowJson: flow == null ? const Value.absent() : Value(flow.name),
             source: const Value('local'),
-            createdAtUtc: DateTime.now().toUtc().toIso8601String(),
+            createdAtUtc: _clock.nowUtc().toIso8601String(),
           ),
         );
-    await recalculate(today: DateTime.now());
+    await recalculate(today: _clock.now());
+  }
+
+  @override
+  Future<void> updatePeriod({
+    required String id,
+    required DateTime startDay,
+    DateTime? endDay,
+    BleedingLevel? flow,
+  }) async {
+    final start = CycleEngine.dateOnly(startDay);
+    final end = endDay == null ? null : CycleEngine.dateOnly(endDay);
+    if (end != null && end.isBefore(start)) {
+      throw ArgumentError('Das Periodenende darf nicht vor dem Beginn liegen.');
+    }
+    await (_database.update(_database.periodEntries)
+          ..where((table) => table.id.equals(id)))
+        .write(
+      PeriodEntriesCompanion(
+        startDay: Value(_formatDay(start)),
+        endDay: Value(end == null ? null : _formatDay(end)),
+        flowJson: Value(flow?.name),
+      ),
+    );
+    await recalculate(today: _clock.now());
+  }
+
+  @override
+  Future<void> deletePeriod(String id) async {
+    await (_database.delete(_database.periodEntries)
+          ..where((table) => table.id.equals(id)))
+        .go();
+    await recalculate(today: _clock.now());
   }
 
   @override
   Future<void> saveDailyLog(CycleDailyLog log) async {
+    if (log.pain != null && (log.pain! < 0 || log.pain! > 10)) {
+      throw ArgumentError('Schmerz muss zwischen 0 und 10 liegen.');
+    }
+    if (log.energy != null && (log.energy! < 0 || log.energy! > 10)) {
+      throw ArgumentError('Energie muss zwischen 0 und 10 liegen.');
+    }
+    if (log.sleepQuality != null &&
+        (log.sleepQuality! < 0 || log.sleepQuality! > 10)) {
+      throw ArgumentError('Schlafqualität muss zwischen 0 und 10 liegen.');
+    }
     await _database.into(_database.cycleDailyLogs).insertOnConflictUpdate(
           CycleDailyLogsCompanion.insert(
             day: _formatDay(log.day),
@@ -95,9 +145,16 @@ class DriftCycleRepository implements CycleRepository {
             notes: Value(log.notes),
             tagsJson: Value(jsonEncode(log.tags)),
             source: const Value('local'),
-            updatedAtUtc: DateTime.now().toUtc().toIso8601String(),
+            updatedAtUtc: _clock.nowUtc().toIso8601String(),
           ),
         );
+  }
+
+  @override
+  Future<void> deleteDailyLog(DateTime day) async {
+    await (_database.delete(_database.cycleDailyLogs)
+          ..where((table) => table.day.equals(_formatDay(day))))
+        .go();
   }
 
   @override
@@ -132,13 +189,13 @@ class DriftCycleRepository implements CycleRepository {
     final currentProfile = await profile();
     final result = CycleEngine.forecast(
       periods: await periods(),
-      today: today ?? DateTime.now(),
+      today: today ?? _clock.now(),
       profile: currentProfile,
     );
     await _database.transaction(() async {
       await _database.delete(_database.cyclePredictions).go();
       if (result == null || !currentProfile.predictionsEnabled) return;
-      final calculatedAt = DateTime.now().toUtc().toIso8601String();
+      final calculatedAt = _clock.nowUtc().toIso8601String();
       for (final prediction in result.predictions) {
         await _database.into(_database.cyclePredictions).insert(
               CyclePredictionsCompanion.insert(

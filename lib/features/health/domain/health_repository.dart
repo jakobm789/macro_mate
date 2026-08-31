@@ -21,4 +21,15 @@ abstract interface class HealthRepository {
     required DateTime startDay,
     required DateTime endDay,
   });
+
+  Future<List<HealthSyncState>> syncStates();
+
+  Future<List<HealthSourceSummary>> sources();
+
+  Future<List<WorkoutDetail>> workouts({int limit = 50});
+
+  Future<WorkoutDetail?> workoutById(String id);
+
+  Future<List<SleepSessionDetail>> sleepSessions({int limit = 30});
 }
+

@@ -202,7 +202,8 @@ class MealSection extends StatelessWidget {
                       // Toggle favorite
                       await appState.toggleFavoriteFood(consumedFood.food);
                       if (context.mounted) {
-                        final nextIsFav = appState.isFavoriteFood(consumedFood.food);
+                        final nextIsFav =
+                            appState.isFavoriteFood(consumedFood.food);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
@@ -221,7 +222,8 @@ class MealSection extends StatelessWidget {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('${consumedFood.food.name} gelöscht.'),
+                            content:
+                                Text('${consumedFood.food.name} gelöscht.'),
                             duration: const Duration(seconds: 2),
                           ),
                         );

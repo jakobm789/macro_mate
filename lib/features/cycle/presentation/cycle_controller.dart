@@ -2,12 +2,17 @@ import 'package:flutter/foundation.dart';
 
 import '../domain/cycle_models.dart';
 import '../domain/cycle_repository.dart';
+import '../../../core/time/clock.dart';
 
 class CycleController extends ChangeNotifier {
-  CycleController({required CycleRepository repository})
-      : _repository = repository;
+  CycleController({
+    required CycleRepository repository,
+    Clock clock = const SystemClock(),
+  })  : _repository = repository,
+        _clock = clock;
 
   final CycleRepository _repository;
+  final Clock _clock;
   CycleProfile profileState = const CycleProfile();
   List<PeriodEntry> periodsState = const [];
   List<CycleDailyLog> logsState = const [];
@@ -15,31 +20,80 @@ class CycleController extends ChangeNotifier {
   bool isLoading = false;
   String? errorMessage;
 
+  bool get predictionsEnabled => profileState.predictionsEnabled;
+  int? get currentCycleDay => forecastState?.cycleDay;
+  List<CyclePrediction> get predictions =>
+      forecastState?.predictions ?? const [];
+
+  String? get currentPhaseName {
+    if (forecastState == null) return null;
+    final day = forecastState!.cycleDay;
+    final pLen = forecastState!.periodLength;
+    if (day <= pLen) return 'Menstruation';
+    if (day <= 13) return 'Follikelphase';
+    if (day <= 16) return 'Ovulation';
+    return 'Lutealphase';
+  }
+
+
   Future<void> load() async {
     await _run(() async {
       profileState = await _repository.profile();
-      periodsState = await _repository.periods();
-      logsState = await _repository.dailyLogs(
-        from: DateTime.now().subtract(const Duration(days: 30)),
-      );
-      forecastState = await _repository.recalculate(today: DateTime.now());
+      await _loadData();
     });
   }
 
-  Future<void> addPeriod(DateTime startDay) async {
+  Future<void> addPeriod(DateTime startDay, {DateTime? endDay}) async {
     await _run(() async {
-      await _repository.addPeriod(startDay: startDay);
-      periodsState = await _repository.periods();
-      forecastState = await _repository.recalculate(today: DateTime.now());
+      await _repository.addPeriod(startDay: startDay, endDay: endDay);
+      await _loadData();
+    });
+  }
+
+  Future<void> updatePeriod({
+    required String id,
+    required DateTime startDay,
+    DateTime? endDay,
+    BleedingLevel? flow,
+  }) async {
+    await _run(() async {
+      await _repository.updatePeriod(
+        id: id,
+        startDay: startDay,
+        endDay: endDay,
+        flow: flow,
+      );
+      await _loadData();
+    });
+  }
+
+  Future<void> deletePeriod(String id) async {
+    await _run(() async {
+      await _repository.deletePeriod(id);
+      await _loadData();
     });
   }
 
   Future<void> saveLog(CycleDailyLog log) async {
     await _run(() async {
       await _repository.saveDailyLog(log);
-      logsState = await _repository.dailyLogs(
-        from: DateTime.now().subtract(const Duration(days: 30)),
-      );
+      await _loadData();
+    });
+  }
+
+  Future<void> _loadData() async {
+    final now = _clock.now();
+    periodsState = await _repository.periods();
+    logsState = await _repository.dailyLogs(
+      from: now.subtract(const Duration(days: 30)),
+    );
+    forecastState = await _repository.recalculate(today: now);
+  }
+
+  Future<void> deleteLog(DateTime day) async {
+    await _run(() async {
+      await _repository.deleteDailyLog(day);
+      await _loadData();
     });
   }
 

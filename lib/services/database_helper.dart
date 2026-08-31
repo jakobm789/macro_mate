@@ -853,7 +853,7 @@ class DatabaseHelper {
     return null;
   }
 
-  Future<Map<String, dynamic>> exportData() async {
+  Future<Map<String, dynamic>> exportData({Set<String>? categories}) async {
     final db = await database;
     final consumedFoods = await db.query('ConsumedFoods');
     final goals = await db.query('Goals');
@@ -879,23 +879,54 @@ class DatabaseHelper {
     final cyclePredictions = await db.query('cycle_predictions');
     final notificationPreferences = await db.query('notification_preferences');
     final backupManifests = await db.query('backup_manifests');
-    final List<Map<String, dynamic>> foodItems = [];
-    return {
+    final selected = categories == null
+        ? {
+            'nutrition',
+            'goals',
+            'settings',
+            'weight',
+            'health',
+            'cycle',
+            'notifications',
+          }
+        : Set<String>.from(categories);
+    final include = <String, bool>{
+      'food_items': selected.contains('nutrition'),
+      'local_foods': selected.contains('nutrition'),
+      'consumed_foods': selected.contains('nutrition'),
+      'saved_meals': selected.contains('nutrition'),
+      'saved_meal_ingredients': selected.contains('nutrition'),
+      'favorite_foods': selected.contains('nutrition'),
+      'offline_queue': selected.contains('nutrition'),
+      'goals': selected.contains('goals'),
+      'settings': selected.contains('settings'),
+      'weight_entries': selected.contains('weight'),
+      'health_sources': selected.contains('health'),
+      'health_sync_states': selected.contains('health'),
+      'health_records': selected.contains('health'),
+      'daily_health_aggregates': selected.contains('health'),
+      'sleep_sessions': selected.contains('health'),
+      'workout_sessions': selected.contains('health'),
+      'workout_route_points': selected.contains('health'),
+      'cycle_profiles': selected.contains('cycle'),
+      'period_entries': selected.contains('cycle'),
+      'cycle_daily_logs': selected.contains('cycle'),
+      'symptom_definitions': selected.contains('cycle'),
+      'symptom_logs': selected.contains('cycle'),
+      'cycle_predictions': selected.contains('cycle'),
+      'notification_preferences': selected.contains('notifications'),
+      'backup_manifests': false,
+    };
+    final data = <String, dynamic>{
       'format': 'macromate-backup',
       'format_version': 2,
       'schema_version': _dbVersion,
       'app_version': '1.0.0',
       'created_at_utc': DateTime.now().toUtc().toIso8601String(),
-      'categories': [
-        'nutrition',
-        'goals',
-        'settings',
-        'weight',
-        'health',
-        'cycle',
-        'notifications',
-      ],
-      'food_items': foodItems,
+      'categories': selected.toList()..sort(),
+    };
+    final payloads = <String, dynamic>{
+      'food_items': <Map<String, dynamic>>[],
       'local_foods': localFoods,
       'consumed_foods': consumedFoods,
       'goals': goals,
@@ -921,6 +952,10 @@ class DatabaseHelper {
       'notification_preferences': notificationPreferences,
       'backup_manifests': backupManifests,
     };
+    for (final entry in payloads.entries) {
+      if (include[entry.key] == true) data[entry.key] = entry.value;
+    }
+    return data;
   }
 
   Future<void> mergeData(String jsonData) async {

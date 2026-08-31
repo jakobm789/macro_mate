@@ -49,10 +49,11 @@ class SavedMeal {
       ingredients.fold(0, (sum, ingredient) => sum + ingredient.quantity);
 
   double get calories => ingredients.fold(
-    0.0,
-    (sum, ingredient) =>
-        sum + (ingredient.food.caloriesPer100g * ingredient.quantity) / 100.0,
-  );
+        0.0,
+        (sum, ingredient) =>
+            sum +
+            (ingredient.food.caloriesPer100g * ingredient.quantity) / 100.0,
+      );
 
   bool get isRecipe => recipeTotalWeight != null && recipeTotalWeight! > 0;
 }

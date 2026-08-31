@@ -14,20 +14,32 @@ import 'features/health/presentation/health_page.dart';
 import 'features/health/data/health_background_sync.dart';
 import 'features/cycle/presentation/cycle_page.dart';
 import 'pages/backup_page.dart';
+import 'app/navigation/app_shell.dart';
+import 'features/activity/presentation/activity_page.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+import 'features/activity/presentation/activity_controller.dart';
+import 'features/cycle/presentation/cycle_controller.dart';
+import 'features/dashboard/presentation/dashboard_controller.dart';
+import 'features/health/presentation/health_controller.dart';
+import 'features/local_llm/presentation/local_model_controller.dart';
+import 'features/nutrition/presentation/nutrition_controller.dart';
+import 'features/settings/presentation/settings_controller.dart';
+import 'features/weight/presentation/weight_controller.dart';
+import 'core/notifications/notification_controller.dart';
 
 final FlutterLocalNotificationsPlugin notificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
 class LoadingScreen extends StatelessWidget {
-  const LoadingScreen({Key? key}) : super(key: key);
+  const LoadingScreen({super.key});
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return const Scaffold(
       backgroundColor: Colors.black87,
-      body: const Center(
+      body: Center(
         child: CircularProgressIndicator(
           strokeWidth: 4,
           valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -104,11 +116,11 @@ void main() async {
         : const String.fromEnvironment('HUGGINGFACE_TOKEN'),
     maxDownloadRetries: 10,
   );
-  final initializationSettingsAndroid = AndroidInitializationSettings(
+  const initializationSettingsAndroid = AndroidInitializationSettings(
     '@mipmap/launcher_icon',
   );
-  final initializationSettingsIOS = DarwinInitializationSettings();
-  final initializationSettings = InitializationSettings(
+  const initializationSettingsIOS = DarwinInitializationSettings();
+  const initializationSettings = InitializationSettings(
     android: initializationSettingsAndroid,
     iOS: initializationSettingsIOS,
   );
@@ -117,12 +129,42 @@ void main() async {
   final appState = AppState();
 
   runApp(
-    ChangeNotifierProvider<AppState>.value(
-      value: appState,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AppState>.value(value: appState),
+        ChangeNotifierProvider<NutritionController>.value(
+          value: appState.nutritionController,
+        ),
+        ChangeNotifierProvider<WeightController>.value(
+          value: appState.weightController,
+        ),
+        ChangeNotifierProvider<HealthController>.value(
+          value: appState.healthController,
+        ),
+        ChangeNotifierProvider<ActivityController>.value(
+          value: appState.activityController,
+        ),
+        ChangeNotifierProvider<CycleController>.value(
+          value: appState.cycleController,
+        ),
+        ChangeNotifierProvider<SettingsController>.value(
+          value: appState.settingsController,
+        ),
+        ChangeNotifierProvider<LocalModelController>.value(
+          value: appState.localModelController,
+        ),
+        ChangeNotifierProvider<DashboardController>.value(
+          value: appState.dashboardController,
+        ),
+        ChangeNotifierProvider<NotificationController>.value(
+          value: appState.notificationController,
+        ),
+      ],
       child: MyApp(initialFilePath: initialFilePath),
     ),
   );
 }
+
 
 Future<void> _checkNotificationPermission() async {
   if (Platform.isAndroid || Platform.isIOS) {
@@ -238,109 +280,60 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return Consumer<AppState>(
-      builder: (context, appState, child) {
-        if (!appState.isInitialized) {
-          return MaterialApp(
-            title: 'MacroMate',
-            theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.lightBlueAccent,
-                brightness: Brightness.light,
-              ),
-              useMaterial3: true,
-            ),
-            darkTheme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.lightBlueAccent,
-                brightness: Brightness.dark,
-              ),
-              useMaterial3: true,
-            ),
-            themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-            home: const LoadingScreen(),
-          );
-        }
+      builder: (context, appState, _) => MaterialApp(
+        title: 'MacroMate',
+        theme: _buildTheme(Brightness.light),
+        darkTheme: _buildTheme(Brightness.dark),
+        themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+        home: const AppRoot(),
+        routes: {
+          '/nutrition': (context) =>
+              const AppDiagnosticsBanner(child: MyHomePage(title: 'MacroMate')),
+          '/settings': (context) =>
+              const AppDiagnosticsBanner(child: SettingsPage()),
+          '/weight': (context) =>
+              const AppDiagnosticsBanner(child: WeightPage()),
+          '/weekly_dashboard': (context) =>
+              const AppDiagnosticsBanner(child: WeeklyDashboardPage()),
+          '/health': (context) =>
+              const AppDiagnosticsBanner(child: HealthPage()),
+          '/activity': (context) =>
+              const AppDiagnosticsBanner(child: ActivityPage()),
+          '/cycle': (context) => const AppDiagnosticsBanner(child: CyclePage()),
+          '/backup': (context) =>
+              const AppDiagnosticsBanner(child: BackupPage()),
+        },
+      ),
+    );
+  }
+}
 
+ThemeData _buildTheme(Brightness brightness) => ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.lightBlueAccent,
+        brightness: brightness,
+      ),
+      useMaterial3: true,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+    );
+
+class AppRoot extends StatelessWidget {
+  const AppRoot({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AppState>(
+      builder: (context, appState, _) {
+        if (!appState.isInitialized) return const LoadingScreen();
         if (!appState.isLoggedIn) {
-          return MaterialApp(
-            title: 'MacroMate',
-            theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.lightBlueAccent,
-                brightness: Brightness.light,
-              ),
-              useMaterial3: true,
-              pageTransitionsTheme: const PageTransitionsTheme(
-                builders: {
-                  TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-                  TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-                },
-              ),
-            ),
-            darkTheme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.lightBlueAccent,
-                brightness: Brightness.dark,
-              ),
-              useMaterial3: true,
-              pageTransitionsTheme: const PageTransitionsTheme(
-                builders: {
-                  TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-                  TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-                },
-              ),
-            ),
-            themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-            home: const AppDiagnosticsBanner(child: LoginPage()),
-          );
+          return const AppDiagnosticsBanner(child: LoginPage());
         }
-        return MaterialApp(
-          title: 'MacroMate',
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.lightBlueAccent,
-              brightness: Brightness.light,
-            ),
-            useMaterial3: true,
-            pageTransitionsTheme: const PageTransitionsTheme(
-              builders: {
-                TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-              },
-            ),
-          ),
-          darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.lightBlueAccent,
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
-            pageTransitionsTheme: const PageTransitionsTheme(
-              builders: {
-                TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-              },
-            ),
-          ),
-          themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-          home: const AppDiagnosticsBanner(
-            child: MyHomePage(title: 'MacroMate'),
-          ),
-          routes: {
-            '/settings': (context) =>
-                const AppDiagnosticsBanner(child: SettingsPage()),
-            '/weight': (context) =>
-                const AppDiagnosticsBanner(child: WeightPage()),
-            '/weekly_dashboard': (context) =>
-                const AppDiagnosticsBanner(child: WeeklyDashboardPage()),
-            '/health': (context) =>
-                const AppDiagnosticsBanner(child: HealthPage()),
-            '/cycle': (context) =>
-                const AppDiagnosticsBanner(child: CyclePage()),
-            '/backup': (context) =>
-                const AppDiagnosticsBanner(child: BackupPage()),
-          },
-        );
+        return const AppDiagnosticsBanner(child: AppShell());
       },
     );
   }

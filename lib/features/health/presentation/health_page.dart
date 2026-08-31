@@ -57,6 +57,9 @@ class _HealthPageState extends State<HealthPage> {
                   permissions: permissions,
                   loading: _controller.isLoading,
                 ),
+                if (_controller.syncStatesState.isNotEmpty ||
+                    _controller.sourcesState.isNotEmpty)
+                  _DiagnosticsCard(controller: _controller),
                 if (_controller.errorMessage != null)
                   Card(
                     color: Theme.of(context).colorScheme.errorContainer,
@@ -227,6 +230,70 @@ class _SummaryCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DiagnosticsCard extends StatelessWidget {
+  const _DiagnosticsCard({required this.controller});
+
+  final HealthController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final errors = controller.syncStatesState
+        .map((state) => state.lastError)
+        .whereType<String>()
+        .where((error) => error.isNotEmpty)
+        .toList(growable: false);
+    final lastError = errors.isEmpty ? null : errors.first;
+    return Card(
+      child: ExpansionTile(
+        leading: const Icon(Icons.monitor_heart_outlined),
+        title: const Text('Synchronisationsdiagnose'),
+        subtitle: Text(
+          controller.lastSuccessfulSyncUtc == null
+              ? 'Noch kein erfolgreicher Import'
+              : 'Zuletzt erfolgreich: ${controller.lastSuccessfulSyncUtc!.toLocal()}',
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        children: [
+          for (final state in controller.syncStatesState)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(state.metric.name),
+              subtitle: Text(
+                '${state.status.name} · Cursor: ${state.cursorUtc?.toLocal() ?? '–'}',
+              ),
+              trailing: state.lastError == null
+                  ? null
+                  : const Icon(Icons.error_outline, color: Colors.orange),
+            ),
+          if (controller.sourcesState.isNotEmpty) ...[
+            const Divider(),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Erkannte Quellen'),
+            ),
+            for (final source in controller.sourcesState)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${source.name} · ${source.recordCount} Datensätze · Priorität ${source.priority}',
+                ),
+              ),
+          ],
+          if (lastError != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Letzter Fehler: $lastError',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+        ],
       ),
     );
   }

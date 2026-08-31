@@ -21,7 +21,8 @@ Future<void> initializeHealthBackgroundSync() async {
     healthBackgroundTask,
     healthBackgroundTask,
     frequency: const Duration(hours: 6),
-    constraints: Constraints(networkType: NetworkType.connected),
+    // Health Connect is local; requiring a network would unnecessarily stop
+    // imports while the device is offline.
     existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
   );
   _backgroundSyncInitialized = true;

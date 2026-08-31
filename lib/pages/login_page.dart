@@ -41,7 +41,8 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacementNamed(context, '/');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login fehlgeschlagen. Evtl. nicht verifiziert?')),
+          const SnackBar(
+              content: Text('Login fehlgeschlagen. Evtl. nicht verifiziert?')),
         );
         setState(() {
           _showCodeField = true;
@@ -82,7 +83,8 @@ class _LoginPageState extends State<LoginPage> {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Registrierung erfolgreich. Prüfe deine E-Mails für den Code.'),
+            content: Text(
+                'Registrierung erfolgreich. Prüfe deine E-Mails für den Code.'),
           ),
         );
       } else {
@@ -123,7 +125,8 @@ class _LoginPageState extends State<LoginPage> {
 
       if (verified) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Account verifiziert! Bitte einloggen.')),
+          const SnackBar(
+              content: Text('Account verifiziert! Bitte einloggen.')),
         );
         setState(() {
           _showCodeField = false;

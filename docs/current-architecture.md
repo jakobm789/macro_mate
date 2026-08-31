@@ -1,111 +1,85 @@
-# MacroMate: Ist-Architektur vor dem Ausbau
+# MacroMate: aktuelle Architektur
 
-Stand: 2026-08-31, Branch `codex/expand-macromate-health-platform`, Basis-Commit
-`055e770`.
+Stand: 2026-08-31, Branch `codex/expand-macromate-health-platform`. Die
+Architektur wird bewusst strangweise migriert: `AppState` bleibt als
+Kompatibilitätsfassade erhalten, neue Funktionen liegen hinter typisierten
+Repositories und Controllern.
 
-## Anwendung und Bootstrap
+## Anwendung und Navigation
 
-- Flutter/Dart mit Material 3 und `provider`.
-- `lib/main.dart` initialisiert FlutterGemma, lokale Benachrichtigungen und genau
-  eine globale `AppState`-Instanz. Abhängig von Initialisierung und Login werden
-  drei getrennte `MaterialApp`-Bäume erzeugt.
-- Die Android-App verwendet `FlutterActivity`. `MainActivity` hält zusätzlich den
-  Method Channel `macro_mate/widget` für das Homescreen-Widget.
-- Der App-Start fordert Notification- und Exact-Alarm-Berechtigungen an, lädt den
-  vollständigen Zustand, synchronisiert die Offline-Queue und plant sämtliche
-  Erinnerungen neu.
+- `main.dart` baut genau einen `MaterialApp`-Baum und entscheidet darunter nur
+  zwischen Loading, Login und `AppShell`.
+- `AppShell` bündelt die fünf Hauptziele Heute, Ernährung, Aktivität, Zyklus und
+  Mehr. Bestehende benannte Routen bleiben für Deep Links und alte Widgets
+  erhalten.
+- Das Material-3-Theme und die wiederverwendbaren UI-Bausteine liegen in
+  `lib/core/ui/design_system.dart`. KPI-, Section-, Permission-, Sync-, Empty-
+  und Error-Zustände sind damit nicht mehr an einzelne Seiten gebunden.
 
-## Präsentation und Navigation
+## State und Grenzen
 
-- `home_page.dart` ist gleichzeitig Tages-Dashboard und Ernährungserfassung.
-- Gewicht, Wochenübersicht und Einstellungen sind benannte Routen. Der Einstieg
-  erfolgt über ein aufklappbares Floating-Action-Menü; eine dauerhafte
-  Hauptnavigation existiert nicht.
-- Die größten UI-Dateien sind `ai_food_sheet.dart` (ca. 81 KB),
-  `settings_page.dart` (ca. 57 KB) und `home_page.dart` (ca. 49 KB).
-- Themes werden dreimal in `main.dart` dupliziert. Es existiert noch kein
-  eigenständiges Designsystem für Abstände, semantische Farben, Statuskarten und
-  datenabhängige Zustände.
+`AppState` bleibt mit rund 2.000 Zeilen groß und enthält weiterhin Legacy-Flows
+für Ernährung, Login, Remote-Lebensmittel, Offline-Queue und Benachrichtigungen.
+Gewicht ist bereits über `WeightRepository`/`DriftWeightRepository` typisiert
+eingeschleust. Health und Zyklus verwenden eigene Repository-/Controller-
+Grenzen. `Clock`, `Units`, `AppFailure`/`Result` und redigierendes Logging liegen
+unter `lib/core` und können in neuen Features direkt injiziert werden.
 
-## State und Geschäftslogik
-
-- `AppState` ist eine ca. 2.000 Zeilen/66 KB große `ChangeNotifier`-Fassade.
-- Sie enthält Login, Remote- und lokale Datenzugriffe, Nutrition-Aggregation,
-  Gewicht, Ziele, Notifications, Offline-Synchronisation, Open Food Facts,
-  lokale Modelle, Import/Export, Widget-Updates und UI-Fehlerzustand.
-- Widgets greifen direkt auf `AppState` zu; `AppState` greift direkt auf
-  `DatabaseHelper`, `RemoteDatabaseService`, Shared Preferences, HTTP und
-  Plattform-Plugins zu. Repository-Interfaces fehlen.
+Der verbleibende direkte `DatabaseHelper`-Zugriff in Nutrition/Settings wird in
+weiteren Strängen ersetzt; ein Big-Bang-Umbau ist absichtlich ausgeschlossen.
 
 ## Lokale Persistenz
 
-`DatabaseHelper` öffnet `food_database.db` über `sqflite`. Aktuelle
-Schema-Version ist 25. Das Schema enthält zehn Tabellen:
+Drift öffnet dieselbe `food_database.db` wie der bestehende sqflite-Pfad. Das
+aktuelle Schema ist Version 27:
 
-| Tabelle | Zweck | Auffälligkeiten |
-| --- | --- | --- |
-| `Goals` | Kalorien-, Makro-, Körper- und Gewichtsziel | Singleton implizit, kein Constraint |
-| `ConsumedFoods` | lokale Tages-/Mahlzeiteneinträge | keine FK, kein Index auf Datum |
-| `SavedMeals` | Mahlzeitenvorlagen | Integer-ID |
-| `SavedMealIngredients` | Zutaten einer Vorlage | deklarierte FK, Foreign Keys werden beim Öffnen nicht aktiviert |
-| `FavoriteFoods` | Favoriten | referenziert Remote-/lokale IDs ohne Quelltyp |
-| `FoodUsage` | letzte Menge und Nutzung | referenziert Remote-/lokale IDs ohne Quelltyp |
-| `OfflineQueue` | ausstehende Remote-Aktion | unterstützt effektiv nur `food_upsert` |
-| `LocalFoods` | lokal/AI erzeugte Lebensmittel | Integer-ID, kein eindeutiger Barcode |
-| `Settings` | Theme und einfache Erinnerungen | Singleton über `id = 1` angenommen |
-| `WeightEntries` | Gewichtsverlauf | kein Index/Unique-Constraint auf Datum |
+- v26: Metadaten, stabile UUIDs und Indizes für Legacy-Tabellen
+- v27: Health-Connect-Rohdaten/Aggregate, Schlaf, Workouts, Routen, Zyklus,
+  Benachrichtigungspräferenzen und Backup-Manifeste
 
-Es sind keine expliziten Indizes vorhanden. Migrationen 19 bis 25 bestehen aus
-`ALTER TABLE` und bedingtem `CREATE TABLE`; mehrere Fehler werden pauschal
-ignoriert. Datumswerte sind Strings ohne zentral dokumentierte UTC-/Lokaltag-
-Semantik. Neue domänenübergreifende UUIDs und Deduplication Keys fehlen.
+Migrationen laufen transaktional, aktivieren Foreign Keys und werden gegen eine
+v25-Fixture getestet. Legacy-IDs bleiben erhalten; neue UUIDs sind zunächst
+nullable und werden deterministisch nachgefüllt.
 
-Der JSON-Export besitzt weder Schema- noch App-Version. Er exportiert nahezu alle
-lokalen Tabellen einschließlich Offline-Queue, aber keine Remote-Lebensmittel.
-Der Restore wird zeilenweise und nicht atomar ausgeführt. Relationen zwischen
-Mahlzeiten und Zutaten können beim Zusammenführen falsche IDs erhalten.
+## Health Connect und Aktivität
 
-## Remote-Daten und Sicherheit
+`HealthConnectSource` ist der Android-Adapter. Der Repository-Sync dedupliziert
+Provider-UUIDs, führt pro Metric einen Cursor mit sechs Stunden Überlappung,
+persistiert Status/Fehler und baut Tagesaggregate aus den bevorzugten Quellen
+neu auf. Schlaf-, Workout- und Routendaten werden in eigenen Drift-Tabellen
+gespeichert. Ein WorkManager-Task nutzt ein Zwei-Tage-Fenster und fordert keine
+Berechtigungen im Hintergrund an.
 
-- `RemoteDatabaseService` verbindet die App direkt per TLS mit PostgreSQL und
-  verwaltet Benutzer sowie den gemeinsamen Lebensmittelbestand.
-- Build-Secrets werden als `--dart-define` in die APK eingebettet. Health- und
-  Zyklusdaten existieren aktuell nicht und dürfen diesen Pfad später nicht
-  verwenden.
-- E-Mail und Passwort werden derzeit über Shared Preferences gespeichert; das
-  Passwort liegt damit lokal im Klartext.
-- Die Offline-Queue deckt ausschließlich das Hochladen von Lebensmitteln ab.
+Die Aktivitätsseite zeigt die lokalen Details offline-first. Routen werden nur
+bei vorhandenen Punkten als `flutter_map`-Karte mit OpenStreetMap-Kacheln
+gerendert.
 
-## Notifications und Plattform
+## Zyklus
 
-- `flutter_local_notifications`, Zeitzoneninitialisierung und tägliche
-  Erinnerungen sind direkt in `AppState` eingebaut.
-- Kategorien, Ruhezeiten, diskrete Zyklustexte, robuste IDs und getrennte
-  Präferenzen fehlen.
-- Das Android-Manifest enthält Kamera-, Audio-, Notification- und
-  Exact-Alarm-Berechtigungen. Health Connect und Workmanager sind nicht
-  konfiguriert.
+`DriftCycleRepository` bietet Profil-, Perioden- und Tageslog-CRUD inklusive
+Validierung und sicherem Löschen. `CycleEngine` arbeitet deterministisch mit
+Median/MAD-Ausreißerbehandlung, Unsicherheits-Konfidenz und erklärbarer
+Rationale. Die UI bietet TableCalendar, Blutungs-/Symptom-/Stimmungs-/Schmerz-
+und Energie-Check-ins sowie Historienstatistik. Der optionale Import von
+Menstruationsdaten aus Health Connect ist noch nicht aktiviert.
+
+## Sicherheit und Backup
+
+- E-Mail/Passwort werden über `flutter_secure_storage` gespeichert. Eine
+  einmalige Migration entfernt Legacy-Shared-Preferences erst nach erfolgreichem
+  Secure-Write.
+- Backups sind kategorisierbar, versioniert und optional AES-256-GCM-
+  verschlüsselt (PBKDF2-HMAC-SHA256). Vor dem Restore werden Größe, Schema,
+  Kategorien und Datensatzanzahl geprüft; der Merge läuft in einer Transaktion.
+- Fehlertexte in neuen Controllern sind nutzersicher; technische Details gehen
+  nur redigiert in den Logger. Build-Secrets bleiben ein offener Altbestand und
+  werden nicht in Health-/Zykluspfade übernommen.
 
 ## Tests und CI
 
-- Im Repository sind 29 Testdeklarationen in fünf Unit-/Widget-Dateien und neun
-  lokalen LLM-Integrationstests vorhanden.
-- Abgedeckt sind insbesondere Kalorienzielberechnung, Food-Parsing,
-  Modellmetadaten, Speech-to-Text-Anhängen und ein einfacher Widget-Smoke-Test.
-- Datenbankmigration, Import/Restore, Repositories, Offline-Fehler, Navigation,
-  Notifications und Plattformadapter sind nicht charakterisiert.
-- Der Android-CI-Workflow führt `flutter analyze`, `flutter test` und einen
-  Release-APK-Build aus. iOS baut nach Merge ohne Tests/Analyse.
-
-## Unmittelbare Risiken
-
-1. Eine Big-Bang-Ablösung von `DatabaseHelper` oder `AppState` würde nahezu alle
-   bestehenden Nutzerflüsse gleichzeitig gefährden.
-2. Integer-IDs können lokale und Remote-Lebensmittel nicht eindeutig
-   unterscheiden und sind für Backup-/Restore-Merges ungeeignet.
-3. Nicht atomarer Restore und fehlende Migrations-Fixtures gefährden Bestandsdaten.
-4. Klartext-Credentials und eingebettete Datenbank-Zugangsdaten vergrößern den
-   Schaden bei APK- oder Gerätezugriff.
-5. Health Connect benötigt ein geprüftes Android-Plattformsetup, eine klare
-   Source-Priorität und eine von Widgets entkoppelte Adaptergrenze.
-
+Der lokale Lauf umfasst 37 Tests inklusive Migration, Health-Sync/Deduplizierung,
+Zyklus-Engine/Repository, Gewicht, Einheiten, Backup und Speech-to-Text. `flutter
+analyze` ist fehlerfrei kompilierbar und meldet 152 bestehende Info-Hinweise.
+Der Android-Workflow führt Analyze, Tests und Release-APK-Build auf Flutter
+stable aus; lokal wurden Debug und Release separat verifiziert bzw. werden in
+der Phasenbilanz dokumentiert.

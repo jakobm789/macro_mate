@@ -258,7 +258,7 @@ class _SettingsPageState extends State<SettingsPage> {
         carbPercentage,
         proteinPercentage,
         fatPercentage,
-        newSugarPerc!,
+        newSugarPerc,
       );
       if (appState.autoMode != AutoCalorieMode.off &&
           !appState.firstWeekInitialized) {
@@ -509,7 +509,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _runLlmBenchmark(AppState appState) async {
     final results = <String>[];
-    
+
     void updateProgress(String msg) {
       results.add(msg);
       if (mounted) {
@@ -542,7 +542,8 @@ class _SettingsPageState extends State<SettingsPage> {
       loadWatch.stop();
 
       final backend = service.loadedBackendName;
-      updateProgress('   -> Geladen in: ${loadWatch.elapsedMilliseconds} ms (${backend})');
+      updateProgress(
+          '   -> Geladen in: ${loadWatch.elapsedMilliseconds} ms (${backend})');
 
       // 3/4. Inferenzzeit messen (Kurzer Prompt)
       updateProgress('[Schritt 3/4] Führe Inferenz durch (Kurzantwort)...');
@@ -557,22 +558,27 @@ class _SettingsPageState extends State<SettingsPage> {
       final foodWatch = Stopwatch()..start();
       final foodResponse = await service.runMockFoodPrompt();
       foodWatch.stop();
-      updateProgress('   -> Nährwert-Inferenzzeit: ${foodWatch.elapsedMilliseconds} ms');
+      updateProgress(
+          '   -> Nährwert-Inferenzzeit: ${foodWatch.elapsedMilliseconds} ms');
       updateProgress('   -> Antwort: "$foodResponse"');
 
       updateProgress('---------------------------');
       updateProgress('Zusammenfassung:');
       updateProgress('  - Modell-Laden: ${loadWatch.elapsedMilliseconds} ms');
       updateProgress('  - Kurze Inferenz: ${infWatch.elapsedMilliseconds} ms');
-      updateProgress('  - Nährwert Inferenz: ${foodWatch.elapsedMilliseconds} ms');
-      final total = loadWatch.elapsedMilliseconds + infWatch.elapsedMilliseconds + foodWatch.elapsedMilliseconds;
+      updateProgress(
+          '  - Nährwert Inferenz: ${foodWatch.elapsedMilliseconds} ms');
+      final total = loadWatch.elapsedMilliseconds +
+          infWatch.elapsedMilliseconds +
+          foodWatch.elapsedMilliseconds;
       updateProgress('  - Gesamtzeit: $total ms');
 
       await service.dispose();
     } catch (e) {
       if (mounted) {
         setState(() {
-          _llmStatusMessage = 'Benchmark fehlgeschlagen:\n$e\n\nBisherige Logs:\n${results.join("\n")}';
+          _llmStatusMessage =
+              'Benchmark fehlgeschlagen:\n$e\n\nBisherige Logs:\n${results.join("\n")}';
         });
       }
     } finally {

@@ -13,7 +13,18 @@ abstract interface class CycleRepository {
     BleedingLevel? flow,
   });
 
+  Future<void> updatePeriod({
+    required String id,
+    required DateTime startDay,
+    DateTime? endDay,
+    BleedingLevel? flow,
+  });
+
+  Future<void> deletePeriod(String id);
+
   Future<void> saveDailyLog(CycleDailyLog log);
+
+  Future<void> deleteDailyLog(DateTime day);
 
   Future<List<CycleDailyLog>> dailyLogs({DateTime? from, DateTime? to});
 

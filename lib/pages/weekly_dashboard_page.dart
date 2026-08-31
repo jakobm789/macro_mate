@@ -76,7 +76,8 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
                     _buildSummaryCard(
                       context,
                       title: 'Durchschnitt',
-                      value: '${summary.averageCalories.toStringAsFixed(0)} kcal',
+                      value:
+                          '${summary.averageCalories.toStringAsFixed(0)} kcal',
                       subtitle: 'pro Tag (Ø)',
                       icon: Icons.flash_on,
                       color: Colors.orange,
@@ -84,7 +85,8 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
                     _buildSummaryCard(
                       context,
                       title: 'Verbleibend',
-                      value: '${summary.remainingCalories.toStringAsFixed(0)} kcal',
+                      value:
+                          '${summary.remainingCalories.toStringAsFixed(0)} kcal',
                       subtitle: 'in dieser Woche',
                       icon: Icons.hourglass_empty,
                       color: Colors.blue,
@@ -100,10 +102,12 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
                     _buildSummaryCard(
                       context,
                       title: 'Gewichtstrend',
-                      value: '${summary.weightTrend >= 0 ? '+' : ''}${summary.weightTrend.toStringAsFixed(1)} kg',
+                      value:
+                          '${summary.weightTrend >= 0 ? '+' : ''}${summary.weightTrend.toStringAsFixed(1)} kg',
                       subtitle: 'letzte 7 Tage',
                       icon: Icons.trending_up,
-                      color: summary.weightTrend <= 0 ? Colors.green : Colors.red,
+                      color:
+                          summary.weightTrend <= 0 ? Colors.green : Colors.red,
                     ),
                   ],
                 ),
@@ -123,7 +127,8 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
                       segments: const [
                         ButtonSegment<String>(
                           value: 'calories',
-                          label: Text('Kalorien', style: TextStyle(fontSize: 12)),
+                          label:
+                              Text('Kalorien', style: TextStyle(fontSize: 12)),
                           icon: Icon(Icons.flash_on, size: 14),
                         ),
                         ButtonSegment<String>(
@@ -157,11 +162,13 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
                             duration: const Duration(milliseconds: 300),
                             switchInCurve: Curves.easeOut,
                             switchOutCurve: Curves.easeIn,
-                            transitionBuilder: (Widget child, Animation<double> animation) {
+                            transitionBuilder:
+                                (Widget child, Animation<double> animation) {
                               return FadeTransition(
                                 opacity: animation,
                                 child: ScaleTransition(
-                                  scale: Tween<double>(begin: 0.95, end: 1.0).animate(animation),
+                                  scale: Tween<double>(begin: 0.95, end: 1.0)
+                                      .animate(animation),
                                   child: child,
                                 ),
                               );
@@ -208,13 +215,15 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: breakdown.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final day = breakdown[index];
                     final double percent = state.dailyCalorieGoal > 0
-                        ? (day.calories / state.dailyCalorieGoal).clamp(0.0, 1.0)
+                        ? (day.calories / state.dailyCalorieGoal)
+                            .clamp(0.0, 1.0)
                         : 0.0;
-                    
+
                     final isToday = DateFormat('yyyy-MM-dd').format(day.date) ==
                         DateFormat('yyyy-MM-dd').format(DateTime.now());
 
@@ -242,7 +251,9 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
                                     Text(
                                       day.dayName,
                                       style: TextStyle(
-                                        fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                        fontWeight: isToday
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                         fontSize: 16,
                                       ),
                                     ),
@@ -254,8 +265,11 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
                                           vertical: 2,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Theme.of(context).colorScheme.primary,
-                                          borderRadius: BorderRadius.circular(4),
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                          borderRadius:
+                                              BorderRadius.circular(4),
                                         ),
                                         child: const Text(
                                           'Heute',
@@ -293,15 +307,18 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
                               children: [
                                 Text(
                                   'K: ${day.carbs.toStringAsFixed(0)}g',
-                                  style: const TextStyle(fontSize: 12, color: Colors.purple),
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Colors.purple),
                                 ),
                                 Text(
                                   'P: ${day.protein.toStringAsFixed(0)}g',
-                                  style: const TextStyle(fontSize: 12, color: Colors.green),
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Colors.green),
                                 ),
                                 Text(
                                   'F: ${day.fat.toStringAsFixed(0)}g',
-                                  style: const TextStyle(fontSize: 12, color: Colors.blue),
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Colors.blue),
                                 ),
                               ],
                             ),
@@ -386,8 +403,12 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
   }
 
   Widget _buildCalorieChart(AppState state, List<WeeklyDaySummary> breakdown) {
-    final double maxCalories = breakdown.map((e) => e.calories).reduce((a, b) => a > b ? a : b);
-    final double limitY = (maxCalories > state.dailyCalorieGoal ? maxCalories : state.dailyCalorieGoal.toDouble()) * 1.15;
+    final double maxCalories =
+        breakdown.map((e) => e.calories).reduce((a, b) => a > b ? a : b);
+    final double limitY = (maxCalories > state.dailyCalorieGoal
+            ? maxCalories
+            : state.dailyCalorieGoal.toDouble()) *
+        1.15;
 
     return BarChart(
       BarChartData(
@@ -399,7 +420,10 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               return BarTooltipItem(
                 '${rod.toY.toStringAsFixed(0)} kcal',
-                const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12),
               );
             },
           ),
@@ -418,7 +442,8 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
                     space: 4,
                     child: Text(
                       days[index],
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                   );
                 }
@@ -426,9 +451,12 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
               },
             ),
           ),
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
@@ -441,7 +469,9 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
             barRods: [
               BarChartRodData(
                 toY: day.calories,
-                color: isOverGoal ? Colors.redAccent : Theme.of(context).colorScheme.primary,
+                color: isOverGoal
+                    ? Colors.redAccent
+                    : Theme.of(context).colorScheme.primary,
                 width: 16,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(4),
@@ -505,7 +535,8 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
                     space: 4,
                     child: Text(
                       days[index],
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                   );
                 }
@@ -513,14 +544,21 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
               },
             ),
           ),
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         lineBarsData: [
           // Carbs (purple)
           LineChartBarData(
-            spots: breakdown.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.carbs)).toList(),
+            spots: breakdown
+                .asMap()
+                .entries
+                .map((e) => FlSpot(e.key.toDouble(), e.value.carbs))
+                .toList(),
             isCurved: true,
             color: Colors.purple,
             barWidth: 3,
@@ -528,7 +566,11 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
           ),
           // Protein (green)
           LineChartBarData(
-            spots: breakdown.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.protein)).toList(),
+            spots: breakdown
+                .asMap()
+                .entries
+                .map((e) => FlSpot(e.key.toDouble(), e.value.protein))
+                .toList(),
             isCurved: true,
             color: Colors.green,
             barWidth: 3,
@@ -536,7 +578,11 @@ class _WeeklyDashboardPageState extends State<WeeklyDashboardPage> {
           ),
           // Fat (blue)
           LineChartBarData(
-            spots: breakdown.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.fat)).toList(),
+            spots: breakdown
+                .asMap()
+                .entries
+                .map((e) => FlSpot(e.key.toDouble(), e.value.fat))
+                .toList(),
             isCurved: true,
             color: Colors.blue,
             barWidth: 3,

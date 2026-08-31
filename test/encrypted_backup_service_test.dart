@@ -40,4 +40,30 @@ void main() {
       throwsArgumentError,
     );
   });
+
+  test('rejects backups from a newer schema version', () async {
+    final service = EncryptedBackupService();
+    final encrypted = await service.encrypt({'ok': true}, password: '12345678');
+    final envelope = jsonDecode(encrypted) as Map<String, dynamic>;
+    envelope['schema_version'] = EncryptedBackupService.maxSchemaVersion + 1;
+
+    expect(
+      () => service.decrypt(jsonEncode(envelope), password: '12345678'),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test('rejects corrupted ciphertext before restoring data', () async {
+    final service = EncryptedBackupService();
+    final encrypted = await service.encrypt({'ok': true}, password: '12345678');
+    final envelope = jsonDecode(encrypted) as Map<String, dynamic>;
+    final ciphertext = envelope['ciphertext'] as String;
+    envelope['ciphertext'] =
+        '${ciphertext.substring(0, ciphertext.length - 2)}aa';
+
+    expect(
+      () => service.decrypt(jsonEncode(envelope), password: '12345678'),
+      throwsA(isA<SecretBoxAuthenticationError>()),
+    );
+  });
 }
