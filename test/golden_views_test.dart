@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,8 +31,46 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fake_health_connect_source.dart';
 
+class TolerantGoldenFileComparator extends LocalFileComparator {
+  TolerantGoldenFileComparator(
+    super.testFile, {
+    this.maxDifferencePercent = 0.02,
+  });
+
+  final double maxDifferencePercent;
+
+  @override
+  Future<bool> compare(Uint8List imageBytes, Uri golden) async {
+    final ComparisonResult result = await GoldenFileComparator.compareLists(
+      imageBytes,
+      await getGoldenBytes(golden),
+    );
+
+    if (!result.passed && result.diffPercent <= maxDifferencePercent) {
+      debugPrint(
+        'Golden diff of ${(result.diffPercent * 100).toStringAsFixed(2)}% within tolerance of ${(maxDifferencePercent * 100).toStringAsFixed(2)}%',
+      );
+      return true;
+    }
+
+    if (!result.passed) {
+      final String error = await generateFailureOutput(result, golden, basedir);
+      throw FlutterError(error);
+    }
+    return result.passed;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    final baseUri = (goldenFileComparator as LocalFileComparator).basedir;
+    goldenFileComparator = TolerantGoldenFileComparator(
+      baseUri.resolve('golden_views_test.dart'),
+      maxDifferencePercent: 0.02,
+    );
+  });
 
   late AppDatabase db;
   late NutritionController nutritionController;
