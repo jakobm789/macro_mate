@@ -859,10 +859,12 @@ class AppState extends ChangeNotifier {
   Future<String> exportDatabase({
     required String password,
     bool includeCycle = true,
+    Set<String>? categories,
   }) =>
       backupController.exportBackup(
         password: password,
-        categories: includeCycle ? null : {'nutrition', 'weights', 'settings'},
+        categories: categories ??
+            (includeCycle ? null : {'nutrition', 'weights', 'settings'}),
       );
 
   Future<void> importDatabase(String encryptedJson, {String password = ''}) async {

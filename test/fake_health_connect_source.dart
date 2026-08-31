@@ -1,0 +1,61 @@
+import 'package:macro_mate/features/health/data/health_data_source.dart';
+import 'package:macro_mate/features/health/domain/health_models.dart';
+
+class FakeHealthConnectSource implements HealthDataSource {
+  FakeHealthConnectSource({
+    this.availability = HealthAvailability.available,
+    HealthPermissionState? initialPermissions,
+  }) : permissions = initialPermissions ??
+            const HealthPermissionState(
+              readGranted: true,
+              historyGranted: true,
+              backgroundGranted: true,
+            );
+
+  HealthAvailability availability;
+  HealthPermissionState permissions;
+  final List<HealthRecord> records = [];
+  bool shouldThrowOnRead = false;
+
+  @override
+  Future<HealthAvailability> getAvailability() async => availability;
+
+  @override
+  Future<HealthPermissionState> currentPermissions() async => permissions;
+
+  @override
+  Future<HealthPermissionState> requestPermissions({
+    bool includeHistory = false,
+    bool includeBackground = false,
+  }) async {
+    permissions = HealthPermissionState(
+      readGranted: true,
+      historyGranted: includeHistory,
+      backgroundGranted: includeBackground,
+    );
+    return permissions;
+  }
+
+  @override
+  Future<void> revokePermissions() async {
+    permissions = const HealthPermissionState(
+      readGranted: false,
+      historyGranted: false,
+      backgroundGranted: false,
+    );
+  }
+
+  @override
+  Future<List<HealthRecord>> read(DateTime startUtc, DateTime endUtc) async {
+    if (shouldThrowOnRead) {
+      throw Exception('Simulierter Health Connect Verbindungsfehler');
+    }
+    return records.where((r) {
+      return !r.startUtc.isBefore(startUtc) && !r.startUtc.isAfter(endUtc);
+    }).toList();
+  }
+
+  void addRecord(HealthRecord record) {
+    records.add(record);
+  }
+}

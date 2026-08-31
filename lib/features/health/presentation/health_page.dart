@@ -7,7 +7,10 @@ import '../domain/health_models.dart';
 import 'health_controller.dart';
 
 class HealthPage extends StatefulWidget {
-  const HealthPage({super.key});
+  const HealthPage({super.key, this.database, this.controller});
+
+  final AppDatabase? database;
+  final HealthController? controller;
 
   @override
   State<HealthPage> createState() => _HealthPageState();
@@ -16,25 +19,41 @@ class HealthPage extends StatefulWidget {
 class _HealthPageState extends State<HealthPage> {
   late final AppDatabase _database;
   late final HealthController _controller;
+  bool _ownsDatabase = false;
+  bool _ownsController = false;
   bool _includeHistory = false;
   bool _includeBackground = false;
 
   @override
   void initState() {
     super.initState();
-    _database = AppDatabase();
-    _controller = HealthController(
-      repository: DriftHealthRepository(
-        database: _database,
-        source: HealthConnectSource(),
-      ),
-    )..load();
+    if (widget.controller != null) {
+      _controller = widget.controller!;
+    } else {
+      if (widget.database != null) {
+        _database = widget.database!;
+      } else {
+        _database = AppDatabase();
+        _ownsDatabase = true;
+      }
+      _controller = HealthController(
+        repository: DriftHealthRepository(
+          database: _database,
+          source: HealthConnectSource(),
+        ),
+      )..load();
+      _ownsController = true;
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _database.close();
+    if (_ownsController) {
+      _controller.dispose();
+    }
+    if (_ownsDatabase) {
+      _database.close();
+    }
     super.dispose();
   }
 

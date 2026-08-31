@@ -457,6 +457,8 @@ class DriftHealthRepository implements HealthRepository {
                   .toDouble(),
               distanceM: Value(_payloadNumber(payload, const [
                 'totalDistance',
+                'distanceMeters',
+                'distance_meters',
                 'distance',
               ])),
               energyKcal: Value(record.value),

@@ -7,7 +7,9 @@ import '../../../core/database/app_database.dart';
 import '../../../core/ui/design_system.dart';
 
 class ActivityPage extends StatefulWidget {
-  const ActivityPage({super.key});
+  const ActivityPage({super.key, this.database});
+
+  final AppDatabase? database;
 
   @override
   State<ActivityPage> createState() => _ActivityPageState();
@@ -15,6 +17,7 @@ class ActivityPage extends StatefulWidget {
 
 class _ActivityPageState extends State<ActivityPage> {
   late final AppDatabase _database;
+  bool _ownsDatabase = false;
   bool _loading = true;
   String? _error;
   List<WorkoutSessionRow> _workouts = const [];
@@ -24,13 +27,20 @@ class _ActivityPageState extends State<ActivityPage> {
   @override
   void initState() {
     super.initState();
-    _database = AppDatabase();
+    if (widget.database != null) {
+      _database = widget.database!;
+    } else {
+      _database = AppDatabase();
+      _ownsDatabase = true;
+    }
     _load();
   }
 
   @override
   void dispose() {
-    _database.close();
+    if (_ownsDatabase) {
+      _database.close();
+    }
     super.dispose();
   }
 

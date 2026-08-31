@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/database/app_database.dart';
 import '../../core/ui/design_system.dart';
 import '../../features/activity/presentation/activity_page.dart';
 import '../../features/cycle/presentation/cycle_page.dart';
@@ -7,7 +8,9 @@ import '../../features/dashboard/presentation/today_page.dart';
 import '../../pages/home_page.dart';
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({super.key, this.database});
+
+  final AppDatabase? database;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -20,12 +23,12 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) => Scaffold(
         body: IndexedStack(
           index: _index,
-          children: const [
-            TodayPage(),
-            MyHomePage(title: 'Ernährung'),
-            ActivityPage(),
-            CyclePage(),
-            MorePage(),
+          children: [
+            const TodayPage(),
+            const MyHomePage(title: 'Ernährung'),
+            ActivityPage(database: widget.database),
+            CyclePage(database: widget.database),
+            const MorePage(),
           ],
         ),
         bottomNavigationBar: NavigationBar(

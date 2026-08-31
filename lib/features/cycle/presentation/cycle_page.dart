@@ -11,7 +11,10 @@ import 'cycle_import_preview_sheet.dart';
 import 'correlations_page.dart';
 
 class CyclePage extends StatefulWidget {
-  const CyclePage({super.key});
+  const CyclePage({super.key, this.database, this.controller});
+
+  final AppDatabase? database;
+  final CycleController? controller;
 
   @override
   State<CyclePage> createState() => _CyclePageState();
@@ -20,22 +23,38 @@ class CyclePage extends StatefulWidget {
 class _CyclePageState extends State<CyclePage> {
   late final AppDatabase _database;
   late final CycleController _controller;
+  bool _ownsDatabase = false;
+  bool _ownsController = false;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
   @override
   void initState() {
     super.initState();
-    _database = AppDatabase();
-    _controller = CycleController(
-      repository: DriftCycleRepository(database: _database),
-    )..load();
+    if (widget.controller != null) {
+      _controller = widget.controller!;
+    } else {
+      if (widget.database != null) {
+        _database = widget.database!;
+      } else {
+        _database = AppDatabase();
+        _ownsDatabase = true;
+      }
+      _controller = CycleController(
+        repository: DriftCycleRepository(database: _database),
+      )..load();
+      _ownsController = true;
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _database.close();
+    if (_ownsController) {
+      _controller.dispose();
+    }
+    if (_ownsDatabase) {
+      _database.close();
+    }
     super.dispose();
   }
 
