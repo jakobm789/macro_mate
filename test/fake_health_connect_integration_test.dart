@@ -2,6 +2,9 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:macro_mate/core/database/app_database.dart';
 import 'package:macro_mate/features/activity/presentation/activity_controller.dart';
+import 'package:macro_mate/features/cycle/data/drift_cycle_repository.dart';
+import 'package:macro_mate/features/cycle/domain/cycle_models.dart';
+import 'package:macro_mate/features/cycle/presentation/cycle_controller.dart';
 import 'package:macro_mate/features/health/data/drift_health_repository.dart';
 import 'package:macro_mate/features/health/domain/health_models.dart';
 import 'package:macro_mate/features/health/presentation/health_controller.dart';
@@ -34,7 +37,9 @@ void main() {
   });
 
   group('Fake Health Connect Integration Tests', () {
-    test('syncs steps, active calories, sleep, and heart rate and aggregates correctly', () async {
+    test(
+        'syncs steps, active calories, sleep, and heart rate and aggregates correctly',
+        () async {
       fakeSource.addRecord(
         HealthRecord(
           id: 'step_1',
@@ -97,7 +102,8 @@ void main() {
       );
       expect(summaries, isNotEmpty);
 
-      final summary = summaries.firstWhere((s) => s.day.year == 2026 && s.day.month == 8 && s.day.day == 25);
+      final summary = summaries.firstWhere(
+          (s) => s.day.year == 2026 && s.day.month == 8 && s.day.day == 25);
       expect(summary.steps, 8000); // 4500 + 3500
       expect(summary.activeCalories, 320.0);
       expect(summary.sleepMinutes, 480.0);
@@ -138,12 +144,15 @@ void main() {
       expect(summaries2.single.steps, 2000); // Not doubled to 4000
     });
 
-    test('recovers gracefully from sync failures and updates controller error state', () async {
+    test(
+        'recovers gracefully from sync failures and updates controller error state',
+        () async {
       fakeSource.shouldThrowOnRead = true;
 
       await healthController.syncLast30Days();
       expect(healthController.syncStatus, HealthSyncStatus.failed);
-      expect(healthController.errorMessage, contains('Health-Connect-Synchronisierung fehlgeschlagen'));
+      expect(healthController.errorMessage,
+          contains('Health-Connect-Synchronisierung fehlgeschlagen'));
 
       // Error clears on successful retry
       fakeSource.shouldThrowOnRead = false;
@@ -164,7 +173,8 @@ void main() {
           value: 45.0,
           unit: 'minutes',
           localDay: '2026-08-25',
-          payloadJson: '{"type":"running","distanceMeters":6500.0,"activeCalories":480.0}',
+          payloadJson:
+              '{"type":"running","distanceMeters":6500.0,"activeCalories":480.0}',
         ),
       );
 
@@ -179,6 +189,93 @@ void main() {
       expect(workouts.first.durationSeconds, 2700.0);
       expect(workouts.first.distanceMeters, 6500.0);
       expect(workouts.first.energyKcal, 45.0);
+    });
+
+    test('full end-to-end Health Connect menstruation import pipeline',
+        () async {
+      final cycleRepo = DriftCycleRepository(database: db);
+      final cycleController = CycleController(
+        repository: cycleRepo,
+        healthRepository: healthRepo,
+      );
+
+      // 1. Initial local period: 2026-07-01 to 2026-07-05
+      await cycleRepo.addPeriod(
+        startDay: DateTime.utc(2026, 7, 1),
+        endDay: DateTime.utc(2026, 7, 5),
+        flow: BleedingLevel.medium,
+        source: 'local',
+      );
+
+      // 2. Health Connect fake source has 2 menstruation records:
+      // Record A: 2026-07-03 to 2026-07-07 (Overlaps with local period)
+      // Record B: 2026-08-01 to 2026-08-05 (New, non-conflicting)
+      fakeSource.addMenstruationRecord(
+        HealthMenstruationRecord(
+          id: 'hc_menstruation_overlap',
+          startDay: DateTime.utc(2026, 7, 3),
+          endDay: DateTime.utc(2026, 7, 7),
+          flow: BleedingLevel.heavy,
+          sourceName: 'Garmin Connect',
+        ),
+      );
+      fakeSource.addMenstruationRecord(
+        HealthMenstruationRecord(
+          id: 'hc_menstruation_new',
+          startDay: DateTime.utc(2026, 8, 1),
+          endDay: DateTime.utc(2026, 8, 5),
+          flow: BleedingLevel.medium,
+          sourceName: 'Garmin Connect',
+        ),
+      );
+
+      // 3. Trigger preview import via CycleController
+      final staged = await cycleController.previewHealthConnectImport(
+        startUtc: DateTime.utc(2026, 6, 1),
+        endUtc: DateTime.utc(2026, 8, 31),
+      );
+
+      expect(staged.length, 2);
+
+      // Verify conflict detected for overlapping record
+      final conflictItem = staged.firstWhere(
+        (i) => i.importedRecord.id == 'hc_menstruation_overlap',
+      );
+      expect(conflictItem.conflictType, MenstruationConflictType.overlap);
+      expect(conflictItem.conflictingLocalPeriod, isNotNull);
+
+      // Verify non-conflicting record
+      final newItem = staged.firstWhere(
+        (i) => i.importedRecord.id == 'hc_menstruation_new',
+      );
+      expect(newItem.conflictType, MenstruationConflictType.none);
+
+      // 4. Resolve conflict with 'merge' strategy
+      final overlapIndex = staged.indexOf(conflictItem);
+      cycleController.updateConflictResolution(
+        overlapIndex,
+        MenstruationConflictResolution.merge,
+      );
+
+      // 5. Apply import atomically
+      final importedCount = await cycleController.applyStagedImport();
+      expect(importedCount, 2);
+
+      // 6. Verify persisted database state in DriftCycleRepository
+      final allPeriods = await cycleRepo.periods();
+      expect(allPeriods.length, 2);
+
+      // Merged period should span from 2026-07-01 to 2026-07-07
+      final mergedPeriod = allPeriods.firstWhere((p) => p.startDay.month == 7);
+      expect(mergedPeriod.startDay.day, 1);
+      expect(mergedPeriod.endDay?.day, 7);
+      expect(mergedPeriod.source, contains('merged'));
+
+      // New period should be persisted cleanly
+      final newPeriod = allPeriods.firstWhere((p) => p.startDay.month == 8);
+      expect(newPeriod.startDay.day, 1);
+      expect(newPeriod.endDay?.day, 5);
+      expect(newPeriod.source, 'Garmin Connect');
     });
   });
 }

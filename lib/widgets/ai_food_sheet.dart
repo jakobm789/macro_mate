@@ -607,6 +607,7 @@ class _AiFoodSheetState extends State<AiFoodSheet>
 
     // Kurze Verzögerung, damit die UI rendern kann und "Modell wird geladen..." anzeigt
     await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
 
     try {
       final appState = Provider.of<AppState>(context, listen: false);

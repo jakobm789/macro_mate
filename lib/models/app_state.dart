@@ -113,25 +113,40 @@ class AppState extends ChangeNotifier {
     ImportExportController? importExportCtrl,
   }) {
     _database = database ?? AppDatabase();
-    _nutritionRepository = nutritionRepository ?? DriftNutritionRepository(database: _database);
-    _weightRepository = weightRepository ?? DriftWeightRepository(database: _database);
-    _settingsRepository = settingsRepository ?? DriftSettingsRepository(database: _database);
+    _nutritionRepository =
+        nutritionRepository ?? DriftNutritionRepository(database: _database);
+    _weightRepository =
+        weightRepository ?? DriftWeightRepository(database: _database);
+    _settingsRepository =
+        settingsRepository ?? DriftSettingsRepository(database: _database);
     _healthRepository = healthRepository ??
         DriftHealthRepository(
           database: _database,
           source: HealthConnectSource(),
         );
-    _cycleRepository = cycleRepository ?? DriftCycleRepository(database: _database);
-    _notificationRepository = notificationRepository ?? DriftNotificationRepository(database: _database);
+    _cycleRepository =
+        cycleRepository ?? DriftCycleRepository(database: _database);
+    _notificationRepository = notificationRepository ??
+        DriftNotificationRepository(database: _database);
 
-    nutritionController = nutritionCtrl ?? NutritionController(repository: _nutritionRepository);
-    weightController = weightCtrl ?? WeightController(repository: _weightRepository);
-    healthController = healthCtrl ?? HealthController(repository: _healthRepository);
-    activityController = activityCtrl ?? ActivityController(repository: _healthRepository);
-    cycleController = cycleCtrl ?? CycleController(repository: _cycleRepository);
-    settingsController = settingsCtrl ?? SettingsController(repository: _settingsRepository);
+    nutritionController =
+        nutritionCtrl ?? NutritionController(repository: _nutritionRepository);
+    weightController =
+        weightCtrl ?? WeightController(repository: _weightRepository);
+    healthController =
+        healthCtrl ?? HealthController(repository: _healthRepository);
+    activityController =
+        activityCtrl ?? ActivityController(repository: _healthRepository);
+    cycleController = cycleCtrl ??
+        CycleController(
+          repository: _cycleRepository,
+          healthRepository: _healthRepository,
+        );
+    settingsController =
+        settingsCtrl ?? SettingsController(repository: _settingsRepository);
     localModelController = localModelCtrl ?? LocalModelController();
-    notificationController = notificationCtrl ?? NotificationController(repository: _notificationRepository);
+    notificationController = notificationCtrl ??
+        NotificationController(repository: _notificationRepository);
 
     dashboardController = dashboardCtrl ??
         DashboardController(
@@ -230,13 +245,15 @@ class AppState extends ChangeNotifier {
   List<FoodItem> get favoriteFoodItems => nutritionController.favoriteFoods;
   List<FoodItem> get last20FoodItems => nutritionController.frequentFoods;
   List<SavedMeal> get savedMeals => nutritionController.savedMeals;
-  Set<int> get favoriteFoodIds =>
-      nutritionController.favoriteFoods.map((f) => f.id).whereType<int>().toSet();
+  Set<int> get favoriteFoodIds => nutritionController.favoriteFoods
+      .map((f) => f.id)
+      .whereType<int>()
+      .toSet();
 
   // Delegated Settings & Goals Getters & Setters
   int get dailyCalorieGoal => settingsController.goals.dailyCalories;
-  set dailyCalorieGoal(int val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(dailyCalories: val));
+  set dailyCalorieGoal(int val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(dailyCalories: val));
   double get dailyCarbGoal => settingsController.dailyCarbGoal;
   double get dailyProteinGoal => settingsController.dailyProteinGoal;
   double get dailyFatGoal => settingsController.dailyFatGoal;
@@ -245,14 +262,14 @@ class AppState extends ChangeNotifier {
       (dailyCalorieGoal * (dailySugarGoalPercentage / 100.0)) / 4.0;
   bool get isDarkMode => settingsController.isDarkMode;
   Gender get userGender => settingsController.goals.gender;
-  set userGender(Gender val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(gender: val));
+  set userGender(Gender val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(gender: val));
   BmrFormula get bmrFormula => settingsController.goals.bmrFormula;
-  set bmrFormula(BmrFormula val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(bmrFormula: val));
+  set bmrFormula(BmrFormula val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(bmrFormula: val));
   AutoCalorieMode get autoMode => settingsController.goals.autoCalorieMode;
-  set autoMode(AutoCalorieMode val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(autoCalorieMode: val));
+  set autoMode(AutoCalorieMode val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(autoCalorieMode: val));
   double get customPercentPerMonth =>
       settingsController.goals.customPercentPerMonth;
   set customPercentPerMonth(double val) => settingsController.updateGoals(
@@ -262,37 +279,36 @@ class AppState extends ChangeNotifier {
   set useCustomStartCalories(bool val) => settingsController.updateGoals(
       settingsController.goals.copyWith(useCustomStartCalories: val));
   int get userStartCalories => settingsController.goals.userStartCalories;
-  set userStartCalories(int val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(userStartCalories: val));
+  set userStartCalories(int val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(userStartCalories: val));
   int get userAge => settingsController.goals.userAge;
-  set userAge(int val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(userAge: val));
+  set userAge(int val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(userAge: val));
   double get userActivityLevel => settingsController.goals.userActivityLevel;
-  set userActivityLevel(double val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(userActivityLevel: val));
+  set userActivityLevel(double val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(userActivityLevel: val));
   double get userHeight => settingsController.goals.userHeight;
-  set userHeight(double val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(userHeight: val));
+  set userHeight(double val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(userHeight: val));
   bool get useProteinPerKg => settingsController.goals.useProteinPerKg;
-  set useProteinPerKg(bool val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(useProteinPerKg: val));
+  set useProteinPerKg(bool val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(useProteinPerKg: val));
   double get proteinPerKg => settingsController.goals.proteinPerKg;
-  set proteinPerKg(double val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(proteinPerKg: val));
+  set proteinPerKg(double val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(proteinPerKg: val));
   double? get targetWeight => settingsController.goals.targetWeight;
-  set targetWeight(double? val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(targetWeight: val));
+  set targetWeight(double? val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(targetWeight: val));
   DateTime? get targetDate => settingsController.goals.targetDate != null
       ? DateTime.tryParse(settingsController.goals.targetDate!)
       : null;
-  set targetDate(DateTime? val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(
+  set targetDate(DateTime? val) =>
+      settingsController.updateGoals(settingsController.goals.copyWith(
           targetDate:
               val != null ? DateFormat('yyyy-MM-dd').format(val) : null));
-  double? get targetWeeklyChange =>
-      settingsController.goals.targetWeeklyChange;
-  set targetWeeklyChange(double? val) => settingsController.updateGoals(
-      settingsController.goals.copyWith(targetWeeklyChange: val));
+  double? get targetWeeklyChange => settingsController.goals.targetWeeklyChange;
+  set targetWeeklyChange(double? val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(targetWeeklyChange: val));
   bool firstWeekInitialized = true;
 
   bool get reminderWeighEnabled =>
@@ -332,24 +348,32 @@ class AppState extends ChangeNotifier {
 
   set reminderWeighEnabled(bool value) => settingsController.updateSettings(
       settingsController.settings.copyWith(reminderWeighEnabled: value));
-  set reminderWeighTime(TimeOfDay value) => settingsController.updateSettings(
-      settingsController.settings.copyWith(reminderWeighTime: _formatTimeOfDay(value)));
-  set reminderWeighTimeSecond(TimeOfDay value) => settingsController.updateSettings(
-      settingsController.settings.copyWith(reminderWeighTime2: _formatTimeOfDay(value)));
-  set reminderSupplementEnabled(bool value) => settingsController.updateSettings(
-      settingsController.settings.copyWith(reminderSupplementEnabled: value));
-  set reminderSupplementTime(TimeOfDay value) => settingsController.updateSettings(
-      settingsController.settings.copyWith(reminderSupplementTime: _formatTimeOfDay(value)));
-  set reminderSupplementTimeSecond(TimeOfDay value) => settingsController.updateSettings(
-      settingsController.settings.copyWith(reminderSupplementTime2: _formatTimeOfDay(value)));
+  set reminderWeighTime(TimeOfDay value) =>
+      settingsController.updateSettings(settingsController.settings
+          .copyWith(reminderWeighTime: _formatTimeOfDay(value)));
+  set reminderWeighTimeSecond(TimeOfDay value) =>
+      settingsController.updateSettings(settingsController.settings
+          .copyWith(reminderWeighTime2: _formatTimeOfDay(value)));
+  set reminderSupplementEnabled(bool value) =>
+      settingsController.updateSettings(settingsController.settings
+          .copyWith(reminderSupplementEnabled: value));
+  set reminderSupplementTime(TimeOfDay value) =>
+      settingsController.updateSettings(settingsController.settings
+          .copyWith(reminderSupplementTime: _formatTimeOfDay(value)));
+  set reminderSupplementTimeSecond(TimeOfDay value) =>
+      settingsController.updateSettings(settingsController.settings
+          .copyWith(reminderSupplementTime2: _formatTimeOfDay(value)));
   set reminderMealsEnabled(bool value) => settingsController.updateSettings(
       settingsController.settings.copyWith(reminderMealsEnabled: value));
-  set reminderBreakfast(TimeOfDay value) => settingsController.updateSettings(
-      settingsController.settings.copyWith(reminderBreakfast: _formatTimeOfDay(value)));
-  set reminderLunch(TimeOfDay value) => settingsController.updateSettings(
-      settingsController.settings.copyWith(reminderLunch: _formatTimeOfDay(value)));
-  set reminderDinner(TimeOfDay value) => settingsController.updateSettings(
-      settingsController.settings.copyWith(reminderDinner: _formatTimeOfDay(value)));
+  set reminderBreakfast(TimeOfDay value) =>
+      settingsController.updateSettings(settingsController.settings
+          .copyWith(reminderBreakfast: _formatTimeOfDay(value)));
+  set reminderLunch(TimeOfDay value) =>
+      settingsController.updateSettings(settingsController.settings
+          .copyWith(reminderLunch: _formatTimeOfDay(value)));
+  set reminderDinner(TimeOfDay value) =>
+      settingsController.updateSettings(settingsController.settings
+          .copyWith(reminderDinner: _formatTimeOfDay(value)));
 
   Future<void> saveNotificationSettings({
     bool? reminderWeighEnabled,
@@ -365,15 +389,27 @@ class AppState extends ChangeNotifier {
   }) async {
     final updated = settingsController.settings.copyWith(
       reminderWeighEnabled: reminderWeighEnabled,
-      reminderWeighTime: reminderWeighTime != null ? _formatTimeOfDay(reminderWeighTime) : null,
-      reminderWeighTime2: reminderWeighTimeSecond != null ? _formatTimeOfDay(reminderWeighTimeSecond) : null,
+      reminderWeighTime: reminderWeighTime != null
+          ? _formatTimeOfDay(reminderWeighTime)
+          : null,
+      reminderWeighTime2: reminderWeighTimeSecond != null
+          ? _formatTimeOfDay(reminderWeighTimeSecond)
+          : null,
       reminderSupplementEnabled: reminderSupplementEnabled,
-      reminderSupplementTime: reminderSupplementTime != null ? _formatTimeOfDay(reminderSupplementTime) : null,
-      reminderSupplementTime2: reminderSupplementTimeSecond != null ? _formatTimeOfDay(reminderSupplementTimeSecond) : null,
+      reminderSupplementTime: reminderSupplementTime != null
+          ? _formatTimeOfDay(reminderSupplementTime)
+          : null,
+      reminderSupplementTime2: reminderSupplementTimeSecond != null
+          ? _formatTimeOfDay(reminderSupplementTimeSecond)
+          : null,
       reminderMealsEnabled: reminderMealsEnabled,
-      reminderBreakfast: reminderBreakfast != null ? _formatTimeOfDay(reminderBreakfast) : null,
-      reminderLunch: reminderLunch != null ? _formatTimeOfDay(reminderLunch) : null,
-      reminderDinner: reminderDinner != null ? _formatTimeOfDay(reminderDinner) : null,
+      reminderBreakfast: reminderBreakfast != null
+          ? _formatTimeOfDay(reminderBreakfast)
+          : null,
+      reminderLunch:
+          reminderLunch != null ? _formatTimeOfDay(reminderLunch) : null,
+      reminderDinner:
+          reminderDinner != null ? _formatTimeOfDay(reminderDinner) : null,
     );
     await settingsController.updateSettings(updated);
     await scheduleAllNotifications();
@@ -394,8 +430,9 @@ class AppState extends ChangeNotifier {
       isLocalModelDownloadRunning ? selectedLocalLlmModel : null;
   Set<String> installedLocalModelFiles = {};
   bool get isLocalModelDownloadRunning => localModelController.isDownloading;
-  int? get localModelDownloadProgress =>
-      localModelController.isDownloading ? localModelController.downloadProgress : null;
+  int? get localModelDownloadProgress => localModelController.isDownloading
+      ? localModelController.downloadProgress
+      : null;
   String? get localModelDownloadMessage => localModelController.statusMessage;
 
   @override
@@ -449,11 +486,13 @@ class AppState extends ChangeNotifier {
   }
 
   // Nutrition Delegations
-  Future<void> setDate(DateTime date) => nutritionController.loadDailyFoods(date);
+  Future<void> setDate(DateTime date) =>
+      nutritionController.loadDailyFoods(date);
   Future<void> goToPreviousDay() {
     nutritionController.goToPreviousDay();
     return Future.value();
   }
+
   Future<void> goToNextDay() {
     nutritionController.goToNextDay();
     return Future.value();
@@ -478,7 +517,8 @@ class AppState extends ChangeNotifier {
   }) async {
     final foodId = item.id;
     if (foodId == null) return;
-    if (newQuantity != null && (newMealName == null || newMealName == item.mealName)) {
+    if (newQuantity != null &&
+        (newMealName == null || newMealName == item.mealName)) {
       await nutritionController.updateConsumedFoodQuantity(foodId, newQuantity);
     } else if (newMealName != null && newMealName != item.mealName) {
       await nutritionController.deleteConsumedFood(foodId);
@@ -523,8 +563,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<bool> toggleFavoriteFood(dynamic foodOrId) {
-    final int? id =
-        foodOrId is FoodItem ? foodOrId.id : (foodOrId is int ? foodOrId : null);
+    final int? id = foodOrId is FoodItem
+        ? foodOrId.id
+        : (foodOrId is int ? foodOrId : null);
     if (id == null) return Future.value(false);
     return nutritionController.toggleFavorite(id);
   }
@@ -607,7 +648,9 @@ class AppState extends ChangeNotifier {
       useProteinPerKg: useProteinPerKg,
       proteinPerKg: proteinPerKg,
       targetWeight: targetWeight,
-      targetDate: targetDate != null ? DateFormat('yyyy-MM-dd').format(targetDate) : null,
+      targetDate: targetDate != null
+          ? DateFormat('yyyy-MM-dd').format(targetDate)
+          : null,
       targetWeeklyChange: targetWeeklyChange,
       gender: gender,
       bmrFormula: bmrFormula,
@@ -615,15 +658,27 @@ class AppState extends ChangeNotifier {
 
     final updatedSettings = settingsController.settings.copyWith(
       reminderWeighEnabled: reminderWeighEnabled,
-      reminderWeighTime: reminderWeighTime != null ? _formatTimeOfDay(reminderWeighTime) : null,
-      reminderWeighTime2: reminderWeighTimeSecond != null ? _formatTimeOfDay(reminderWeighTimeSecond) : null,
+      reminderWeighTime: reminderWeighTime != null
+          ? _formatTimeOfDay(reminderWeighTime)
+          : null,
+      reminderWeighTime2: reminderWeighTimeSecond != null
+          ? _formatTimeOfDay(reminderWeighTimeSecond)
+          : null,
       reminderSupplementEnabled: reminderSupplementEnabled,
-      reminderSupplementTime: reminderSupplementTime != null ? _formatTimeOfDay(reminderSupplementTime) : null,
-      reminderSupplementTime2: reminderSupplementTimeSecond != null ? _formatTimeOfDay(reminderSupplementTimeSecond) : null,
+      reminderSupplementTime: reminderSupplementTime != null
+          ? _formatTimeOfDay(reminderSupplementTime)
+          : null,
+      reminderSupplementTime2: reminderSupplementTimeSecond != null
+          ? _formatTimeOfDay(reminderSupplementTimeSecond)
+          : null,
       reminderMealsEnabled: reminderMealsEnabled,
-      reminderBreakfast: reminderBreakfast != null ? _formatTimeOfDay(reminderBreakfast) : null,
-      reminderLunch: reminderLunch != null ? _formatTimeOfDay(reminderLunch) : null,
-      reminderDinner: reminderDinner != null ? _formatTimeOfDay(reminderDinner) : null,
+      reminderBreakfast: reminderBreakfast != null
+          ? _formatTimeOfDay(reminderBreakfast)
+          : null,
+      reminderLunch:
+          reminderLunch != null ? _formatTimeOfDay(reminderLunch) : null,
+      reminderDinner:
+          reminderDinner != null ? _formatTimeOfDay(reminderDinner) : null,
     );
 
     await settingsController.updateGoals(updatedGoals);
@@ -663,7 +718,9 @@ class AppState extends ChangeNotifier {
       proteinPerKg: proteinPerKg,
       targetWeight: targetWeight,
       targetWeeklyChange: targetWeeklyChange,
-      targetDate: targetDate != null ? DateFormat('yyyy-MM-dd').format(targetDate) : null,
+      targetDate: targetDate != null
+          ? DateFormat('yyyy-MM-dd').format(targetDate)
+          : null,
     );
     await settingsController.updateGoals(updated);
   }
@@ -774,7 +831,8 @@ class AppState extends ChangeNotifier {
   List<ConsumedFoodItem> getCurrentDaySnapshot() =>
       [...breakfast, ...lunch, ...dinner, ...snacks];
 
-  Future<void> restoreCurrentDaySnapshot(List<ConsumedFoodItem> snapshot) async {
+  Future<void> restoreCurrentDaySnapshot(
+      List<ConsumedFoodItem> snapshot) async {
     await clearDay();
     for (final item in snapshot) {
       await addConsumedFood(item);
@@ -806,7 +864,8 @@ class AppState extends ChangeNotifier {
     return count;
   }
 
-  String buildMealSharePayload(String mealName, [List<ConsumedFoodItem>? items]) {
+  String buildMealSharePayload(String mealName,
+      [List<ConsumedFoodItem>? items]) {
     final list = items ??
         (mealName == 'breakfast'
             ? breakfast
@@ -866,7 +925,8 @@ class AppState extends ChangeNotifier {
             (includeCycle ? null : {'nutrition', 'weights', 'settings'}),
       );
 
-  Future<void> importDatabase(String encryptedJson, {String password = ''}) async {
+  Future<void> importDatabase(String encryptedJson,
+      {String password = ''}) async {
     await backupController.restoreBackup(
       encryptedJson: encryptedJson,
       password: password,
@@ -990,7 +1050,8 @@ class AppState extends ChangeNotifier {
   Future<FoodItem?> loadFoodItemByBarcode(String barcode) =>
       searchOpenFoodFactsByBarcode(barcode);
 
-  Future<FoodItem> updateBarcodeForFood(dynamic foodOrId, String barcode) async {
+  Future<FoodItem> updateBarcodeForFood(
+      dynamic foodOrId, String barcode) async {
     if (foodOrId is FoodItem) {
       final updated = foodOrId.copyWith(barcode: barcode);
       if (foodOrId.id != null) {

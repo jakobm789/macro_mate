@@ -21,7 +21,8 @@ class DriftNutritionRepository implements NutritionRepository {
         _database.localFoods,
         _database.localFoods.id.equalsExp(_database.consumedFoods.foodId),
       ),
-    ])..where(_database.consumedFoods.date.equals(date));
+    ])
+      ..where(_database.consumedFoods.date.equals(date));
 
     final rows = await query.get();
 
@@ -229,7 +230,8 @@ class DriftNutritionRepository implements NutritionRepository {
         _database.localFoods,
         _database.localFoods.id.equalsExp(_database.favoriteFoods.foodId),
       ),
-    ])..orderBy([
+    ])
+      ..orderBy([
         OrderingTerm(
           expression: _database.favoriteFoods.createdAt,
           mode: OrderingMode.desc,
@@ -332,14 +334,16 @@ class DriftNutritionRepository implements NutritionRepository {
     final result = <SavedMeal>[];
 
     for (final mealRow in mealRows) {
-      final ingredientQuery =
-          _database.select(_database.savedMealIngredients).join([
+      final ingredientQuery = _database
+          .select(_database.savedMealIngredients)
+          .join([
         innerJoin(
           _database.localFoods,
           _database.localFoods.id
               .equalsExp(_database.savedMealIngredients.foodId),
         ),
-      ])..where(_database.savedMealIngredients.savedMealId.equals(mealRow.id));
+      ])
+        ..where(_database.savedMealIngredients.savedMealId.equals(mealRow.id));
 
       final ingredientRows = await ingredientQuery.get();
       final ingredients = ingredientRows.map((row) {

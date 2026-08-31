@@ -36,8 +36,7 @@ void main() {
     expect(searchByName.length, 1);
     expect(searchByName.first.name, 'Haferflocken');
 
-    final searchByBarcode =
-        await repo.getFoodByBarcode('4000521001004');
+    final searchByBarcode = await repo.getFoodByBarcode('4000521001004');
     expect(searchByBarcode, isNotNull);
     expect(searchByBarcode!.name, 'Haferflocken');
   });

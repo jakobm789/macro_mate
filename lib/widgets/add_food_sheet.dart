@@ -208,7 +208,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
     final favorites = appState.favoriteFoodItems;
     if (widget.barcode != null && widget.barcode!.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _addNewFoodWithBarcode(context, widget.barcode!);
+        _addNewFoodWithBarcode(widget.barcode!);
       });
       return Container();
     }
@@ -383,8 +383,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                               Navigator.pop(context);
                               if (widget.barcode != null &&
                                   widget.barcode!.isNotEmpty) {
-                                _addNewFoodWithBarcode(
-                                    context, widget.barcode!);
+                                _addNewFoodWithBarcode(widget.barcode!);
                               } else {
                                 _addNewFood();
                               }
@@ -397,53 +396,54 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
   }
 
   Future<void> _addNewFoodWithBarcode(
-    BuildContext context,
     String barcode,
   ) async {
     final appState = Provider.of<AppState>(context, listen: false);
     FoodItem? existingFood = await appState.loadFoodItemByBarcode(barcode);
+    if (!mounted) return;
     if (existingFood != null) {
-      await showDialog(
+      final overwrite = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: Text('Barcode bereits vorhanden'),
           content: Text(
             'Der Barcode gehört bereits zu ${existingFood.name}. Möchtest du den Barcode überschreiben?',
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
               child: Text('Abbrechen'),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
               child: Text('Überschreiben'),
             ),
           ],
         ),
-      ).then((overwrite) async {
-        if (overwrite == true) {
-          FoodItem updatedFood = await appState.updateBarcodeForFood(
-            existingFood,
-            barcode,
-          );
-          await appState.addOrUpdateFood(
-            widget.mealName,
-            updatedFood,
-            100,
-            appState.currentDate,
-          );
-          Navigator.popUntil(context, ModalRoute.withName('/'));
-        }
-      });
+      );
+      if (overwrite == true) {
+        FoodItem updatedFood = await appState.updateBarcodeForFood(
+          existingFood,
+          barcode,
+        );
+        await appState.addOrUpdateFood(
+          widget.mealName,
+          updatedFood,
+          100,
+          appState.currentDate,
+        );
+        if (!mounted) return;
+        Navigator.popUntil(context, ModalRoute.withName('/'));
+      }
     } else {
+      if (!mounted) return;
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        builder: (context) => AddNewFoodSheet(
+        builder: (bottomSheetContext) => AddNewFoodSheet(
           barcode: barcode,
           onFoodAdded: (ConsumedFoodItem consumedFood) {
-            Navigator.pop(context);
+            Navigator.pop(bottomSheetContext);
             Navigator.popUntil(context, ModalRoute.withName('/'));
           },
         ),
@@ -512,6 +512,7 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
         context,
         listen: false,
       ).addOrUpdateFood(widget.mealName, widget.food, grams, consumedFood.date);
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -521,6 +522,7 @@ class _AddQuantityDialogState extends State<AddQuantityDialog> {
       );
       Navigator.popUntil(context, ModalRoute.withName('/'));
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });

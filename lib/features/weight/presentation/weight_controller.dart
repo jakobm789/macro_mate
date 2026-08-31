@@ -26,8 +26,11 @@ class WeightController extends ChangeNotifier {
     if (_records.length < 2) return null;
     final latest = _records.last;
     final sevenDaysAgo = latest.day.subtract(const Duration(days: 7));
-    final priorRecords =
-        _records.where((r) => r.day.isBefore(sevenDaysAgo) || r.day.isAtSameMomentAs(sevenDaysAgo)).toList();
+    final priorRecords = _records
+        .where((r) =>
+            r.day.isBefore(sevenDaysAgo) ||
+            r.day.isAtSameMomentAs(sevenDaysAgo))
+        .toList();
     if (priorRecords.isEmpty) {
       return latest.kilograms - _records.first.kilograms;
     }

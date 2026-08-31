@@ -157,9 +157,11 @@ class SettingsController extends ChangeNotifier {
     await loadSettingsAndGoals();
   }
 
-  Future<String?> getSavedEmail() => _repository.getSecureCredential('credential_email');
+  Future<String?> getSavedEmail() =>
+      _repository.getSecureCredential('credential_email');
 
-  Future<String?> getSavedPassword() => _repository.getSecureCredential('credential_password');
+  Future<String?> getSavedPassword() =>
+      _repository.getSecureCredential('credential_password');
 
   Future<void> saveCredentials(String email, String password) async {
     await _repository.setSecureCredential('credential_email', email);
@@ -170,4 +172,18 @@ class SettingsController extends ChangeNotifier {
     await _repository.deleteSecureCredential('credential_email');
     await _repository.deleteSecureCredential('credential_password');
   }
+
+  Future<List<String>?> getDashboardCardOrder() =>
+      _repository.getDashboardCardOrder();
+
+  Future<void> saveDashboardCardOrder(List<String> order) =>
+      _repository.setDashboardCardOrder(order);
+
+  Future<Map<String, bool>?> getDashboardCardVisibility() =>
+      _repository.getDashboardCardVisibility();
+
+  Future<void> saveDashboardCardVisibility(Map<String, bool> visibility) =>
+      _repository.setDashboardCardVisibility(visibility);
+
+  Future<void> resetDashboardConfig() => _repository.resetDashboardConfig();
 }

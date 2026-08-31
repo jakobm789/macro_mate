@@ -28,7 +28,6 @@ class NotificationMessage {
   final String discreteBody;
 }
 
-
 class NotificationPreference {
   const NotificationPreference({
     required this.category,
@@ -72,9 +71,13 @@ class NotificationPreference {
     try {
       final decoded = jsonDecode(value);
       if (decoded is List) {
-        return decoded.whereType<num>().map((item) => item.toInt()).where(
+        return decoded
+            .whereType<num>()
+            .map((item) => item.toInt())
+            .where(
               (item) => item >= 1 && item <= 7,
-            ).toSet();
+            )
+            .toSet();
       }
     } catch (_) {
       // Fall through to all days for a legacy/corrupt preference.
@@ -87,7 +90,8 @@ class NotificationPolicy {
   const NotificationPolicy();
 
   bool isAllowed(NotificationPreference preference, DateTime localTime) {
-    if (!preference.enabled || !preference.weekdays.contains(localTime.weekday)) {
+    if (!preference.enabled ||
+        !preference.weekdays.contains(localTime.weekday)) {
       return false;
     }
     final start = _minutes(preference.quietStart);
@@ -106,7 +110,12 @@ class NotificationPolicy {
     if (parts.length != 2) return null;
     final hour = int.tryParse(parts[0]);
     final minute = int.tryParse(parts[1]);
-    if (hour == null || minute == null || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    if (hour == null ||
+        minute == null ||
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59) {
       return null;
     }
     return hour * 60 + minute;

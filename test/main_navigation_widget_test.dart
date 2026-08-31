@@ -88,13 +88,17 @@ void main() {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AppState>.value(value: appState),
-        ChangeNotifierProvider<DashboardController>.value(value: dashboardController),
-        ChangeNotifierProvider<NutritionController>.value(value: nutritionController),
+        ChangeNotifierProvider<DashboardController>.value(
+            value: dashboardController),
+        ChangeNotifierProvider<NutritionController>.value(
+            value: nutritionController),
         ChangeNotifierProvider<WeightController>.value(value: weightController),
         ChangeNotifierProvider<HealthController>.value(value: healthController),
-        ChangeNotifierProvider<ActivityController>.value(value: activityController),
+        ChangeNotifierProvider<ActivityController>.value(
+            value: activityController),
         ChangeNotifierProvider<CycleController>.value(value: cycleController),
-        ChangeNotifierProvider<SettingsController>.value(value: settingsController),
+        ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController),
       ],
       child: MaterialApp(
         home: AppShell(database: db),
@@ -103,7 +107,8 @@ void main() {
   }
 
   group('Main App Navigation & Tabs Widget Tests', () {
-    testWidgets('switches between all 5 main bottom navigation tabs', (tester) async {
+    testWidgets('switches between all 5 main bottom navigation tabs',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);

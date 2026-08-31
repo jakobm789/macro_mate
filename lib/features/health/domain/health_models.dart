@@ -155,7 +155,9 @@ class WorkoutDetail {
 
   /// Pace in min/km if distance > 0
   double? get paceMinPerKm {
-    if (distanceMeters == null || distanceMeters! <= 0 || durationSeconds <= 0) {
+    if (distanceMeters == null ||
+        distanceMeters! <= 0 ||
+        durationSeconds <= 0) {
       return null;
     }
     final km = distanceMeters! / 1000.0;
@@ -180,4 +182,3 @@ class SleepSessionDetail {
   final String sourceId;
   final String? stagesJson;
 }
-

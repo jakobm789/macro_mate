@@ -52,11 +52,11 @@ class LocalModelController extends ChangeNotifier {
     await checkModelStatus();
   }
 
-
   Future<void> checkModelStatus() async {
     if (!Platform.isAndroid) {
       _isInstalled = false;
-      _statusMessage = 'Lokale LLM-Inferenz wird auf dieser Plattform nicht unterstützt.';
+      _statusMessage =
+          'Lokale LLM-Inferenz wird auf dieser Plattform nicht unterstützt.';
       notifyListeners();
       return;
     }
@@ -64,7 +64,9 @@ class LocalModelController extends ChangeNotifier {
     try {
       final service = LlmService(selectedModel: _selectedModel);
       _isInstalled = await service.isSelectedModelInstalled();
-      _statusMessage = _isInstalled ? 'Modell ist installiert und einsatzbereit.' : 'Modell ist noch nicht heruntergeladen.';
+      _statusMessage = _isInstalled
+          ? 'Modell ist installiert und einsatzbereit.'
+          : 'Modell ist noch nicht heruntergeladen.';
     } catch (e) {
       _isInstalled = false;
       _statusMessage = 'Status konnte nicht geprüft werden: $e';

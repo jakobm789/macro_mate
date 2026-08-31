@@ -31,7 +31,8 @@ void main() {
     weightRepo = DriftWeightRepository(database: db);
     settingsRepo = DriftSettingsRepository(database: db);
     cycleRepo = DriftCycleRepository(database: db);
-    healthRepo = DriftHealthRepository(database: db, source: HealthConnectSource());
+    healthRepo =
+        DriftHealthRepository(database: db, source: HealthConnectSource());
 
     backupController = BackupController(
       database: db,
@@ -90,7 +91,8 @@ void main() {
       final weightRepo2 = DriftWeightRepository(database: db2);
       final settingsRepo2 = DriftSettingsRepository(database: db2);
       final cycleRepo2 = DriftCycleRepository(database: db2);
-      final healthRepo2 = DriftHealthRepository(database: db2, source: HealthConnectSource());
+      final healthRepo2 =
+          DriftHealthRepository(database: db2, source: HealthConnectSource());
 
       final backupController2 = BackupController(
         database: db2,

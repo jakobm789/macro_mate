@@ -2,16 +2,20 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:macro_mate/core/database/app_database.dart';
+import 'package:macro_mate/core/notifications/drift_notification_repository.dart';
+import 'package:macro_mate/core/notifications/notification_controller.dart';
 import 'package:macro_mate/features/activity/presentation/activity_controller.dart';
 import 'package:macro_mate/features/activity/presentation/activity_page.dart';
 import 'package:macro_mate/features/cycle/data/drift_cycle_repository.dart';
 import 'package:macro_mate/features/cycle/presentation/cycle_controller.dart';
 import 'package:macro_mate/features/cycle/presentation/cycle_page.dart';
+import 'package:macro_mate/features/dashboard/presentation/dashboard_config_sheet.dart';
 import 'package:macro_mate/features/dashboard/presentation/dashboard_controller.dart';
 import 'package:macro_mate/features/dashboard/presentation/today_page.dart';
 import 'package:macro_mate/features/health/data/drift_health_repository.dart';
 import 'package:macro_mate/features/health/presentation/health_controller.dart';
 import 'package:macro_mate/features/health/presentation/health_page.dart';
+import 'package:macro_mate/features/notifications/presentation/notification_settings_page.dart';
 import 'package:macro_mate/features/nutrition/data/drift_nutrition_repository.dart';
 import 'package:macro_mate/features/nutrition/presentation/nutrition_controller.dart';
 import 'package:macro_mate/features/settings/data/drift_settings_repository.dart';
@@ -36,6 +40,7 @@ void main() {
   late CycleController cycleController;
   late SettingsController settingsController;
   late DashboardController dashboardController;
+  late NotificationController notificationController;
   late AppState appState;
 
   setUp(() async {
@@ -48,13 +53,19 @@ void main() {
     final cycleRepo = DriftCycleRepository(database: db);
     final fakeSource = FakeHealthConnectSource();
     final healthRepo = DriftHealthRepository(database: db, source: fakeSource);
+    final notificationRepo = DriftNotificationRepository(database: db);
 
     nutritionController = NutritionController(repository: nutritionRepo);
     weightController = WeightController(repository: weightRepo);
     healthController = HealthController(repository: healthRepo);
     activityController = ActivityController(repository: healthRepo);
-    cycleController = CycleController(repository: cycleRepo);
+    cycleController = CycleController(
+      repository: cycleRepo,
+      healthRepository: healthRepo,
+    );
     settingsController = SettingsController(repository: settingsRepo);
+    notificationController =
+        NotificationController(repository: notificationRepo);
 
     dashboardController = DashboardController(
       nutritionController: nutritionController,
@@ -72,6 +83,7 @@ void main() {
       settingsRepository: settingsRepo,
       healthRepository: healthRepo,
       cycleRepository: cycleRepo,
+      notificationRepository: notificationRepo,
       nutritionCtrl: nutritionController,
       weightCtrl: weightController,
       healthCtrl: healthController,
@@ -79,105 +91,223 @@ void main() {
       cycleCtrl: cycleController,
       settingsCtrl: settingsController,
       dashboardCtrl: dashboardController,
+      notificationCtrl: notificationController,
     );
+
+    await notificationController.initialize();
   });
 
   tearDown(() async {
     await db.close();
   });
 
-  Widget wrapWithProviders(Widget child, {Brightness brightness = Brightness.light}) {
+  Widget wrapWithProviders(
+    Widget child, {
+    Brightness brightness = Brightness.light,
+    double textScale = 1.0,
+  }) {
+    final theme = brightness == Brightness.dark
+        ? ThemeData.dark(useMaterial3: true).copyWith(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.deepPurple,
+              brightness: Brightness.dark,
+            ),
+          )
+        : ThemeData.light(useMaterial3: true).copyWith(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.deepPurple,
+              brightness: Brightness.light,
+            ),
+          );
+
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AppState>.value(value: appState),
-        ChangeNotifierProvider<DashboardController>.value(value: dashboardController),
-        ChangeNotifierProvider<NutritionController>.value(value: nutritionController),
+        ChangeNotifierProvider<DashboardController>.value(
+          value: dashboardController,
+        ),
+        ChangeNotifierProvider<NutritionController>.value(
+          value: nutritionController,
+        ),
         ChangeNotifierProvider<WeightController>.value(value: weightController),
         ChangeNotifierProvider<HealthController>.value(value: healthController),
-        ChangeNotifierProvider<ActivityController>.value(value: activityController),
+        ChangeNotifierProvider<ActivityController>.value(
+          value: activityController,
+        ),
         ChangeNotifierProvider<CycleController>.value(value: cycleController),
-        ChangeNotifierProvider<SettingsController>.value(value: settingsController),
+        ChangeNotifierProvider<SettingsController>.value(
+          value: settingsController,
+        ),
+        ChangeNotifierProvider<NotificationController>.value(
+          value: notificationController,
+        ),
       ],
       child: MaterialApp(
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.teal,
-            brightness: brightness,
+        debugShowCheckedModeBanner: false,
+        theme: theme,
+        home: MediaQuery(
+          data: MediaQueryData(
+            textScaler: TextScaler.linear(textScale),
           ),
-          useMaterial3: true,
+          child: child,
         ),
-        home: child,
       ),
     );
   }
 
-  group('Golden & Visual Layout Tests for All Core Views', () {
-    testWidgets('renders TodayPage in Light Mode', (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      await tester.pumpWidget(wrapWithProviders(const TodayPage(), brightness: Brightness.light));
-      await tester.pump(const Duration(milliseconds: 100));
-
-      expect(find.text('Dein Überblick'), findsOneWidget);
-      expect(find.text('Kalorien & Makros'), findsOneWidget);
+  Future<void> testScreenGolden({
+    required WidgetTester tester,
+    required Widget child,
+    required String goldenName,
+    Size size = const Size(412, 915),
+    Brightness brightness = Brightness.light,
+    double textScale = 1.0,
+  }) async {
+    tester.view.physicalSize = size * 2.0;
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
     });
 
-    testWidgets('renders TodayPage in Dark Mode', (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      wrapWithProviders(
+        child,
+        brightness: brightness,
+        textScale: textScale,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/$goldenName.png'),
+    );
+  }
 
-      await tester.pumpWidget(wrapWithProviders(const TodayPage(), brightness: Brightness.dark));
-      await tester.pump(const Duration(milliseconds: 100));
-
-      expect(find.text('Dein Überblick'), findsOneWidget);
+  group('Golden Views & Layout Regression Tests', () {
+    testWidgets('TodayPage renders in Light Mode (412x915)', (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: const TodayPage(),
+        goldenName: 'today_page_light',
+        brightness: Brightness.light,
+      );
     });
 
-    testWidgets('renders ActivityPage with workout and sleep sections', (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      await tester.pumpWidget(wrapWithProviders(ActivityPage(database: db)));
-      await tester.pump(const Duration(milliseconds: 100));
-
-      expect(find.text('Aktivität'), findsOneWidget);
+    testWidgets('TodayPage renders in Dark Mode (412x915)', (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: const TodayPage(),
+        goldenName: 'today_page_dark',
+        brightness: Brightness.dark,
+      );
     });
 
-    testWidgets('renders CyclePage with period action button and calendar', (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      await tester.pumpWidget(wrapWithProviders(CyclePage(database: db, controller: cycleController)));
-      await tester.pump(const Duration(milliseconds: 100));
-
-      expect(find.text('Zyklus & Wohlbefinden'), findsOneWidget);
-      expect(find.text('Periode beginnen'), findsOneWidget);
+    testWidgets('TodayPage renders on Small Phone (360x640)', (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: const TodayPage(),
+        goldenName: 'today_page_small_phone',
+        size: const Size(360, 640),
+        brightness: Brightness.light,
+      );
     });
 
-    testWidgets('renders HealthPage with permissions and diagnostic cards', (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-
-      await tester.pumpWidget(wrapWithProviders(HealthPage(database: db, controller: healthController)));
-      await tester.pump(const Duration(milliseconds: 100));
-
-      expect(find.text('Health & Aktivität'), findsOneWidget);
+    testWidgets('TodayPage renders with Large Text Scaling (1.5x)',
+        (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: const TodayPage(),
+        goldenName: 'today_page_large_text',
+        brightness: Brightness.light,
+        textScale: 1.5,
+      );
     });
 
-    testWidgets('renders BackupPage with encryption password and categories', (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
+    testWidgets('ActivityPage renders in Light Mode', (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: ActivityPage(database: db),
+        goldenName: 'activity_page_light',
+        brightness: Brightness.light,
+      );
+    });
 
-      await tester.pumpWidget(wrapWithProviders(const BackupPage()));
-      await tester.pump(const Duration(milliseconds: 100));
+    testWidgets('ActivityPage renders in Dark Mode', (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: ActivityPage(database: db),
+        goldenName: 'activity_page_dark',
+        brightness: Brightness.dark,
+      );
+    });
 
-      expect(find.text('Backup & Wiederherstellung'), findsOneWidget);
+    testWidgets('CyclePage renders in Light Mode', (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: CyclePage(database: db, controller: cycleController),
+        goldenName: 'cycle_page_light',
+        brightness: Brightness.light,
+      );
+    });
+
+    testWidgets('CyclePage renders in Dark Mode', (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: CyclePage(database: db, controller: cycleController),
+        goldenName: 'cycle_page_dark',
+        brightness: Brightness.dark,
+      );
+    });
+
+    testWidgets('HealthPage renders Diagnostics & Permissions in Light Mode',
+        (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: HealthPage(database: db, controller: healthController),
+        goldenName: 'health_page_light',
+        brightness: Brightness.light,
+      );
+    });
+
+    testWidgets('NotificationSettingsPage renders in Light Mode',
+        (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: const NotificationSettingsPage(),
+        goldenName: 'notifications_settings_light',
+        brightness: Brightness.light,
+      );
+    });
+
+    testWidgets('NotificationSettingsPage renders in Dark Mode',
+        (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: const NotificationSettingsPage(),
+        goldenName: 'notifications_settings_dark',
+        brightness: Brightness.dark,
+      );
+    });
+
+    testWidgets('BackupPage renders in Light Mode', (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: const BackupPage(),
+        goldenName: 'backup_page_light',
+        brightness: Brightness.light,
+      );
+    });
+
+    testWidgets('DashboardConfigSheet renders in Light Mode', (tester) async {
+      await testScreenGolden(
+        tester: tester,
+        child: const Scaffold(
+          body: DashboardConfigSheet(),
+        ),
+        goldenName: 'dashboard_config_sheet_light',
+        brightness: Brightness.light,
+      );
     });
   });
 }

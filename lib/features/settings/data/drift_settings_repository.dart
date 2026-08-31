@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,6 +25,8 @@ class DriftSettingsRepository implements SettingsRepository {
   static const String _userPasswordKey = 'user_password';
   static const String _genderKey = 'user_gender';
   static const String _bmrKey = 'bmr_formula';
+  static const String _dashboardCardOrderKey = 'dashboard_card_order';
+  static const String _dashboardCardVisibilityKey = 'dashboard_card_visibility';
 
   @override
   Future<UserSettings> getSettings() async {
@@ -242,5 +246,54 @@ class DriftSettingsRepository implements SettingsRepository {
       await prefs.remove(_userPasswordKey);
       await prefs.setBool(_migrationMarkerKey, true);
     }
+  }
+
+  @override
+  Future<List<String>?> getDashboardCardOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = prefs.getString(_dashboardCardOrderKey);
+      if (jsonStr == null || jsonStr.isEmpty) return null;
+      final dynamic decoded = jsonDecode(jsonStr);
+      if (decoded is List) {
+        return decoded.map((e) => e.toString()).toList();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  @override
+  Future<void> setDashboardCardOrder(List<String> order) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dashboardCardOrderKey, jsonEncode(order));
+  }
+
+  @override
+  Future<Map<String, bool>?> getDashboardCardVisibility() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = prefs.getString(_dashboardCardVisibilityKey);
+      if (jsonStr == null || jsonStr.isEmpty) return null;
+      final dynamic decoded = jsonDecode(jsonStr);
+      if (decoded is Map) {
+        return decoded.map(
+          (key, value) => MapEntry(key.toString(), value == true),
+        );
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  @override
+  Future<void> setDashboardCardVisibility(Map<String, bool> visibility) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dashboardCardVisibilityKey, jsonEncode(visibility));
+  }
+
+  @override
+  Future<void> resetDashboardConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_dashboardCardOrderKey);
+    await prefs.remove(_dashboardCardVisibilityKey);
   }
 }

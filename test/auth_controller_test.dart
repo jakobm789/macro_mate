@@ -63,7 +63,8 @@ void main() {
     });
 
     test('logout clears credentials and sets isLoggedIn to false', () async {
-      await settingsController.saveCredentials('test@example.com', 'password123');
+      await settingsController.saveCredentials(
+          'test@example.com', 'password123');
       await authController.initialize();
 
       expect(authController.isLoggedIn, isTrue);

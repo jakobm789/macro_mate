@@ -134,7 +134,8 @@ class CycleEngine {
   }) {
     if (periods.isEmpty || logs.length < 2) return const [];
 
-    final sortedStarts = periods.map((p) => dateOnly(p.startDay)).toSet().toList()..sort();
+    final sortedStarts =
+        periods.map((p) => dateOnly(p.startDay)).toSet().toList()..sort();
     if (sortedStarts.isEmpty) return const [];
 
     // Map each log day to a cycle phase
@@ -143,7 +144,9 @@ class CycleEngine {
     for (final log in logs) {
       final logDay = dateOnly(log.day);
       // Find the last period start on or before logDay
-      final priorStarts = sortedStarts.where((s) => s.isBefore(logDay) || s.isAtSameMomentAs(logDay)).toList();
+      final priorStarts = sortedStarts
+          .where((s) => s.isBefore(logDay) || s.isAtSameMomentAs(logDay))
+          .toList();
       if (priorStarts.isEmpty) continue;
       final cycleStart = priorStarts.last;
       final dayInCycle = logDay.difference(cycleStart).inDays + 1;
@@ -163,16 +166,21 @@ class CycleEngine {
       phaseCounts.putIfAbsent(phase, () => {});
 
       if (log.pain != null && log.pain! >= 4) {
-        phaseCounts[phase]!['Schmerzen'] = (phaseCounts[phase]!['Schmerzen'] ?? 0) + 1;
+        phaseCounts[phase]!['Schmerzen'] =
+            (phaseCounts[phase]!['Schmerzen'] ?? 0) + 1;
       }
-      if (log.mood != null && (log.mood == 'angespannt' || log.mood == 'traurig')) {
-        phaseCounts[phase]![log.mood!] = (phaseCounts[phase]![log.mood!] ?? 0) + 1;
+      if (log.mood != null &&
+          (log.mood == 'angespannt' || log.mood == 'traurig')) {
+        phaseCounts[phase]![log.mood!] =
+            (phaseCounts[phase]![log.mood!] ?? 0) + 1;
       }
       if (log.energy != null && log.energy! <= 2) {
-        phaseCounts[phase]!['Niedrige Energie'] = (phaseCounts[phase]!['Niedrige Energie'] ?? 0) + 1;
+        phaseCounts[phase]!['Niedrige Energie'] =
+            (phaseCounts[phase]!['Niedrige Energie'] ?? 0) + 1;
       }
       if (log.sleepQuality != null && log.sleepQuality! <= 2) {
-        phaseCounts[phase]!['Schlechter Schlaf'] = (phaseCounts[phase]!['Schlechter Schlaf'] ?? 0) + 1;
+        phaseCounts[phase]!['Schlechter Schlaf'] =
+            (phaseCounts[phase]!['Schlechter Schlaf'] ?? 0) + 1;
       }
       for (final tag in log.tags) {
         phaseCounts[phase]![tag] = (phaseCounts[phase]![tag] ?? 0) + 1;

@@ -40,7 +40,10 @@ class AuthController extends ChangeNotifier {
       final email = await _settingsController.getSavedEmail();
       final password = await _settingsController.getSavedPassword();
 
-      if (email != null && password != null && email.isNotEmpty && password.isNotEmpty) {
+      if (email != null &&
+          password != null &&
+          email.isNotEmpty &&
+          password.isNotEmpty) {
         _currentUserEmail = email;
         _isLoggedIn = true;
       }
@@ -150,12 +153,14 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  Future<bool> deleteAccount({required Future<void> Function() onLocalReset}) async {
+  Future<bool> deleteAccount(
+      {required Future<void> Function() onLocalReset}) async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      final email = _currentUserEmail ?? await _settingsController.getSavedEmail();
+      final email =
+          _currentUserEmail ?? await _settingsController.getSavedEmail();
       if (email != null && email.isNotEmpty) {
         try {
           await _remoteService.deleteUserByEmail(email);

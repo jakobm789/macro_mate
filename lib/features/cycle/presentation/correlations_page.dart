@@ -41,7 +41,8 @@ class CorrelationsPage extends StatelessWidget {
         children: [
           Card(
             color: theme.colorScheme.surfaceVariant,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
@@ -49,18 +50,21 @@ class CorrelationsPage extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.info_outline, color: theme.colorScheme.primary, size: 20),
+                      Icon(Icons.info_outline,
+                          color: theme.colorScheme.primary, size: 20),
                       const SizedBox(width: 8),
                       Text(
                         'Hinweis zu explorativen Trends',
-                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(
                     'Alle Analysen werden 100 % lokal auf deinem Gerät berechnet. Sie zeigen statistische Muster auf, stellen jedoch keine medizinischen Diagnosen oder Kausalitäten dar.',
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -69,7 +73,8 @@ class CorrelationsPage extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'Datenbasis & Fortschritt',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Card(
@@ -78,10 +83,12 @@ class CorrelationsPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(result.progressDescription, style: theme.textTheme.bodyMedium),
+                  Text(result.progressDescription,
+                      style: theme.textTheme.bodyMedium),
                   const SizedBox(height: 8),
                   LinearProgressIndicator(
-                    value: (result.observationDaysCount / result.requiredDays).clamp(0.0, 1.0),
+                    value: (result.observationDaysCount / result.requiredDays)
+                        .clamp(0.0, 1.0),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ],
@@ -95,7 +102,8 @@ class CorrelationsPage extends StatelessWidget {
               color: theme.colorScheme.primaryContainer.withOpacity(0.3),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.2)),
+                side: BorderSide(
+                    color: theme.colorScheme.primary.withOpacity(0.2)),
               ),
               child: const Padding(
                 padding: EdgeInsets.all(20),
@@ -105,7 +113,8 @@ class CorrelationsPage extends StatelessWidget {
                     SizedBox(height: 12),
                     Text(
                       'Noch nicht genügend Daten',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     SizedBox(height: 6),
                     Text(
@@ -120,7 +129,8 @@ class CorrelationsPage extends StatelessWidget {
           ] else ...[
             Text(
               'Erkannte Zusammenhänge (${result.insights.length})',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             for (final insight in result.insights) ...[
@@ -142,10 +152,12 @@ class CorrelationsPage extends StatelessWidget {
                           Expanded(
                             child: Text(
                               insight.title,
-                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                              style: theme.textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
                             ),
                           ),
-                          _buildConfidenceChip(context, insight.confidenceLevel),
+                          _buildConfidenceChip(
+                              context, insight.confidenceLevel),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -156,11 +168,13 @@ class CorrelationsPage extends StatelessWidget {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          Icon(Icons.calendar_today, size: 14, color: theme.colorScheme.outline),
+                          Icon(Icons.calendar_today,
+                              size: 14, color: theme.colorScheme.outline),
                           const SizedBox(width: 4),
                           Text(
                             'Datenbasis: n = ${insight.sampleSizeDays} Tage',
-                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: theme.colorScheme.outline),
                           ),
                         ],
                       ),
@@ -175,7 +189,8 @@ class CorrelationsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildConfidenceChip(BuildContext context, CorrelationConfidence level) {
+  Widget _buildConfidenceChip(
+      BuildContext context, CorrelationConfidence level) {
     final theme = Theme.of(context);
     switch (level) {
       case CorrelationConfidence.high:
@@ -194,7 +209,8 @@ class CorrelationsPage extends StatelessWidget {
         );
       case CorrelationConfidence.low:
         return Chip(
-          label: const Text('Geringe Stichprobe', style: TextStyle(fontSize: 10)),
+          label:
+              const Text('Geringe Stichprobe', style: TextStyle(fontSize: 10)),
           backgroundColor: theme.colorScheme.errorContainer.withOpacity(0.5),
           padding: EdgeInsets.zero,
           visualDensity: VisualDensity.compact,

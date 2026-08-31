@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:macro_mate/features/activity/presentation/activity_controller.dart';
+import 'package:macro_mate/features/cycle/domain/cycle_models.dart';
 import 'package:macro_mate/features/health/domain/health_models.dart';
 import 'package:macro_mate/features/health/domain/health_repository.dart';
 
@@ -110,6 +111,13 @@ class _FakeHealthRepository implements HealthRepository {
           sourceId: 'garmin',
         ),
       ];
+
+  @override
+  Future<List<HealthMenstruationRecord>> readMenstruation({
+    required DateTime startUtc,
+    required DateTime endUtc,
+  }) async =>
+      [];
 }
 
 void main() {

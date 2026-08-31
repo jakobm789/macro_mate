@@ -39,7 +39,8 @@ class CycleImportPreviewSheet extends StatelessWidget {
                 children: [
                   Text(
                     'Health Connect Periodenimport',
-                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -70,7 +71,8 @@ class CycleImportPreviewSheet extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final item = items[index];
                       final rec = item.importedRecord;
-                      final startStr = DateFormat('dd.MM.yyyy').format(rec.startDay);
+                      final startStr =
+                          DateFormat('dd.MM.yyyy').format(rec.startDay);
                       final endStr = rec.endDay != null
                           ? DateFormat('dd.MM.yyyy').format(rec.endDay!)
                           : 'offen';
@@ -80,7 +82,8 @@ class CycleImportPreviewSheet extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                           side: BorderSide(
-                            color: item.conflictType != MenstruationConflictType.none
+                            color: item.conflictType !=
+                                    MenstruationConflictType.none
                                 ? theme.colorScheme.error.withOpacity(0.5)
                                 : theme.colorScheme.outlineVariant,
                           ),
@@ -91,15 +94,18 @@ class CycleImportPreviewSheet extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     '$startStr – $endStr',
-                                    style: theme.textTheme.titleMedium?.copyWith(
+                                    style:
+                                        theme.textTheme.titleMedium?.copyWith(
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  _buildConflictBadge(context, item.conflictType),
+                                  _buildConflictBadge(
+                                      context, item.conflictType),
                                 ],
                               ),
                               const SizedBox(height: 4),
@@ -122,40 +128,50 @@ class CycleImportPreviewSheet extends StatelessWidget {
                               const SizedBox(height: 12),
                               Row(
                                 children: [
-                                  Text('Aktion: ', style: theme.textTheme.bodyMedium),
+                                  Text('Aktion: ',
+                                      style: theme.textTheme.bodyMedium),
                                   const SizedBox(width: 8),
                                   Expanded(
-                                    child: DropdownButtonFormField<MenstruationConflictResolution>(
+                                    child: DropdownButtonFormField<
+                                        MenstruationConflictResolution>(
                                       value: item.chosenResolution,
                                       isExpanded: true,
                                       decoration: InputDecoration(
                                         isDense: true,
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 10, vertical: 8),
                                         border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                       ),
                                       items: const [
                                         DropdownMenuItem(
-                                          value: MenstruationConflictResolution.acceptImported,
+                                          value: MenstruationConflictResolution
+                                              .acceptImported,
                                           child: Text('Übernehmen'),
                                         ),
                                         DropdownMenuItem(
-                                          value: MenstruationConflictResolution.merge,
+                                          value: MenstruationConflictResolution
+                                              .merge,
                                           child: Text('Zusammenführen'),
                                         ),
                                         DropdownMenuItem(
-                                          value: MenstruationConflictResolution.keepLocal,
+                                          value: MenstruationConflictResolution
+                                              .keepLocal,
                                           child: Text('Lokal behalten'),
                                         ),
                                         DropdownMenuItem(
-                                          value: MenstruationConflictResolution.skip,
+                                          value: MenstruationConflictResolution
+                                              .skip,
                                           child: Text('Überspringen'),
                                         ),
                                       ],
                                       onChanged: (val) {
                                         if (val != null) {
-                                          controller.updateConflictResolution(index, val);
+                                          controller.updateConflictResolution(
+                                              index, val);
                                         }
                                       },
                                     ),
@@ -181,7 +197,8 @@ class CycleImportPreviewSheet extends StatelessWidget {
                           Navigator.of(context).pop();
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('$count Periodeneinträge erfolgreich importiert.'),
+                              content: Text(
+                                  '$count Periodeneinträge erfolgreich importiert.'),
                             ),
                           );
                         }
@@ -194,7 +211,8 @@ class CycleImportPreviewSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildConflictBadge(BuildContext context, MenstruationConflictType type) {
+  Widget _buildConflictBadge(
+      BuildContext context, MenstruationConflictType type) {
     final theme = Theme.of(context);
     switch (type) {
       case MenstruationConflictType.none:
@@ -214,7 +232,8 @@ class CycleImportPreviewSheet extends StatelessWidget {
       case MenstruationConflictType.overlap:
       case MenstruationConflictType.contains:
         return Chip(
-          label: const Text('Konflikt / Überlappung', style: TextStyle(fontSize: 11)),
+          label: const Text('Konflikt / Überlappung',
+              style: TextStyle(fontSize: 11)),
           backgroundColor: theme.colorScheme.errorContainer,
           padding: EdgeInsets.zero,
           visualDensity: VisualDensity.compact,

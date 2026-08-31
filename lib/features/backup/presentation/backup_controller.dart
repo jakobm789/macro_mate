@@ -96,7 +96,8 @@ class BackupController extends ChangeNotifier {
               (daily['snacks']?.isNotEmpty ?? false);
           if (hasItems) {
             dailyEntries[dateStr] = {
-              'breakfast': daily['breakfast']?.map((e) => e.toMap()).toList() ?? [],
+              'breakfast':
+                  daily['breakfast']?.map((e) => e.toMap()).toList() ?? [],
               'lunch': daily['lunch']?.map((e) => e.toMap()).toList() ?? [],
               'dinner': daily['dinner']?.map((e) => e.toMap()).toList() ?? [],
               'snacks': daily['snacks']?.map((e) => e.toMap()).toList() ?? [],
@@ -182,9 +183,11 @@ class BackupController extends ChangeNotifier {
         'foods_count': (decrypted['foods'] as List?)?.length ?? 0,
         'saved_meals_count': (decrypted['saved_meals'] as List?)?.length ?? 0,
         'weights_count': (decrypted['weights'] as List?)?.length ?? 0,
-        'cycle_periods_count': (decrypted['cycle_periods'] as List?)?.length ?? 0,
+        'cycle_periods_count':
+            (decrypted['cycle_periods'] as List?)?.length ?? 0,
         'cycle_logs_count': (decrypted['cycle_logs'] as List?)?.length ?? 0,
-        'health_summaries_count': (decrypted['health_summaries'] as List?)?.length ?? 0,
+        'health_summaries_count':
+            (decrypted['health_summaries'] as List?)?.length ?? 0,
         'has_settings': decrypted.containsKey('settings'),
         'has_goals': decrypted.containsKey('goals'),
         'raw_payload': decrypted,
@@ -219,11 +222,13 @@ class BackupController extends ChangeNotifier {
         // 1. Settings & Goals
         if (cats.contains('settings')) {
           if (decrypted['settings'] is Map) {
-            final s = UserSettings.fromMap(Map<String, dynamic>.from(decrypted['settings']));
+            final s = UserSettings.fromMap(
+                Map<String, dynamic>.from(decrypted['settings']));
             await _settingsRepository.updateSettings(s);
           }
           if (decrypted['goals'] is Map) {
-            final g = UserGoals.fromMap(Map<String, dynamic>.from(decrypted['goals']));
+            final g = UserGoals.fromMap(
+                Map<String, dynamic>.from(decrypted['goals']));
             await _settingsRepository.updateGoals(g);
           }
         }
@@ -253,16 +258,23 @@ class BackupController extends ChangeNotifier {
             }
           }
           if (decrypted['daily_foods'] is Map) {
-            final dailyMap = Map<String, dynamic>.from(decrypted['daily_foods']);
+            final dailyMap =
+                Map<String, dynamic>.from(decrypted['daily_foods']);
             for (final entry in dailyMap.entries) {
               final dateStr = entry.key;
               final meals = Map<String, dynamic>.from(entry.value);
-              for (final mealName in ['breakfast', 'lunch', 'dinner', 'snacks']) {
+              for (final mealName in [
+                'breakfast',
+                'lunch',
+                'dinner',
+                'snacks'
+              ]) {
                 final items = meals[mealName] as List? ?? [];
                 for (final item in items) {
                   final map = Map<String, dynamic>.from(item);
                   final foodMap = Map<String, dynamic>.from(map['food'] ?? {});
-                  final food = await _nutritionRepository.saveFood(FoodItem.fromMap(foodMap));
+                  final food = await _nutritionRepository
+                      .saveFood(FoodItem.fromMap(foodMap));
                   final qty = (map['quantity'] as num?)?.toInt() ?? 100;
                   await _nutritionRepository.addConsumedFood(
                     date: dateStr,
@@ -288,7 +300,8 @@ class BackupController extends ChangeNotifier {
         // 4. Cycle
         if (cats.contains('cycle')) {
           if (decrypted['cycle_profile'] is Map) {
-            final profile = CycleProfile.fromMap(Map<String, dynamic>.from(decrypted['cycle_profile']));
+            final profile = CycleProfile.fromMap(
+                Map<String, dynamic>.from(decrypted['cycle_profile']));
             await _cycleRepository.saveProfile(profile);
           }
           if (decrypted['cycle_periods'] is List) {
@@ -314,13 +327,18 @@ class BackupController extends ChangeNotifier {
           for (final a in decrypted['health_summaries']) {
             final day = DateTime.parse(a['day'] as String);
             final dayStr = DateFormat('yyyy-MM-dd').format(day);
-            await _database.into(_database.dailyHealthAggregates).insertOnConflictUpdate(
+            await _database
+                .into(_database.dailyHealthAggregates)
+                .insertOnConflictUpdate(
                   DailyHealthAggregatesCompanion.insert(
                     day: dayStr,
                     steps: Value((a['steps'] as num?)?.toInt() ?? 0),
-                    activeKcal: Value((a['activeCalories'] as num?)?.toDouble() ?? 0.0),
-                    heartRateAvg: Value((a['averageHeartRate'] as num?)?.toDouble()),
-                    sleepMinutes: Value((a['sleepMinutes'] as num?)?.toDouble()),
+                    activeKcal:
+                        Value((a['activeCalories'] as num?)?.toDouble() ?? 0.0),
+                    heartRateAvg:
+                        Value((a['averageHeartRate'] as num?)?.toDouble()),
+                    sleepMinutes:
+                        Value((a['sleepMinutes'] as num?)?.toDouble()),
                     updatedAtUtc: DateTime.now().toUtc().toIso8601String(),
                   ),
                 );

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:health/health.dart';
 
+import '../../cycle/domain/cycle_models.dart';
 import '../domain/health_models.dart';
 import 'health_data_source.dart';
 
@@ -20,6 +21,7 @@ class HealthConnectSource implements HealthDataSource {
     HealthDataType.RESTING_HEART_RATE,
     HealthDataType.SLEEP_SESSION,
     HealthDataType.WORKOUT,
+    HealthDataType.MENSTRUATION_FLOW,
   ];
 
   Future<void> _configure() async {
@@ -105,6 +107,55 @@ class HealthConnectSource implements HealthDataSource {
               payloadJson: jsonEncode(point.toJson()),
             ),
     ];
+  }
+
+  @override
+  Future<List<HealthMenstruationRecord>> readMenstruation(
+    DateTime startUtc,
+    DateTime endUtc,
+  ) async {
+    await _configure();
+    try {
+      final points = await _client.getHealthDataFromTypes(
+        types: const [HealthDataType.MENSTRUATION_FLOW],
+        startTime: startUtc.toUtc(),
+        endTime: endUtc.toUtc(),
+      );
+
+      final records = <HealthMenstruationRecord>[];
+      for (final point in points) {
+        final val = point.value;
+        BleedingLevel? flow;
+        if (val is MenstruationFlowHealthValue) {
+          flow = switch (val.flow) {
+            MenstrualFlow.light => BleedingLevel.light,
+            MenstrualFlow.medium => BleedingLevel.medium,
+            MenstrualFlow.heavy => BleedingLevel.heavy,
+            MenstrualFlow.spotting => BleedingLevel.spotting,
+            MenstrualFlow.none => BleedingLevel.none,
+            _ => BleedingLevel.medium,
+          };
+        }
+
+        records.add(
+          HealthMenstruationRecord(
+            id: point.uuid,
+            startDay: point.dateFrom,
+            endDay: point.dateTo == point.dateFrom ? null : point.dateTo,
+            flow: flow,
+            sourceName: point.sourceName.isNotEmpty
+                ? point.sourceName
+                : (point.sourceId.isNotEmpty
+                    ? point.sourceId
+                    : 'Health Connect'),
+            isImported: false,
+          ),
+        );
+      }
+      return records;
+    } catch (_) {
+      return const [];
+    }
   }
 
   HealthMetric? _metricFor(HealthDataType type) => switch (type) {

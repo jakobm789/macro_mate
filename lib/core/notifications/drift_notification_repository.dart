@@ -14,7 +14,8 @@ class DriftNotificationRepository implements NotificationRepository {
 
   @override
   Future<List<NotificationPreference>> list() async {
-    final rows = await _database.select(_database.notificationPreferences).get();
+    final rows =
+        await _database.select(_database.notificationPreferences).get();
     return rows.map(_fromRow).toList(growable: false);
   }
 

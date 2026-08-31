@@ -41,7 +41,8 @@ void main() {
     final weightRepo = DriftWeightRepository(database: db);
     final settingsRepo = DriftSettingsRepository(database: db);
     final cycleRepo = DriftCycleRepository(database: db);
-    final healthRepo = DriftHealthRepository(database: db, source: HealthConnectSource());
+    final healthRepo =
+        DriftHealthRepository(database: db, source: HealthConnectSource());
 
     nutritionController = NutritionController(repository: nutritionRepo);
     weightController = WeightController(repository: weightRepo);
@@ -84,13 +85,17 @@ void main() {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AppState>.value(value: appState),
-        ChangeNotifierProvider<DashboardController>.value(value: dashboardController),
-        ChangeNotifierProvider<NutritionController>.value(value: nutritionController),
+        ChangeNotifierProvider<DashboardController>.value(
+            value: dashboardController),
+        ChangeNotifierProvider<NutritionController>.value(
+            value: nutritionController),
         ChangeNotifierProvider<WeightController>.value(value: weightController),
         ChangeNotifierProvider<HealthController>.value(value: healthController),
-        ChangeNotifierProvider<ActivityController>.value(value: activityController),
+        ChangeNotifierProvider<ActivityController>.value(
+            value: activityController),
         ChangeNotifierProvider<CycleController>.value(value: cycleController),
-        ChangeNotifierProvider<SettingsController>.value(value: settingsController),
+        ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController),
       ],
       child: const MaterialApp(
         home: TodayPage(),
@@ -133,7 +138,8 @@ void main() {
       expect(find.text('Kalorien & Makros'), findsNothing);
     });
 
-    testWidgets('resetToDefaults restores all original card visibility', (tester) async {
+    testWidgets('resetToDefaults restores all original card visibility',
+        (tester) async {
       await dashboardController.toggleCardVisibility('calories', false);
       expect(dashboardController.isCardVisible('calories'), isFalse);
 
@@ -148,6 +154,107 @@ void main() {
 
       await dashboardController.reorderCards(0, 2);
       expect(dashboardController.cardOrder.first, isNot('calories'));
+    });
+
+    test('full persistence roundtrip across controller recreation', () async {
+      final settingsRepo = DriftSettingsRepository(database: db);
+      final initialSettingsCtrl = SettingsController(repository: settingsRepo);
+      final initialDashCtrl = DashboardController(
+        nutritionController: nutritionController,
+        weightController: weightController,
+        healthController: healthController,
+        activityController: activityController,
+        cycleController: cycleController,
+        settingsController: initialSettingsCtrl,
+      );
+
+      // 1. Initial load
+      await initialDashCtrl.initialize();
+      expect(initialDashCtrl.cardOrder.first, 'calories');
+      expect(initialDashCtrl.isCardVisible('calories'), isTrue);
+
+      // 2. Modify order (move steps to first) and visibility (hide weight)
+      await initialDashCtrl.reorderCards(0, 2); // calories moved after steps
+      await initialDashCtrl.toggleCardVisibility('weight', false);
+
+      final modifiedOrder = List<String>.from(initialDashCtrl.cardOrder);
+      expect(initialDashCtrl.isCardVisible('weight'), isFalse);
+      expect(modifiedOrder.first, 'steps');
+
+      // 3. Destroy controller / simulate app restart
+      initialDashCtrl.dispose();
+      initialSettingsCtrl.dispose();
+
+      // 4. Create brand new controllers backed by the exact same persistent repository
+      final newSettingsCtrl = SettingsController(repository: settingsRepo);
+      final newDashCtrl = DashboardController(
+        nutritionController: nutritionController,
+        weightController: weightController,
+        healthController: healthController,
+        activityController: activityController,
+        cycleController: cycleController,
+        settingsController: newSettingsCtrl,
+      );
+
+      // 5. Initialize from storage
+      await newDashCtrl.initialize();
+
+      // 6. Verify exact persisted state is restored
+      expect(newDashCtrl.cardOrder, equals(modifiedOrder));
+      expect(newDashCtrl.isCardVisible('weight'), isFalse);
+      expect(newDashCtrl.isCardVisible('calories'), isTrue);
+
+      // 7. Test resetToDefaults persists reset state
+      await newDashCtrl.resetToDefaults();
+      expect(
+          newDashCtrl.cardOrder, equals(DashboardController.defaultCardOrder));
+      expect(newDashCtrl.isCardVisible('weight'), isTrue);
+
+      // Verify reset persisted by recreating again
+      newDashCtrl.dispose();
+      newSettingsCtrl.dispose();
+
+      final thirdSettingsCtrl = SettingsController(repository: settingsRepo);
+      final thirdDashCtrl = DashboardController(
+        nutritionController: nutritionController,
+        weightController: weightController,
+        healthController: healthController,
+        activityController: activityController,
+        cycleController: cycleController,
+        settingsController: thirdSettingsCtrl,
+      );
+      await thirdDashCtrl.initialize();
+      expect(thirdDashCtrl.cardOrder,
+          equals(DashboardController.defaultCardOrder));
+      expect(thirdDashCtrl.isCardVisible('weight'), isTrue);
+
+      thirdDashCtrl.dispose();
+      thirdSettingsCtrl.dispose();
+    });
+
+    test('recovers gracefully from corrupted persisted JSON', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('dashboard_card_order', '{not a valid list json}');
+      await prefs.setString('dashboard_card_visibility', '[not a map]');
+
+      final settingsRepo = DriftSettingsRepository(database: db);
+      final settingsCtrl = SettingsController(repository: settingsRepo);
+      final dashCtrl = DashboardController(
+        nutritionController: nutritionController,
+        weightController: weightController,
+        healthController: healthController,
+        activityController: activityController,
+        cycleController: cycleController,
+        settingsController: settingsCtrl,
+      );
+
+      await dashCtrl.initialize();
+      // Should fallback to default order and visibility without crashing
+      expect(dashCtrl.cardOrder, equals(DashboardController.defaultCardOrder));
+      expect(dashCtrl.isCardVisible('calories'), isTrue);
+
+      dashCtrl.dispose();
+      settingsCtrl.dispose();
     });
   });
 }

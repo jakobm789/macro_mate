@@ -1,3 +1,4 @@
+import '../../cycle/domain/cycle_models.dart';
 import 'health_models.dart';
 
 abstract interface class HealthRepository {
@@ -31,5 +32,9 @@ abstract interface class HealthRepository {
   Future<WorkoutDetail?> workoutById(String id);
 
   Future<List<SleepSessionDetail>> sleepSessions({int limit = 30});
-}
 
+  Future<List<HealthMenstruationRecord>> readMenstruation({
+    required DateTime startUtc,
+    required DateTime endUtc,
+  });
+}

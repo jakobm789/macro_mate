@@ -181,7 +181,6 @@ void main() async {
   );
 }
 
-
 Future<void> _checkNotificationPermission() async {
   if (Platform.isAndroid || Platform.isIOS) {
     final status = await Permission.notification.status;
@@ -260,9 +259,13 @@ class _MyAppState extends State<MyApp> {
     if (filename == 'macro_mate_export.json') {
       try {
         final file = File(widget.initialFilePath);
-        if (await file.exists()) {
+        final exists = await file.exists();
+        if (!mounted) return;
+        if (exists) {
           String jsonData = await file.readAsString();
+          if (!mounted) return;
           await appState.importDatabase(jsonData);
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -278,11 +281,13 @@ class _MyAppState extends State<MyApp> {
           );
         }
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Fehler beim Importieren der Daten: $e')),
         );
       }
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(

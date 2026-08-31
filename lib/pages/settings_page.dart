@@ -262,6 +262,7 @@ class _SettingsPageState extends State<SettingsPage> {
           !appState.firstWeekInitialized) {
         await appState.recalculateGoals(fromBmr: true);
       }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Einstellungen gespeichert.')),
       );
@@ -343,10 +344,12 @@ class _SettingsPageState extends State<SettingsPage> {
     if (confirm == true) {
       try {
         await appState.resetDatabase();
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Datenbank erfolgreich zurückgesetzt.')),
         );
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Fehler beim Zurücksetzen der Datenbank: $e')),
         );
@@ -356,6 +359,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _toggleDarkMode(AppState appState, bool value) async {
     await appState.toggleDarkMode(value);
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -395,6 +399,27 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _saveNotifications(AppState appState) async {
+    appState.reminderWeighEnabled = reminderWeighEnabled;
+    appState.reminderWeighTime = reminderWeighTime;
+    appState.reminderWeighTimeSecond = reminderWeighTime2;
+    appState.reminderSupplementEnabled = reminderSupplementEnabled;
+    appState.reminderSupplementTime = reminderSupplementTime;
+    appState.reminderSupplementTimeSecond = reminderSupplementTime2;
+    appState.reminderMealsEnabled = reminderMealsEnabled;
+    appState.reminderBreakfast = reminderBreakfast;
+    appState.reminderLunch = reminderLunch;
+    appState.reminderDinner = reminderDinner;
+    await appState.saveNotificationSettings();
+    await appState.scheduleAllNotifications();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Benachrichtigungseinstellungen gespeichert.'),
+      ),
+    );
+  }
+
   void _deleteAccount(AppState appState) async {
     bool? confirm = await showDialog<bool>(
       context: context,
@@ -419,8 +444,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     if (confirm == true) {
       final ok = await appState.deleteAccount();
+      if (!mounted) return;
       if (ok) {
-        if (!mounted) return;
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Account wurde gelöscht.')),
@@ -1411,35 +1436,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   }),
                 SizedBox(height: 8),
                 ElevatedButton(
-                  onPressed: () async {
-                    appState.reminderWeighEnabled = reminderWeighEnabled;
-                    appState.reminderWeighTime = reminderWeighTime;
-                    appState.reminderWeighTimeSecond = reminderWeighTime2;
-                    appState.reminderSupplementEnabled =
-                        reminderSupplementEnabled;
-                    appState.reminderSupplementTime = reminderSupplementTime;
-                    appState.reminderSupplementTimeSecond =
-                        reminderSupplementTime2;
-                    appState.reminderMealsEnabled = reminderMealsEnabled;
-                    appState.reminderBreakfast = reminderBreakfast;
-                    appState.reminderLunch = reminderLunch;
-                    appState.reminderDinner = reminderDinner;
-                    await appState.saveNotificationSettings();
-                    await appState.scheduleAllNotifications();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Benachrichtigungseinstellungen gespeichert.',
-                        ),
-                      ),
-                    );
-                  },
+                  onPressed: () => _saveNotifications(appState),
                   child: Text('Benachrichtigungen speichern'),
                 ),
                 SizedBox(height: 8),
                 OutlinedButton.icon(
                   icon: Icon(Icons.tune),
-                  label: Text('Erweiterte Einstellungen & Ruhezeiten (8 Kategorien)'),
+                  label: Text(
+                      'Erweiterte Einstellungen & Ruhezeiten (8 Kategorien)'),
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(

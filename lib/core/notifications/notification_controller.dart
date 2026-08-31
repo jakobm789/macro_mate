@@ -35,14 +35,22 @@ class NotificationController extends ChangeNotifier {
   };
 
   static const Map<NotificationCategory, String> categoryDescriptions = {
-    NotificationCategory.nutrition: 'Tägliche Zusammenfassung und Erinnerung an offene Kalorien- und Makroziele.',
-    NotificationCategory.meals: 'Erinnerungen zu Frühstück, Mittag- und Abendessen.',
-    NotificationCategory.weight: 'Erinnerung an das nüchterne Wiegen am Morgen.',
-    NotificationCategory.activity: 'Motivation für deine täglichen Schritt- und Aktivitätsziele.',
-    NotificationCategory.cycleWindow: 'Diskrete Vorwarnung vor dem errechneten Beginn des nächsten Periodenfensters.',
-    NotificationCategory.cycleInsight: 'Personalisierte Tipps und Check-in-Erinnerungen für deine aktuelle Zyklusphase.',
-    NotificationCategory.healthSync: 'Hinweis, wenn Health Connect länger nicht synchronisiert wurde.',
-    NotificationCategory.supplements: 'Tägliche Erinnerung an Vitamine, Mineralstoffe oder Flüssigkeitszufuhr.',
+    NotificationCategory.nutrition:
+        'Tägliche Zusammenfassung und Erinnerung an offene Kalorien- und Makroziele.',
+    NotificationCategory.meals:
+        'Erinnerungen zu Frühstück, Mittag- und Abendessen.',
+    NotificationCategory.weight:
+        'Erinnerung an das nüchterne Wiegen am Morgen.',
+    NotificationCategory.activity:
+        'Motivation für deine täglichen Schritt- und Aktivitätsziele.',
+    NotificationCategory.cycleWindow:
+        'Diskrete Vorwarnung vor dem errechneten Beginn des nächsten Periodenfensters.',
+    NotificationCategory.cycleInsight:
+        'Personalisierte Tipps und Check-in-Erinnerungen für deine aktuelle Zyklusphase.',
+    NotificationCategory.healthSync:
+        'Hinweis, wenn Health Connect länger nicht synchronisiert wurde.',
+    NotificationCategory.supplements:
+        'Tägliche Erinnerung an Vitamine, Mineralstoffe oder Flüssigkeitszufuhr.',
   };
 
   Future<void> initialize() async {
@@ -146,7 +154,8 @@ class NotificationController extends ChangeNotifier {
           time: lunchTime,
           preference: mealsPref,
           title: 'Mittagessen erfassen',
-          body: 'Trage dein Mittagessen ein, um deine Makros im Blick zu behalten.',
+          body:
+              'Trage dein Mittagessen ein, um deine Makros im Blick zu behalten.',
           discreteTitle: 'Ernährungstracking',
           discreteBody: 'Zeit für deinen nächsten Eintrag.',
         );
@@ -198,7 +207,8 @@ class NotificationController extends ChangeNotifier {
     if (cycleWindowPref != null &&
         cycleWindowPref.enabled &&
         nextPeriodDate != null) {
-      final leadDays = (cycleWindowPref.leadMinutes / (24 * 60)).round().clamp(1, 7);
+      final leadDays =
+          (cycleWindowPref.leadMinutes / (24 * 60)).round().clamp(1, 7);
       final reminderDate = nextPeriodDate.subtract(Duration(days: leadDays));
       if (reminderDate.isAfter(now)) {
         await _scheduleOneShotNotification(
@@ -237,7 +247,8 @@ class NotificationController extends ChangeNotifier {
         time: const TimeOfDay(hour: 21, minute: 0),
         preference: syncPref,
         title: 'Health Connect Synchronisation',
-        body: 'Synchronisiere deine Schritte und Workouts für genaue Tageswerte.',
+        body:
+            'Synchronisiere deine Schritte und Workouts für genaue Tageswerte.',
         discreteTitle: 'Sync-Erinnerung',
         discreteBody: 'Daten synchronisieren.',
       );
@@ -251,7 +262,8 @@ class NotificationController extends ChangeNotifier {
         time: const TimeOfDay(hour: 9, minute: 0),
         preference: supplementsPref,
         title: 'Supplements & Wasser',
-        body: 'Vergiss nicht deine täglichen Nahrungsergänzungsmittel und ausreichend Wasser.',
+        body:
+            'Vergiss nicht deine täglichen Nahrungsergänzungsmittel und ausreichend Wasser.',
         discreteTitle: 'MacroMate Erinnerung',
         discreteBody: 'Tagesroutine ausführen.',
       );
@@ -279,7 +291,8 @@ class NotificationController extends ChangeNotifier {
       );
 
       if (preference.leadMinutes > 0) {
-        scheduled = scheduled.subtract(Duration(minutes: preference.leadMinutes));
+        scheduled =
+            scheduled.subtract(Duration(minutes: preference.leadMinutes));
       }
 
       if (scheduled.isBefore(now)) {
@@ -290,13 +303,13 @@ class NotificationController extends ChangeNotifier {
 
       final displayTitle =
           preference.discreteLockScreen ? discreteTitle : title;
-      final displayBody =
-          preference.discreteLockScreen ? discreteBody : body;
+      final displayBody = preference.discreteLockScreen ? discreteBody : body;
 
       const androidDetails = AndroidNotificationDetails(
         'macromate_reminders',
         'MacroMate Erinnerungen',
-        channelDescription: 'Benachrichtigungen für Ernährung, Gewicht und Zyklus',
+        channelDescription:
+            'Benachrichtigungen für Ernährung, Gewicht und Zyklus',
         importance: Importance.high,
         priority: Priority.high,
       );
@@ -328,10 +341,8 @@ class NotificationController extends ChangeNotifier {
     final scheduled = tz.TZDateTime.from(scheduledDate, tz.local);
     if (!_policy.isAllowed(preference, scheduled)) return;
 
-    final displayTitle =
-        preference.discreteLockScreen ? discreteTitle : title;
-    final displayBody =
-        preference.discreteLockScreen ? discreteBody : body;
+    final displayTitle = preference.discreteLockScreen ? discreteTitle : title;
+    final displayBody = preference.discreteLockScreen ? discreteBody : body;
 
     const androidDetails = AndroidNotificationDetails(
       'macromate_insights',

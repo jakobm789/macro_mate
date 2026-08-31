@@ -39,7 +39,8 @@ void main() {
     });
 
     test('updates preference and saves to repository', () async {
-      final nutritionPref = controller.getPreference(NotificationCategory.nutrition)!;
+      final nutritionPref =
+          controller.getPreference(NotificationCategory.nutrition)!;
       final updated = nutritionPref.copyWith(
         enabled: true,
         quietStart: '23:00',
@@ -98,7 +99,8 @@ void main() {
   });
 
   group('NotificationSettingsPage widget tests', () {
-    testWidgets('renders all 8 categories with switches in scroll view', (tester) async {
+    testWidgets('renders all 8 categories with switches in scroll view',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -114,7 +116,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Benachrichtigungen & Ruhezeiten'), findsOneWidget);
-      expect(find.text('100% Lokale Benachrichtigungen'), findsOneWidget);
+      expect(find.text('Lokale Benachrichtigungen'), findsOneWidget);
 
       // Verify all 8 categories exist
       expect(find.text('Ernährung & Tagesziel'), findsOneWidget);
@@ -127,7 +129,8 @@ void main() {
       expect(find.text('Supplements & Wasser'), findsOneWidget);
     });
 
-    testWidgets('toggling category switch updates controller state', (tester) async {
+    testWidgets('toggling category switch updates controller state',
+        (tester) async {
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);

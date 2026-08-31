@@ -87,11 +87,23 @@ class DashboardController extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  void _initDefaults() {
+  Map<String, bool> _getDefaultVisibility() {
     final cycleOptedIn = _cycle.periodsState.isNotEmpty ||
         _cycle.logsState.isNotEmpty ||
         _settings.goals.gender == Gender.female;
-    _cardVisibility['cycle'] = cycleOptedIn;
+    return {
+      'calories': true,
+      'steps': true,
+      'active_energy': true,
+      'weight': true,
+      'health_sync': true,
+      'cycle': cycleOptedIn,
+      'impulses': true,
+    };
+  }
+
+  void _initDefaults() {
+    _cardVisibility = _getDefaultVisibility();
   }
 
   Future<void> initialize() async {
@@ -100,10 +112,35 @@ class DashboardController extends ChangeNotifier {
 
   Future<void> loadCardConfiguration() async {
     try {
-      if (_cardOrder.isEmpty) {
+      final savedOrder = await _settings.getDashboardCardOrder();
+      if (savedOrder != null && savedOrder.isNotEmpty) {
+        final validSaved =
+            savedOrder.where((id) => defaultCardOrder.contains(id)).toList();
+        for (final defaultId in defaultCardOrder) {
+          if (!validSaved.contains(defaultId)) {
+            validSaved.add(defaultId);
+          }
+        }
+        _cardOrder = validSaved;
+      } else {
         _cardOrder = List.from(defaultCardOrder);
       }
-    } catch (_) {}
+
+      final savedVis = await _settings.getDashboardCardVisibility();
+      final defaults = _getDefaultVisibility();
+      if (savedVis != null && savedVis.isNotEmpty) {
+        final merged = <String, bool>{};
+        for (final id in defaultCardOrder) {
+          merged[id] = savedVis[id] ?? defaults[id] ?? true;
+        }
+        _cardVisibility = merged;
+      } else {
+        _cardVisibility = defaults;
+      }
+    } catch (_) {
+      _cardOrder = List.from(defaultCardOrder);
+      _cardVisibility = _getDefaultVisibility();
+    }
     notifyListeners();
   }
 
@@ -127,21 +164,18 @@ class DashboardController extends ChangeNotifier {
 
   Future<void> resetToDefaults() async {
     _cardOrder = List.from(defaultCardOrder);
-    _cardVisibility = {
-      'calories': true,
-      'steps': true,
-      'active_energy': true,
-      'weight': true,
-      'health_sync': true,
-      'cycle': _cycle.periodsState.isNotEmpty || _settings.goals.gender == Gender.female,
-      'impulses': true,
-    };
+    _cardVisibility = _getDefaultVisibility();
+    try {
+      await _settings.resetDashboardConfig();
+    } catch (_) {}
     notifyListeners();
-    await _persistConfiguration();
   }
 
   Future<void> _persistConfiguration() async {
-    // Persisted in settings controller / secure prefs
+    try {
+      await _settings.saveDashboardCardOrder(_cardOrder);
+      await _settings.saveDashboardCardVisibility(_cardVisibility);
+    } catch (_) {}
     notifyListeners();
   }
 
@@ -177,7 +211,8 @@ class DashboardController extends ChangeNotifier {
   // Activity getters
   int get steps => _activity.todaySummary?.steps ?? 0;
   double get activeCalories => _activity.todaySummary?.activeCalories ?? 0.0;
-  double get distanceKm => (_activity.todaySummary?.distanceMeters ?? 0.0) / 1000.0;
+  double get distanceKm =>
+      (_activity.todaySummary?.distanceMeters ?? 0.0) / 1000.0;
   double? get totalCalories => _activity.todaySummary?.totalCalories;
   double? get averageHeartRate => _activity.todaySummary?.averageHeartRate;
   double? get restingHeartRate => _activity.todaySummary?.restingHeartRate;
@@ -232,7 +267,8 @@ class DashboardController extends ChangeNotifier {
       impulses.add(
         const ActionImpulse(
           title: 'Health Connect verbinden',
-          description: 'Synchronisiere Schritte, Aktivenergie und Schlafphasen automatisch.',
+          description:
+              'Synchronisiere Schritte, Aktivenergie und Schlafphasen automatisch.',
           iconName: 'sync_alt',
           targetRoute: '/health',
           priority: 2,
@@ -244,7 +280,8 @@ class DashboardController extends ChangeNotifier {
       impulses.add(
         const ActionImpulse(
           title: 'Mahlzeit erfassen',
-          description: 'Beginne mit deinem Frühstück oder schnellen KI-Food-Check-in.',
+          description:
+              'Beginne mit deinem Frühstück oder schnellen KI-Food-Check-in.',
           iconName: 'restaurant',
           targetRoute: '/nutrition',
           priority: 3,

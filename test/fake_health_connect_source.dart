@@ -1,3 +1,4 @@
+import 'package:macro_mate/features/cycle/domain/cycle_models.dart';
 import 'package:macro_mate/features/health/data/health_data_source.dart';
 import 'package:macro_mate/features/health/domain/health_models.dart';
 
@@ -15,6 +16,7 @@ class FakeHealthConnectSource implements HealthDataSource {
   HealthAvailability availability;
   HealthPermissionState permissions;
   final List<HealthRecord> records = [];
+  final List<HealthMenstruationRecord> menstruationRecords = [];
   bool shouldThrowOnRead = false;
 
   @override
@@ -55,7 +57,29 @@ class FakeHealthConnectSource implements HealthDataSource {
     }).toList();
   }
 
+  @override
+  Future<List<HealthMenstruationRecord>> readMenstruation(
+    DateTime startUtc,
+    DateTime endUtc,
+  ) async {
+    if (shouldThrowOnRead) {
+      throw Exception('Simulierter Health Connect Verbindungsfehler');
+    }
+    return menstruationRecords.where((r) {
+      return !r.startDay.isBefore(startUtc) && !r.startDay.isAfter(endUtc);
+    }).toList();
+  }
+
   void addRecord(HealthRecord record) {
     records.add(record);
+  }
+
+  void addMenstruationRecord(HealthMenstruationRecord record) {
+    menstruationRecords.add(record);
+  }
+
+  void clear() {
+    records.clear();
+    menstruationRecords.clear();
   }
 }

@@ -246,19 +246,18 @@ class _CyclePageState extends State<CyclePage> {
   }
 
   Future<void> _openHealthImport() async {
-    // Generate/fetch available Health Connect menstruation records for staging
-    // In production with health connect permission, this queries HealthConnectSource.
-    final mockImportRecords = [
-      HealthMenstruationRecord(
-        id: 'hc_sample_${DateTime.now().millisecondsSinceEpoch}',
-        startDay: DateTime.now().subtract(const Duration(days: 28)),
-        endDay: DateTime.now().subtract(const Duration(days: 24)),
-        flow: BleedingLevel.medium,
-        sourceName: 'Samsung Health',
-      ),
-    ];
-    await _controller.stageImportPreview(mockImportRecords);
+    final records = await _controller.previewHealthConnectImport();
     if (!mounted) return;
+    if (records.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Keine neuen Menstruationsdaten in Health Connect gefunden.',
+          ),
+        ),
+      );
+      return;
+    }
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -388,9 +387,11 @@ class _CyclePageState extends State<CyclePage> {
                   const SizedBox(height: 8),
                   Card(
                     child: ListTile(
-                      leading: const Icon(Icons.auto_graph, color: Colors.indigo),
+                      leading:
+                          const Icon(Icons.auto_graph, color: Colors.indigo),
                       title: const Text('Explorative Zusammenhänge'),
-                      subtitle: const Text('Erfahre mehr über Wechselwirkungen zwischen Zyklus, Schlaf, Energie und Aktivität.'),
+                      subtitle: const Text(
+                          'Erfahre mehr über Wechselwirkungen zwischen Zyklus, Schlaf, Energie und Aktivität.'),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
                         Navigator.of(context).push(

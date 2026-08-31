@@ -1,6 +1,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:macro_mate/core/database/app_database.dart';
+import 'package:macro_mate/features/cycle/domain/cycle_models.dart';
 import 'package:macro_mate/features/health/data/drift_health_repository.dart';
 import 'package:macro_mate/features/health/data/health_data_source.dart';
 import 'package:macro_mate/features/health/domain/health_models.dart';
@@ -38,6 +39,13 @@ class _FakeHealthSource implements HealthDataSource {
     reads.add((start: startUtc, end: endUtc));
     return records;
   }
+
+  @override
+  Future<List<HealthMenstruationRecord>> readMenstruation(
+    DateTime startUtc,
+    DateTime endUtc,
+  ) async =>
+      [];
 }
 
 HealthRecord _record({

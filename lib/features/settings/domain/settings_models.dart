@@ -75,8 +75,10 @@ class UserGoals {
       fatPercentage: fatPercentage ?? this.fatPercentage,
       sugarPercentage: sugarPercentage ?? this.sugarPercentage,
       autoCalorieMode: autoCalorieMode ?? this.autoCalorieMode,
-      customPercentPerMonth: customPercentPerMonth ?? this.customPercentPerMonth,
-      useCustomStartCalories: useCustomStartCalories ?? this.useCustomStartCalories,
+      customPercentPerMonth:
+          customPercentPerMonth ?? this.customPercentPerMonth,
+      useCustomStartCalories:
+          useCustomStartCalories ?? this.useCustomStartCalories,
       userStartCalories: userStartCalories ?? this.userStartCalories,
       userAge: userAge ?? this.userAge,
       userActivityLevel: userActivityLevel ?? this.userActivityLevel,
@@ -192,9 +194,12 @@ class UserSettings {
       reminderWeighEnabled: reminderWeighEnabled ?? this.reminderWeighEnabled,
       reminderWeighTime: reminderWeighTime ?? this.reminderWeighTime,
       reminderWeighTime2: reminderWeighTime2 ?? this.reminderWeighTime2,
-      reminderSupplementEnabled: reminderSupplementEnabled ?? this.reminderSupplementEnabled,
-      reminderSupplementTime: reminderSupplementTime ?? this.reminderSupplementTime,
-      reminderSupplementTime2: reminderSupplementTime2 ?? this.reminderSupplementTime2,
+      reminderSupplementEnabled:
+          reminderSupplementEnabled ?? this.reminderSupplementEnabled,
+      reminderSupplementTime:
+          reminderSupplementTime ?? this.reminderSupplementTime,
+      reminderSupplementTime2:
+          reminderSupplementTime2 ?? this.reminderSupplementTime2,
       reminderMealsEnabled: reminderMealsEnabled ?? this.reminderMealsEnabled,
       reminderBreakfast: reminderBreakfast ?? this.reminderBreakfast,
       reminderLunch: reminderLunch ?? this.reminderLunch,

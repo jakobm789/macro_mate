@@ -21,7 +21,8 @@ class NotificationSettingsPage extends StatelessWidget {
         children: [
           Card(
             color: theme.colorScheme.primaryContainer.withOpacity(0.4),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
@@ -29,18 +30,23 @@ class NotificationSettingsPage extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.shield_outlined, color: theme.colorScheme.primary, size: 20),
+                      Icon(Icons.shield_outlined,
+                          color: theme.colorScheme.primary, size: 20),
                       const SizedBox(width: 8),
-                      Text(
-                        '100% Lokale Benachrichtigungen',
-                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      Expanded(
+                        child: Text(
+                          'Lokale Benachrichtigungen',
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(
                     'Deine Erinnerungen werden direkt auf deinem Smartphone geplant. Diskrete Texte schützen deine Privatsphäre auf dem Sperrbildschirm.',
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -49,7 +55,8 @@ class NotificationSettingsPage extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'Kategorien & Einstellungen',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           for (final cat in NotificationCategory.values) ...[
@@ -70,7 +77,8 @@ class NotificationSettingsPage extends StatelessWidget {
     final pref = controller.getPreference(category) ??
         NotificationPreference(category: category);
 
-    final title = NotificationController.categoryLabels[category] ?? category.name;
+    final title =
+        NotificationController.categoryLabels[category] ?? category.name;
     final description =
         NotificationController.categoryDescriptions[category] ?? '';
 
@@ -79,7 +87,9 @@ class NotificationSettingsPage extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: pref.enabled ? theme.colorScheme.primary.withOpacity(0.3) : theme.colorScheme.outlineVariant,
+          color: pref.enabled
+              ? theme.colorScheme.primary.withOpacity(0.3)
+              : theme.colorScheme.outlineVariant,
         ),
       ),
       child: ExpansionTile(
@@ -93,7 +103,8 @@ class NotificationSettingsPage extends StatelessWidget {
             await controller.updatePreference(pref.copyWith(enabled: val));
           },
         ),
-        childrenPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        childrenPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         expandedCrossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Divider(height: 1),
@@ -117,7 +128,8 @@ class NotificationSettingsPage extends StatelessWidget {
                         updatedDays.remove(day);
                       }
                     }
-                    await controller.updatePreference(pref.copyWith(weekdays: updatedDays));
+                    await controller
+                        .updatePreference(pref.copyWith(weekdays: updatedDays));
                   },
                 ),
             ],
@@ -131,7 +143,8 @@ class NotificationSettingsPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Ruhezeit Start', style: theme.textTheme.labelMedium),
-                    Text(pref.quietStart ?? '22:00', style: theme.textTheme.bodyMedium),
+                    Text(pref.quietStart ?? '22:00',
+                        style: theme.textTheme.bodyMedium),
                   ],
                 ),
               ),
@@ -140,7 +153,8 @@ class NotificationSettingsPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Ruhezeit Ende', style: theme.textTheme.labelMedium),
-                    Text(pref.quietEnd ?? '07:00', style: theme.textTheme.bodyMedium),
+                    Text(pref.quietEnd ?? '07:00',
+                        style: theme.textTheme.bodyMedium),
                   ],
                 ),
               ),
@@ -160,8 +174,10 @@ class NotificationSettingsPage extends StatelessWidget {
                   if (end == null || !context.mounted) return;
                   await controller.updatePreference(
                     pref.copyWith(
-                      quietStart: '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}',
-                      quietEnd: '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}',
+                      quietStart:
+                          '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}',
+                      quietEnd:
+                          '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}',
                     ),
                   );
                 },
@@ -173,10 +189,12 @@ class NotificationSettingsPage extends StatelessWidget {
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Diskreter Sperrbildschirm-Text'),
-            subtitle: const Text('Zeigt neutrale Formulierungen ohne intime Details auf dem Lock Screen an.'),
+            subtitle: const Text(
+                'Zeigt neutrale Formulierungen ohne intime Details auf dem Lock Screen an.'),
             value: pref.discreteLockScreen,
             onChanged: (val) async {
-              await controller.updatePreference(pref.copyWith(discreteLockScreen: val));
+              await controller
+                  .updatePreference(pref.copyWith(discreteLockScreen: val));
             },
           ),
           if (category == NotificationCategory.cycleWindow) ...[

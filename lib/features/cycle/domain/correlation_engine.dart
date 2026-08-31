@@ -28,7 +28,8 @@ class CorrelationInsight {
     required this.sampleSizeCycles,
     required this.confidenceLevel,
     required this.metrics,
-    this.disclaimer = 'Explorative Beobachtung auf Basis deiner lokalen Daten. Keine medizinische Diagnose oder gesicherte Kausalität.',
+    this.disclaimer =
+        'Explorative Beobachtung auf Basis deiner lokalen Daten. Keine medizinische Diagnose oder gesicherte Kausalität.',
   });
 
   final String title;
@@ -50,7 +51,8 @@ class CorrelationAnalysisResult {
     this.requiredCycles = 2,
     required this.insights,
     this.summaryMessage,
-    this.disclaimer = 'Explorative Auswertungen dienen der Orientierung im Alltag und ersetzen keine ärztliche Beratung.',
+    this.disclaimer =
+        'Explorative Auswertungen dienen der Orientierung im Alltag und ersetzen keine ärztliche Beratung.',
   });
 
   final bool hasSufficientData;
@@ -63,7 +65,8 @@ class CorrelationAnalysisResult {
   final String disclaimer;
 
   String get progressDescription {
-    if (hasSufficientData) return 'Ausreichend Daten für Trendanalysen vorhanden.';
+    if (hasSufficientData)
+      return 'Ausreichend Daten für Trendanalysen vorhanden.';
     return '$observationDaysCount von $requiredDays Beobachtungstagen ($completedCyclesCount von $requiredCycles Zyklen) erfasst.';
   }
 }
@@ -80,13 +83,20 @@ class CorrelationEngine {
     List<DailyHealthSummary> healthSummaries = const [],
     List<ConsumedFoodItem> nutritionItems = const [],
   }) {
-    final sortedStarts = periods.map((p) => CycleEngine.dateOnly(p.startDay)).toSet().toList()..sort();
+    final sortedStarts = periods
+        .map((p) => CycleEngine.dateOnly(p.startDay))
+        .toSet()
+        .toList()
+      ..sort();
     final completedCycles = math.max(0, sortedStarts.length - 1);
-    final logDaysCount = logs.map((l) => CycleEngine.dateOnly(l.day)).toSet().length;
-    final healthDaysCount = healthSummaries.map((h) => CycleEngine.dateOnly(h.day)).toSet().length;
+    final logDaysCount =
+        logs.map((l) => CycleEngine.dateOnly(l.day)).toSet().length;
+    final healthDaysCount =
+        healthSummaries.map((h) => CycleEngine.dateOnly(h.day)).toSet().length;
     final totalObservationDays = math.max(logDaysCount, healthDaysCount);
 
-    final hasSufficientData = totalObservationDays >= minObservationDays || completedCycles >= minCompletedCycles;
+    final hasSufficientData = totalObservationDays >= minObservationDays ||
+        completedCycles >= minCompletedCycles;
 
     if (!hasSufficientData) {
       return CorrelationAnalysisResult(
@@ -94,7 +104,8 @@ class CorrelationEngine {
         observationDaysCount: totalObservationDays,
         completedCyclesCount: completedCycles,
         insights: const [],
-        summaryMessage: 'Sammle noch ein paar Tage Daten, um fundierte Zusammenhänge zu sehen.',
+        summaryMessage:
+            'Sammle noch ein paar Tage Daten, um fundierte Zusammenhänge zu sehen.',
       );
     }
 
@@ -145,12 +156,15 @@ class CorrelationEngine {
       observationDaysCount: totalObservationDays,
       completedCyclesCount: completedCycles,
       insights: List.unmodifiable(insights),
-      summaryMessage: '${insights.length} statistische Zusammenhänge lokal identifiziert.',
+      summaryMessage:
+          '${insights.length} statistische Zusammenhänge lokal identifiziert.',
     );
   }
 
   static String _phaseForDay(DateTime day, List<DateTime> sortedStarts) {
-    final priorStarts = sortedStarts.where((s) => s.isBefore(day) || s.isAtSameMomentAs(day)).toList();
+    final priorStarts = sortedStarts
+        .where((s) => s.isBefore(day) || s.isAtSameMomentAs(day))
+        .toList();
     if (priorStarts.isEmpty) return 'Unbekannt';
     final cycleStart = priorStarts.last;
     final dayInCycle = day.difference(cycleStart).inDays + 1;
@@ -185,7 +199,8 @@ class CorrelationEngine {
 
     final averages = <String, double>{};
     for (final entry in phaseSleepMap.entries) {
-      averages[entry.key] = entry.value.reduce((a, b) => a + b) / entry.value.length;
+      averages[entry.key] =
+          entry.value.reduce((a, b) => a + b) / entry.value.length;
     }
 
     final folli = averages['Follikelphase'] ?? averages['Ovulationsphase'];
@@ -203,7 +218,9 @@ class CorrelationEngine {
         category: CorrelationCategory.cycleVsSleep,
         sampleSizeDays: dataPoints,
         sampleSizeCycles: completedCycles,
-        confidenceLevel: dataPoints >= 14 ? CorrelationConfidence.high : CorrelationConfidence.moderate,
+        confidenceLevel: dataPoints >= 14
+            ? CorrelationConfidence.high
+            : CorrelationConfidence.moderate,
         metrics: averages,
       );
     }
@@ -234,7 +251,8 @@ class CorrelationEngine {
 
     final averages = <String, double>{};
     for (final entry in phaseEnergyMap.entries) {
-      averages[entry.key] = entry.value.reduce((a, b) => a + b) / entry.value.length;
+      averages[entry.key] =
+          entry.value.reduce((a, b) => a + b) / entry.value.length;
     }
 
     var bestPhase = '';
@@ -255,11 +273,14 @@ class CorrelationEngine {
 
     return CorrelationInsight(
       title: 'Energielevel im Zyklusverlauf',
-      description: 'Höchstes durchschnittliches Wohlbefinden in der $bestPhase (${maxAvg.toStringAsFixed(1)}/5), spürbar geringere Energie in der $lowestPhase (${minAvg.toStringAsFixed(1)}/5).',
+      description:
+          'Höchstes durchschnittliches Wohlbefinden in der $bestPhase (${maxAvg.toStringAsFixed(1)}/5), spürbar geringere Energie in der $lowestPhase (${minAvg.toStringAsFixed(1)}/5).',
       category: CorrelationCategory.cycleVsEnergy,
       sampleSizeDays: dataPoints,
       sampleSizeCycles: completedCycles,
-      confidenceLevel: dataPoints >= 10 ? CorrelationConfidence.high : CorrelationConfidence.moderate,
+      confidenceLevel: dataPoints >= 10
+          ? CorrelationConfidence.high
+          : CorrelationConfidence.moderate,
       metrics: averages,
     );
   }
@@ -288,16 +309,20 @@ class CorrelationEngine {
 
     final averages = <String, double>{};
     for (final entry in phaseStepsMap.entries) {
-      averages[entry.key] = entry.value.reduce((a, b) => a + b) / entry.value.length;
+      averages[entry.key] =
+          entry.value.reduce((a, b) => a + b) / entry.value.length;
     }
 
     return CorrelationInsight(
       title: 'Schrittaktivität nach Zyklusphase',
-      description: 'Durchschnittliche Bewegung variiert je nach Phase (z.B. ${(averages['Follikelphase'] ?? 0).round()} Schritte in der Follikelphase vs. ${(averages['Lutealphase'] ?? 0).round()} in der Lutealphase).',
+      description:
+          'Durchschnittliche Bewegung variiert je nach Phase (z.B. ${(averages['Follikelphase'] ?? 0).round()} Schritte in der Follikelphase vs. ${(averages['Lutealphase'] ?? 0).round()} in der Lutealphase).',
       category: CorrelationCategory.cycleVsActivity,
       sampleSizeDays: dataPoints,
       sampleSizeCycles: completedCycles,
-      confidenceLevel: dataPoints >= 14 ? CorrelationConfidence.high : CorrelationConfidence.moderate,
+      confidenceLevel: dataPoints >= 14
+          ? CorrelationConfidence.high
+          : CorrelationConfidence.moderate,
       metrics: averages,
     );
   }
@@ -310,7 +335,9 @@ class CorrelationEngine {
     if (sortedStarts.isEmpty || logs.length < 4) return null;
 
     final patterns = CycleEngine.detectSymptomPatterns(
-      periods: sortedStarts.map((s) => PeriodEntry(id: s.toIso8601String(), startDay: s)).toList(),
+      periods: sortedStarts
+          .map((s) => PeriodEntry(id: s.toIso8601String(), startDay: s))
+          .toList(),
       logs: logs,
     );
 
@@ -324,7 +351,11 @@ class CorrelationEngine {
       sampleSizeDays: logs.length,
       sampleSizeCycles: completedCycles,
       confidenceLevel: CorrelationConfidence.moderate,
-      metrics: {'topSymptom': top.symptomName, 'phase': top.phaseName, 'count': top.occurrenceCount},
+      metrics: {
+        'topSymptom': top.symptomName,
+        'phase': top.phaseName,
+        'count': top.occurrenceCount
+      },
     );
   }
 
@@ -337,14 +368,17 @@ class CorrelationEngine {
     // Group nutrition calories by date
     final caloriesByDay = <String, double>{};
     for (final item in nutritionItems) {
-      final key = '${item.date.year}-${item.date.month.toString().padLeft(2, '0')}-${item.date.day.toString().padLeft(2, '0')}';
-      caloriesByDay[key] = (caloriesByDay[key] ?? 0) + (item.food.caloriesPer100g * item.quantity / 100);
+      final key =
+          '${item.date.year}-${item.date.month.toString().padLeft(2, '0')}-${item.date.day.toString().padLeft(2, '0')}';
+      caloriesByDay[key] = (caloriesByDay[key] ?? 0) +
+          (item.food.caloriesPer100g * item.quantity / 100);
     }
 
     final matched = <String, ({double calories, int energy})>{};
     for (final log in logs) {
       if (log.energy == null) continue;
-      final key = '${log.day.year}-${log.day.month.toString().padLeft(2, '0')}-${log.day.day.toString().padLeft(2, '0')}';
+      final key =
+          '${log.day.year}-${log.day.month.toString().padLeft(2, '0')}-${log.day.day.toString().padLeft(2, '0')}';
       if (caloriesByDay.containsKey(key)) {
         matched[key] = (calories: caloriesByDay[key]!, energy: log.energy!);
       }
@@ -354,11 +388,14 @@ class CorrelationEngine {
 
     return CorrelationInsight(
       title: 'Ernährung & Energielevel',
-      description: 'An Tagen mit vollständiger Mahlzeitenerfassung und ausgewogener Kalorienzufuhr ist dein subjektives Energielevel stabiler.',
+      description:
+          'An Tagen mit vollständiger Mahlzeitenerfassung und ausgewogener Kalorienzufuhr ist dein subjektives Energielevel stabiler.',
       category: CorrelationCategory.nutritionVsEnergy,
       sampleSizeDays: matched.length,
       sampleSizeCycles: 0,
-      confidenceLevel: matched.length >= 10 ? CorrelationConfidence.high : CorrelationConfidence.moderate,
+      confidenceLevel: matched.length >= 10
+          ? CorrelationConfidence.high
+          : CorrelationConfidence.moderate,
       metrics: {'matchedDays': matched.length},
     );
   }

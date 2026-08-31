@@ -60,7 +60,8 @@ void main() {
     weightRepo = DriftWeightRepository(database: db);
     settingsRepo = DriftSettingsRepository(database: db);
     cycleRepo = DriftCycleRepository(database: db);
-    healthRepo = DriftHealthRepository(database: db, source: HealthConnectSource());
+    healthRepo =
+        DriftHealthRepository(database: db, source: HealthConnectSource());
 
     backupController = BackupController(
       database: db,
@@ -77,7 +78,9 @@ void main() {
   });
 
   group('Backup End-to-End & Tamper-Proofing', () {
-    test('selective category export and restore does not overwrite unselected tables', () async {
+    test(
+        'selective category export and restore does not overwrite unselected tables',
+        () async {
       // Seed data in DB 1
       await nutritionRepo.saveFood(
         FoodItem(
@@ -104,7 +107,8 @@ void main() {
       final weightRepo2 = DriftWeightRepository(database: db2);
       final settingsRepo2 = DriftSettingsRepository(database: db2);
       final cycleRepo2 = DriftCycleRepository(database: db2);
-      final healthRepo2 = DriftHealthRepository(database: db2, source: HealthConnectSource());
+      final healthRepo2 =
+          DriftHealthRepository(database: db2, source: HealthConnectSource());
 
       await nutritionRepo2.saveFood(
         FoodItem(
@@ -147,15 +151,18 @@ void main() {
       await db2.close();
     });
 
-    test('tampered ciphertext fails authentication without modifying database', () async {
+    test('tampered ciphertext fails authentication without modifying database',
+        () async {
       await weightRepo.add(day: DateTime(2026, 8, 10), kilograms: 82.0);
 
-      final backup = await backupController.exportBackup(password: testPassword);
+      final backup =
+          await backupController.exportBackup(password: testPassword);
       final envelope = jsonDecode(backup) as Map<String, dynamic>;
 
       // Tamper ciphertext
       final rawCipher = envelope['ciphertext'] as String;
-      envelope['ciphertext'] = '${rawCipher.substring(0, rawCipher.length - 4)}ffff';
+      envelope['ciphertext'] =
+          '${rawCipher.substring(0, rawCipher.length - 4)}ffff';
       final tamperedJson = jsonEncode(envelope);
 
       expect(
@@ -168,7 +175,8 @@ void main() {
     });
 
     test('rejects future schema version cleanly', () async {
-      final backup = await backupController.exportBackup(password: testPassword);
+      final backup =
+          await backupController.exportBackup(password: testPassword);
       final envelope = jsonDecode(backup) as Map<String, dynamic>;
       envelope['schema_version'] = 9999;
       final futureVersionJson = jsonEncode(envelope);
@@ -184,7 +192,9 @@ void main() {
   });
 
   group('SharedPreferences to SecureStorage migration', () {
-    test('migrates legacy credentials from SharedPreferences to FlutterSecureStorage', () async {
+    test(
+        'migrates legacy credentials from SharedPreferences to FlutterSecureStorage',
+        () async {
       // Seed legacy plain SharedPreferences
       SharedPreferences.setMockInitialValues({
         'user_email': 'legacy_user@macromate.app',
@@ -202,8 +212,10 @@ void main() {
       expect(pass, 'legacy_secret_password');
 
       // Verify saved in secure storage mock
-      expect(secureStorageMock['credential_email'], 'legacy_user@macromate.app');
-      expect(secureStorageMock['credential_password'], 'legacy_secret_password');
+      expect(
+          secureStorageMock['credential_email'], 'legacy_user@macromate.app');
+      expect(
+          secureStorageMock['credential_password'], 'legacy_secret_password');
 
       // Verify cleared from plain SharedPreferences
       final prefs = await SharedPreferences.getInstance();

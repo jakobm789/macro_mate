@@ -63,7 +63,8 @@ class FoodSearchController extends ChangeNotifier {
       final url = Uri.parse(
         '$openFoodFactsBaseUrl/cgi/search.pl?search_terms=$trimmed&search_simple=1&action=process&json=1&page_size=20',
       );
-      final response = await _httpClient.get(url).timeout(const Duration(seconds: 5));
+      final response =
+          await _httpClient.get(url).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final products = data['products'] as List? ?? [];
@@ -72,9 +73,8 @@ class FoodSearchController extends ChangeNotifier {
           final nutriments = p['nutriments'] ?? {};
           final name = p['product_name'] ?? p['generic_name'] ?? 'Unbekannt';
           final brand = p['brands'] ?? 'Unbekannt';
-          final cal = nutriments['energy-kcal_100g'] ??
-              nutriments['energy-kcal'] ??
-              0;
+          final cal =
+              nutriments['energy-kcal_100g'] ?? nutriments['energy-kcal'] ?? 0;
           final fat = (nutriments['fat_100g'] ?? 0).toDouble();
           final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
           final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
@@ -125,7 +125,8 @@ class FoodSearchController extends ChangeNotifier {
 
     try {
       final url = Uri.parse('$openFoodFactsBaseUrl/api/v2/product/$code.json');
-      final response = await _httpClient.get(url).timeout(const Duration(seconds: 5));
+      final response =
+          await _httpClient.get(url).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['status'] == 1 && data['product'] != null) {
@@ -133,9 +134,8 @@ class FoodSearchController extends ChangeNotifier {
           final nutriments = p['nutriments'] ?? {};
           final name = p['product_name'] ?? p['generic_name'] ?? 'Unbekannt';
           final brand = p['brands'] ?? 'Unbekannt';
-          final cal = nutriments['energy-kcal_100g'] ??
-              nutriments['energy-kcal'] ??
-              0;
+          final cal =
+              nutriments['energy-kcal_100g'] ?? nutriments['energy-kcal'] ?? 0;
           final fat = (nutriments['fat_100g'] ?? 0).toDouble();
           final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
           final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();

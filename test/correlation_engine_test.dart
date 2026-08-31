@@ -16,7 +16,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('CorrelationEngine unit tests', () {
-    test('returns hasSufficientData: false when under 7 days and under 2 cycles', () {
+    test(
+        'returns hasSufficientData: false when under 7 days and under 2 cycles',
+        () {
       final periods = [
         PeriodEntry(
           id: 'p1',
@@ -42,12 +44,23 @@ void main() {
       expect(result.insights, isEmpty);
     });
 
-    test('identifies cycle vs sleep and cycle vs energy when sufficient data present', () {
+    test(
+        'identifies cycle vs sleep and cycle vs energy when sufficient data present',
+        () {
       // 3 completed cycle starts (2 full cycles)
       final periods = [
-        PeriodEntry(id: 'p1', startDay: DateTime(2026, 6, 1), endDay: DateTime(2026, 6, 5)),
-        PeriodEntry(id: 'p2', startDay: DateTime(2026, 6, 29), endDay: DateTime(2026, 7, 3)),
-        PeriodEntry(id: 'p3', startDay: DateTime(2026, 7, 27), endDay: DateTime(2026, 7, 31)),
+        PeriodEntry(
+            id: 'p1',
+            startDay: DateTime(2026, 6, 1),
+            endDay: DateTime(2026, 6, 5)),
+        PeriodEntry(
+            id: 'p2',
+            startDay: DateTime(2026, 6, 29),
+            endDay: DateTime(2026, 7, 3)),
+        PeriodEntry(
+            id: 'p3',
+            startDay: DateTime(2026, 7, 27),
+            endDay: DateTime(2026, 7, 31)),
       ];
 
       final logs = <CycleDailyLog>[];
@@ -100,7 +113,10 @@ void main() {
 
     test('analyzes nutrition vs energy correlation', () {
       final periods = [
-        PeriodEntry(id: 'p1', startDay: DateTime(2026, 8, 1), endDay: DateTime(2026, 8, 5)),
+        PeriodEntry(
+            id: 'p1',
+            startDay: DateTime(2026, 8, 1),
+            endDay: DateTime(2026, 8, 5)),
       ];
       final logs = <CycleDailyLog>[];
       final foods = <ConsumedFoodItem>[];
@@ -156,7 +172,8 @@ void main() {
       await db.close();
     });
 
-    testWidgets('renders insufficient data card when no data present', (tester) async {
+    testWidgets('renders insufficient data card when no data present',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: ChangeNotifierProvider<CycleController>.value(
@@ -169,7 +186,8 @@ void main() {
 
       expect(find.text('Explorative Zusammenhänge'), findsOneWidget);
       expect(find.text('Noch nicht genügend Daten'), findsOneWidget);
-      expect(find.textContaining('Hinweis zu explorativen Trends'), findsOneWidget);
+      expect(find.textContaining('Hinweis zu explorativen Trends'),
+          findsOneWidget);
     });
   });
 }

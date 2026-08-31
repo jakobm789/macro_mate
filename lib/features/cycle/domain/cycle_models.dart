@@ -24,10 +24,8 @@ class CycleProfile {
       };
 
   factory CycleProfile.fromMap(Map<String, dynamic> map) => CycleProfile(
-        typicalCycleLength:
-            (map['typicalCycleLength'] as num?)?.toInt() ?? 28,
-        typicalPeriodLength:
-            (map['typicalPeriodLength'] as num?)?.toInt() ?? 5,
+        typicalCycleLength: (map['typicalCycleLength'] as num?)?.toInt() ?? 28,
+        typicalPeriodLength: (map['typicalPeriodLength'] as num?)?.toInt() ?? 5,
         predictionsEnabled: map['predictionsEnabled'] != false,
         healthImportEnabled: map['healthImportEnabled'] == true,
         timezone: map['timezone'] as String? ?? 'UTC',
@@ -282,4 +280,3 @@ class CycleConflictItem {
   final MenstruationConflictType conflictType;
   MenstruationConflictResolution chosenResolution;
 }
-

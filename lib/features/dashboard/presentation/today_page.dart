@@ -32,7 +32,8 @@ class _TodayPageState extends State<TodayPage> {
     final appState = context.watch<AppState>();
 
     // Fallbacks if DashboardController is not provided directly in tree
-    final consumedCal = dashboard?.consumedCalories ?? appState.consumedCalories;
+    final consumedCal =
+        dashboard?.consumedCalories ?? appState.consumedCalories;
     final targetCal = dashboard?.dailyCalorieGoal ?? appState.dailyCalorieGoal;
     final consumedCarbs = dashboard?.consumedCarbs ?? appState.consumedCarbs;
     final targetCarbs = dashboard?.dailyCarbGoal ?? appState.dailyCarbGoal;
@@ -47,7 +48,9 @@ class _TodayPageState extends State<TodayPage> {
     final totalKcal = dashboard?.totalCalories;
 
     final weight = dashboard?.latestWeight ??
-        (appState.weightEntries.isNotEmpty ? appState.weightEntries.last.weight : null);
+        (appState.weightEntries.isNotEmpty
+            ? appState.weightEntries.last.weight
+            : null);
     final weightTrend = dashboard?.weightTrend;
 
     final lastSync = dashboard?.lastSyncTime;
@@ -58,7 +61,8 @@ class _TodayPageState extends State<TodayPage> {
     final cycleTip = dashboard?.discreteCycleTip;
     final impulses = dashboard?.actionImpulses ?? const [];
 
-    final cardOrder = dashboard?.cardOrder ?? DashboardController.defaultCardOrder;
+    final cardOrder =
+        dashboard?.cardOrder ?? DashboardController.defaultCardOrder;
     final visibility = dashboard?.cardVisibility ?? {};
 
     return Scaffold(
@@ -124,7 +128,7 @@ class _TodayPageState extends State<TodayPage> {
             const SizedBox(height: 16),
             const Center(
               child: Text(
-                'Health- und Zyklusdaten bleiben stets lokal und verschlüsselt auf deinem Gerät.',
+                'Health- und Zyklusdaten bleiben stets lokal auf diesem Gerät. Verschlüsselte Backups werden separat geschützt.',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
                 textAlign: TextAlign.center,
               ),
@@ -209,7 +213,8 @@ class _TodayPageState extends State<TodayPage> {
       case 'cycle':
         return Card(
           child: ListTile(
-            leading: const Icon(Icons.water_drop_outlined, color: Colors.purple),
+            leading:
+                const Icon(Icons.water_drop_outlined, color: Colors.purple),
             title: Text(cyclePhase != null
                 ? 'Zyklustag $cycleDay · $cyclePhase'
                 : 'Zyklus-Status'),
@@ -225,7 +230,8 @@ class _TodayPageState extends State<TodayPage> {
           children: [
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 4),
-              child: Text('Handlungsimpulse', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              child: Text('Handlungsimpulse',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             ),
             for (final impulse in impulses)
               Card(
@@ -235,7 +241,8 @@ class _TodayPageState extends State<TodayPage> {
                   title: Text(impulse.title),
                   subtitle: Text(impulse.description),
                   trailing: FilledButton.tonal(
-                    onPressed: () => Navigator.pushNamed(context, impulse.targetRoute),
+                    onPressed: () =>
+                        Navigator.pushNamed(context, impulse.targetRoute),
                     child: const Text('Öffnen'),
                   ),
                 ),

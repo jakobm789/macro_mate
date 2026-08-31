@@ -23,7 +23,8 @@ void main() {
   });
 
   group('Cycle Import & Conflict Resolution', () {
-    test('detects non-conflicting, exact duplicate, and overlapping periods', () async {
+    test('detects non-conflicting, exact duplicate, and overlapping periods',
+        () async {
       // Local period: 2026-07-01 to 2026-07-05
       await repository.addPeriod(
         startDay: DateTime(2026, 7, 1),
@@ -58,13 +59,17 @@ void main() {
 
       expect(conflicts.length, 3);
       expect(conflicts[0].conflictType, MenstruationConflictType.none);
-      expect(conflicts[0].chosenResolution, MenstruationConflictResolution.acceptImported);
+      expect(conflicts[0].chosenResolution,
+          MenstruationConflictResolution.acceptImported);
 
-      expect(conflicts[1].conflictType, MenstruationConflictType.exactDuplicate);
-      expect(conflicts[1].chosenResolution, MenstruationConflictResolution.skip);
+      expect(
+          conflicts[1].conflictType, MenstruationConflictType.exactDuplicate);
+      expect(
+          conflicts[1].chosenResolution, MenstruationConflictResolution.skip);
 
       expect(conflicts[2].conflictType, MenstruationConflictType.overlap);
-      expect(conflicts[2].chosenResolution, MenstruationConflictResolution.merge);
+      expect(
+          conflicts[2].chosenResolution, MenstruationConflictResolution.merge);
     });
 
     test('merge resolution combines timeframes accurately', () async {
@@ -116,7 +121,8 @@ void main() {
       ];
 
       final conflicts = await repository.detectImportConflicts(imported);
-      conflicts.first.chosenResolution = MenstruationConflictResolution.acceptImported;
+      conflicts.first.chosenResolution =
+          MenstruationConflictResolution.acceptImported;
 
       final count = await repository.applyMenstruationImport(conflicts);
       expect(count, 1);
@@ -128,7 +134,8 @@ void main() {
       expect(periods.first.source, 'Health Connect');
     });
 
-    test('keepLocal and skip preserve local period without modifications', () async {
+    test('keepLocal and skip preserve local period without modifications',
+        () async {
       await repository.addPeriod(
         startDay: DateTime(2026, 5, 1),
         endDay: DateTime(2026, 5, 5),
@@ -144,7 +151,8 @@ void main() {
       ];
 
       final conflicts = await repository.detectImportConflicts(imported);
-      conflicts.first.chosenResolution = MenstruationConflictResolution.keepLocal;
+      conflicts.first.chosenResolution =
+          MenstruationConflictResolution.keepLocal;
 
       final count = await repository.applyMenstruationImport(conflicts);
       expect(count, 0);
@@ -155,7 +163,8 @@ void main() {
       expect(periods.first.endDay, DateTime(2026, 5, 5));
     });
 
-    test('imported period can subsequently be edited or deleted by user', () async {
+    test('imported period can subsequently be edited or deleted by user',
+        () async {
       final imported = [
         HealthMenstruationRecord(
           id: 'rec_edit_del',
@@ -204,7 +213,8 @@ void main() {
       expect(conflicts.length, 1);
       expect(controller.pendingImportConflicts.length, 1);
 
-      controller.updateConflictResolution(0, MenstruationConflictResolution.acceptImported);
+      controller.updateConflictResolution(
+          0, MenstruationConflictResolution.acceptImported);
       final count = await controller.applyStagedImport();
 
       expect(count, 1);

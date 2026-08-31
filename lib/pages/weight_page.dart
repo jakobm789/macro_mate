@@ -23,7 +23,7 @@ class _WeightPageState extends State<WeightPage> {
     super.dispose();
   }
 
-  Future<void> _pickDate(BuildContext context) async {
+  Future<void> _pickDate() async {
     final now = DateTime.now();
     final newDate = await showDatePicker(
       context: context,
@@ -38,7 +38,7 @@ class _WeightPageState extends State<WeightPage> {
     }
   }
 
-  Future<void> _addWeight(BuildContext context) async {
+  Future<void> _addWeight() async {
     final text = _weightController.text.trim();
     if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -60,15 +60,18 @@ class _WeightPageState extends State<WeightPage> {
       _weightController.clear();
       setState(() => _selectedDate = DateTime.now());
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Fehler beim Speichern: $e')));
     } finally {
-      setState(() => _isAdding = false);
+      if (mounted) {
+        setState(() => _isAdding = false);
+      }
     }
   }
 
-  Future<void> _editWeight(BuildContext context, WeightEntry entry) async {
+  Future<void> _editWeight(WeightEntry entry) async {
     if (entry.id == null) return;
     final controller = TextEditingController(
       text: entry.weight.toStringAsFixed(1),
@@ -102,7 +105,7 @@ class _WeightPageState extends State<WeightPage> {
                         onPressed: () async {
                           final now = DateTime.now();
                           final picked = await showDatePicker(
-                            context: context,
+                            context: dialogContext,
                             initialDate: selectedDate,
                             firstDate: DateTime(now.year - 5),
                             lastDate: DateTime(now.year + 1),
@@ -141,7 +144,7 @@ class _WeightPageState extends State<WeightPage> {
       },
     );
     controller.dispose();
-    if (result == null) return;
+    if (result == null || !mounted) return;
     try {
       await Provider.of<AppState>(
         context,
@@ -159,7 +162,7 @@ class _WeightPageState extends State<WeightPage> {
     }
   }
 
-  Future<void> _deleteWeight(BuildContext context, WeightEntry entry) async {
+  Future<void> _deleteWeight(WeightEntry entry) async {
     if (entry.id == null) return;
     final confirm = await showDialog<bool>(
       context: context,
@@ -178,7 +181,7 @@ class _WeightPageState extends State<WeightPage> {
         ],
       ),
     );
-    if (confirm != true) return;
+    if (confirm != true || !mounted) return;
     final appState = Provider.of<AppState>(context, listen: false);
     await appState.deleteWeightEntry(entry.id!);
     if (!mounted) return;
@@ -193,7 +196,7 @@ class _WeightPageState extends State<WeightPage> {
     );
   }
 
-  List<WeightEntry> _getEntriesForRange(BuildContext context) {
+  List<WeightEntry> _getEntriesForRange() {
     final appState = Provider.of<AppState>(context, listen: false);
     final now = DateTime.now();
     final cutoff = now.subtract(Duration(days: _selectedRangeInDays));
@@ -204,8 +207,8 @@ class _WeightPageState extends State<WeightPage> {
     return filtered;
   }
 
-  List<FlSpot> _generateSpotsForRange(BuildContext context) {
-    final filtered = _getEntriesForRange(context);
+  List<FlSpot> _generateSpotsForRange() {
+    final filtered = _getEntriesForRange();
     if (filtered.isEmpty) {
       return [];
     }
@@ -234,8 +237,8 @@ class _WeightPageState extends State<WeightPage> {
 
   @override
   Widget build(BuildContext context) {
-    final spots = _generateSpotsForRange(context);
-    final entries = _getEntriesForRange(context);
+    final spots = _generateSpotsForRange();
+    final entries = _getEntriesForRange();
 
     return Scaffold(
       appBar: AppBar(
@@ -289,7 +292,7 @@ class _WeightPageState extends State<WeightPage> {
                           reservedSize: 42,
                           interval: spots.length > 1 ? null : 1,
                           getTitlesWidget: (value, meta) {
-                            final entries = _getEntriesForRange(context);
+                            final entries = _getEntriesForRange();
                             if (entries.isEmpty) {
                               return const SizedBox();
                             }
@@ -345,14 +348,14 @@ class _WeightPageState extends State<WeightPage> {
                         ),
                         const Spacer(),
                         TextButton(
-                          onPressed: () => _pickDate(context),
+                          onPressed: _pickDate,
                           child: const Text('Datum ändern'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
-                      onPressed: _isAdding ? null : () => _addWeight(context),
+                      onPressed: _isAdding ? null : _addWeight,
                       icon: _isAdding
                           ? const SizedBox(
                               width: 16,
@@ -382,7 +385,7 @@ class _WeightPageState extends State<WeightPage> {
                     ),
                     direction: DismissDirection.endToStart,
                     confirmDismiss: (_) async {
-                      await _deleteWeight(context, entry);
+                      await _deleteWeight(entry);
                       return false;
                     },
                     background: Container(
@@ -396,17 +399,17 @@ class _WeightPageState extends State<WeightPage> {
                       subtitle: Text(
                         DateFormat('dd.MM.yyyy').format(entry.date),
                       ),
-                      onTap: () => _editWeight(context, entry),
+                      onTap: () => _editWeight(entry),
                       trailing: Wrap(
                         spacing: 4,
                         children: [
                           IconButton(
                             icon: const Icon(Icons.edit),
-                            onPressed: () => _editWeight(context, entry),
+                            onPressed: () => _editWeight(entry),
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline),
-                            onPressed: () => _deleteWeight(context, entry),
+                            onPressed: () => _deleteWeight(entry),
                           ),
                         ],
                       ),

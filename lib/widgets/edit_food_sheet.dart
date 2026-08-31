@@ -83,9 +83,11 @@ class EditFoodSheet extends StatelessWidget {
                   );
 
                   if (confirm == true) {
+                    if (!context.mounted) return;
                     try {
                       await Provider.of<AppState>(context, listen: false)
                           .removeFood(consumedFood.mealName, consumedFood);
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content:
@@ -94,6 +96,7 @@ class EditFoodSheet extends StatelessWidget {
                       );
                       onFoodEdited();
                     } catch (e) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Fehler beim Löschen: $e')),
                       );
@@ -184,6 +187,7 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
         newQuantity: newQuantity,
         newMealName: selectedMeal,
       );
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Menge aktualisiert.')),
@@ -191,11 +195,14 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
       widget.onFoodEdited();
       Navigator.pop(context);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler beim Aktualisieren: $e')),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -206,6 +213,7 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
     try {
       await appState.removeFood(
           widget.consumedFood.mealName, widget.consumedFood);
+      if (!mounted) return;
 
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -215,11 +223,14 @@ class _EditConsumedFoodItemSheetState extends State<EditConsumedFoodItemSheet> {
       );
       widget.onFoodEdited();
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler beim Löschen: $e')),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

@@ -16,7 +16,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _showCodeField = false;
   bool _isLoading = false;
 
-  Future<void> _loginUser(BuildContext context) async {
+  Future<void> _loginUser() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
@@ -49,6 +49,7 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler beim Login: $e')),
       );
@@ -59,7 +60,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _registerUser(BuildContext context) async {
+  Future<void> _registerUser() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
@@ -93,6 +94,7 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler bei Registrierung: $e')),
       );
@@ -103,7 +105,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _verifyAccount(BuildContext context) async {
+  Future<void> _verifyAccount() async {
     final email = _emailController.text.trim();
     final code = _codeController.text.trim();
 
@@ -137,6 +139,7 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler bei Verifizierung: $e')),
       );
@@ -199,18 +202,18 @@ class _LoginPageState extends State<LoginPage> {
                     Column(
                       children: [
                         ElevatedButton(
-                          onPressed: () => _loginUser(context),
+                          onPressed: _loginUser,
                           child: const Text('Login'),
                         ),
                         const SizedBox(height: 8),
                         ElevatedButton(
-                          onPressed: () => _registerUser(context),
+                          onPressed: _registerUser,
                           child: const Text('Registrieren'),
                         ),
                         if (_showCodeField) ...[
                           const SizedBox(height: 16),
                           ElevatedButton(
-                            onPressed: () => _verifyAccount(context),
+                            onPressed: _verifyAccount,
                             child: const Text('Code eingeben'),
                           ),
                         ],

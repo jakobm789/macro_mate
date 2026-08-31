@@ -58,13 +58,14 @@ class ActivityController extends ChangeNotifier {
       _weeklySummaries = summaries;
 
       final todayStr = _formatDay(now);
-      _todaySummary = summaries.where((s) => _formatDay(s.day) == todayStr).firstOrNull ??
-          DailyHealthSummary(
-            day: now,
-            steps: 0,
-            activeCalories: 0,
-            distanceMeters: 0,
-          );
+      _todaySummary =
+          summaries.where((s) => _formatDay(s.day) == todayStr).firstOrNull ??
+              DailyHealthSummary(
+                day: now,
+                steps: 0,
+                activeCalories: 0,
+                distanceMeters: 0,
+              );
 
       _workouts = await _repository.workouts();
       _sleepSessions = await _repository.sleepSessions();

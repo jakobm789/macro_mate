@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/time/clock.dart';
+import '../../health/domain/health_repository.dart';
 import '../domain/cycle_engine.dart';
 import '../domain/cycle_models.dart';
 import '../domain/cycle_repository.dart';
@@ -8,11 +9,14 @@ import '../domain/cycle_repository.dart';
 class CycleController extends ChangeNotifier {
   CycleController({
     required CycleRepository repository,
+    HealthRepository? healthRepository,
     Clock clock = const SystemClock(),
   })  : _repository = repository,
+        _healthRepository = healthRepository,
         _clock = clock;
 
   final CycleRepository _repository;
+  final HealthRepository? _healthRepository;
   final Clock _clock;
   CycleProfile profileState = const CycleProfile();
   List<PeriodEntry> periodsState = const [];
@@ -46,9 +50,11 @@ class CycleController extends ChangeNotifier {
     });
   }
 
-  Future<void> addPeriod(DateTime startDay, {DateTime? endDay, BleedingLevel? flow, String source = 'local'}) async {
+  Future<void> addPeriod(DateTime startDay,
+      {DateTime? endDay, BleedingLevel? flow, String source = 'local'}) async {
     await _run(() async {
-      await _repository.addPeriod(startDay: startDay, endDay: endDay, flow: flow, source: source);
+      await _repository.addPeriod(
+          startDay: startDay, endDay: endDay, flow: flow, source: source);
       await _loadData();
     });
   }
@@ -93,6 +99,21 @@ class CycleController extends ChangeNotifier {
     });
   }
 
+  Future<List<CycleConflictItem>> previewHealthConnectImport({
+    DateTime? startUtc,
+    DateTime? endUtc,
+  }) async {
+    if (_healthRepository == null) return const [];
+    final now = _clock.now();
+    final start = startUtc ?? now.subtract(const Duration(days: 180));
+    final end = endUtc ?? now;
+    final records = await _healthRepository.readMenstruation(
+      startUtc: start.toUtc(),
+      endUtc: end.toUtc(),
+    );
+    return stageImportPreview(records);
+  }
+
   Future<List<CycleConflictItem>> stageImportPreview(
     List<HealthMenstruationRecord> records,
   ) async {
@@ -102,7 +123,8 @@ class CycleController extends ChangeNotifier {
     return conflicts;
   }
 
-  void updateConflictResolution(int index, MenstruationConflictResolution resolution) {
+  void updateConflictResolution(
+      int index, MenstruationConflictResolution resolution) {
     if (index >= 0 && index < pendingImportConflicts.length) {
       pendingImportConflicts[index].chosenResolution = resolution;
       notifyListeners();

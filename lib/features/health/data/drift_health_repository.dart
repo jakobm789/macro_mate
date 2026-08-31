@@ -3,10 +3,11 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/time/clock.dart';
+import '../../cycle/domain/cycle_models.dart';
 import '../domain/health_models.dart';
 import '../domain/health_repository.dart';
 import 'health_data_source.dart';
-import '../../../core/time/clock.dart';
 
 class DriftHealthRepository implements HealthRepository {
   DriftHealthRepository(
@@ -580,6 +581,14 @@ class DriftHealthRepository implements HealthRepository {
       '[redacted]',
     );
     return redacted.length > 240 ? '${redacted.substring(0, 240)}…' : redacted;
+  }
+
+  @override
+  Future<List<HealthMenstruationRecord>> readMenstruation({
+    required DateTime startUtc,
+    required DateTime endUtc,
+  }) {
+    return _source.readMenstruation(startUtc, endUtc);
   }
 }
 

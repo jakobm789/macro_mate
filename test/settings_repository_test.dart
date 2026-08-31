@@ -45,7 +45,8 @@ void main() {
     expect(controller.dailyFatGoal, (2400 * 0.20) / 9.0);
   });
 
-  test('calculates BMR and TDEE correctly for Mifflin and Harris formulas', () async {
+  test('calculates BMR and TDEE correctly for Mifflin and Harris formulas',
+      () async {
     // Male, 80kg, 180cm, 30 years old, activity level 1.5
     await controller.updateGoals(
       controller.goals.copyWith(
@@ -70,7 +71,8 @@ void main() {
     expect(harrisBmr, closeTo(1864.54, 0.1));
   });
 
-  test('calculates auto calorie goals with diet, bulk, and safety bounds', () async {
+  test('calculates auto calorie goals with diet, bulk, and safety bounds',
+      () async {
     await controller.updateGoals(
       controller.goals.copyWith(
         userHeight: 180,
@@ -106,7 +108,8 @@ void main() {
         autoCalorieMode: AutoCalorieMode.diet,
       ),
     );
-    final lowWeightGoal = controller.calculateAutoCalorieGoal(currentWeightKg: 45);
+    final lowWeightGoal =
+        controller.calculateAutoCalorieGoal(currentWeightKg: 45);
     expect(lowWeightGoal, greaterThanOrEqualTo(1200));
   });
 

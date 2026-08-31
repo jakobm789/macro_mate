@@ -279,7 +279,8 @@ class DriftCycleRepository implements CycleRepository {
         // Overlap: localStart <= importEnd && importStart <= localEnd
         if (!localStart.isAfter(importEnd) && !importStart.isAfter(localEnd)) {
           conflicting = local;
-          if (!localStart.isAfter(importStart) && !localEnd.isBefore(importEnd)) {
+          if (!localStart.isAfter(importStart) &&
+              !localEnd.isBefore(importEnd)) {
             conflictType = MenstruationConflictType.contains;
           } else {
             conflictType = MenstruationConflictType.overlap;
@@ -288,11 +289,12 @@ class DriftCycleRepository implements CycleRepository {
         }
       }
 
-      final defaultResolution = conflictType == MenstruationConflictType.exactDuplicate
-          ? MenstruationConflictResolution.skip
-          : conflictType == MenstruationConflictType.none
-              ? MenstruationConflictResolution.acceptImported
-              : MenstruationConflictResolution.merge;
+      final defaultResolution =
+          conflictType == MenstruationConflictType.exactDuplicate
+              ? MenstruationConflictResolution.skip
+              : conflictType == MenstruationConflictType.none
+                  ? MenstruationConflictResolution.acceptImported
+                  : MenstruationConflictResolution.merge;
 
       result.add(
         CycleConflictItem(
@@ -308,14 +310,16 @@ class DriftCycleRepository implements CycleRepository {
   }
 
   @override
-  Future<int> applyMenstruationImport(List<CycleConflictItem> resolvedItems) async {
+  Future<int> applyMenstruationImport(
+      List<CycleConflictItem> resolvedItems) async {
     var importedCount = 0;
 
     await _database.transaction(() async {
       for (final item in resolvedItems) {
         final record = item.importedRecord;
         final importStart = CycleEngine.dateOnly(record.startDay);
-        final importEnd = record.endDay != null ? CycleEngine.dateOnly(record.endDay!) : null;
+        final importEnd =
+            record.endDay != null ? CycleEngine.dateOnly(record.endDay!) : null;
 
         switch (item.chosenResolution) {
           case MenstruationConflictResolution.skip:
@@ -341,10 +345,13 @@ class DriftCycleRepository implements CycleRepository {
             if (item.conflictingLocalPeriod != null) {
               final local = item.conflictingLocalPeriod!;
               final localStart = CycleEngine.dateOnly(local.startDay);
-              final localEnd = local.endDay != null ? CycleEngine.dateOnly(local.endDay!) : localStart;
+              final localEnd = local.endDay != null
+                  ? CycleEngine.dateOnly(local.endDay!)
+                  : localStart;
               final impEnd = importEnd ?? importStart;
 
-              final mergedStart = localStart.isBefore(importStart) ? localStart : importStart;
+              final mergedStart =
+                  localStart.isBefore(importStart) ? localStart : importStart;
               final mergedEnd = localEnd.isAfter(impEnd) ? localEnd : impEnd;
 
               await updatePeriod(

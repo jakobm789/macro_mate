@@ -134,4 +134,3 @@ void main() {
     expect(patterns.first.explanation, contains('basierend auf 2 Einträgen'));
   });
 }
-

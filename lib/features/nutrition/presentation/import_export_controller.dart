@@ -44,7 +44,8 @@ class ImportExportController extends ChangeNotifier {
         throw const FormatException('Ungültiges Mahlzeiten-Payload-Format.');
       }
 
-      final mealName = targetMealName ?? (data['mealName'] as String? ?? 'snacks');
+      final mealName =
+          targetMealName ?? (data['mealName'] as String? ?? 'snacks');
       final date = targetDate ?? nutritionController.currentDate;
       final items = data['items'] as List;
       var count = 0;

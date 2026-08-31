@@ -36,9 +36,12 @@ class DashboardConfigSheet extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Dashboard anpassen',
-                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Text(
+                      'Dashboard anpassen',
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -63,7 +66,8 @@ class DashboardConfigSheet extends StatelessWidget {
                   },
                   itemBuilder: (context, index) {
                     final cardId = cardOrder[index];
-                    final title = DashboardController.cardTitles[cardId] ?? cardId;
+                    final title =
+                        DashboardController.cardTitles[cardId] ?? cardId;
                     final isVisible = visibility[cardId] ?? true;
 
                     return Card(
@@ -71,7 +75,8 @@ class DashboardConfigSheet extends StatelessWidget {
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: theme.colorScheme.outlineVariant),
+                        side:
+                            BorderSide(color: theme.colorScheme.outlineVariant),
                       ),
                       child: ListTile(
                         leading: const Icon(Icons.drag_handle),

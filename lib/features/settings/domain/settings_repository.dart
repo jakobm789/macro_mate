@@ -20,4 +20,14 @@ abstract interface class SettingsRepository {
   Future<void> deleteSecureCredential(String key);
 
   Future<void> migrateCredentialsFromPreferences();
+
+  Future<List<String>?> getDashboardCardOrder();
+
+  Future<void> setDashboardCardOrder(List<String> order);
+
+  Future<Map<String, bool>?> getDashboardCardVisibility();
+
+  Future<void> setDashboardCardVisibility(Map<String, bool> visibility);
+
+  Future<void> resetDashboardConfig();
 }
