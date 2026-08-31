@@ -38,6 +38,7 @@ class HealthController extends ChangeNotifier {
 
   DateTime? get lastSyncTime => lastSuccessfulSyncUtc;
 
+  Future<void> initialize() => load();
 
   Future<void> load() async {
     await _run(() async {

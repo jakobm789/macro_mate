@@ -1,10 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:math';
 
-import 'package:bcrypt/bcrypt.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
 import '../core/database/app_database.dart';
@@ -14,6 +10,8 @@ import '../core/notifications/notification_controller.dart';
 import '../core/notifications/notification_models.dart';
 import '../core/notifications/notification_repository.dart';
 import '../features/activity/presentation/activity_controller.dart';
+import '../features/auth/presentation/auth_controller.dart';
+import '../features/backup/presentation/backup_controller.dart';
 import '../features/cycle/data/drift_cycle_repository.dart';
 import '../features/cycle/domain/cycle_repository.dart';
 import '../features/cycle/presentation/cycle_controller.dart';
@@ -25,6 +23,8 @@ import '../features/health/presentation/health_controller.dart';
 import '../features/local_llm/presentation/local_model_controller.dart';
 import '../features/nutrition/data/drift_nutrition_repository.dart';
 import '../features/nutrition/domain/nutrition_repository.dart';
+import '../features/nutrition/presentation/food_search_controller.dart';
+import '../features/nutrition/presentation/import_export_controller.dart';
 import '../features/nutrition/presentation/nutrition_controller.dart';
 import '../features/settings/data/drift_settings_repository.dart';
 import '../features/settings/domain/settings_models.dart';
@@ -37,17 +37,10 @@ import '../models/consumed_food_item.dart';
 import '../models/food_item.dart';
 import '../models/local_llm_model.dart';
 import '../models/saved_meal.dart';
-import '../services/encrypted_backup_service.dart';
-import '../services/remote_database_service.dart';
-import '../services/shared_preferences_helper.dart';
 
 export '../features/settings/domain/settings_models.dart';
 export '../models/local_llm_model.dart';
 export '../models/saved_meal.dart';
-
-
-const String openFoodFactsBaseUrl = 'https://world.openfoodfacts.org';
-
 
 class WeightEntry {
   final int? id;
@@ -106,45 +99,74 @@ class AppState extends ChangeNotifier {
     HealthRepository? healthRepository,
     CycleRepository? cycleRepository,
     NotificationRepository? notificationRepository,
+    NutritionController? nutritionCtrl,
+    WeightController? weightCtrl,
+    HealthController? healthCtrl,
+    ActivityController? activityCtrl,
+    CycleController? cycleCtrl,
+    SettingsController? settingsCtrl,
+    LocalModelController? localModelCtrl,
+    NotificationController? notificationCtrl,
+    DashboardController? dashboardCtrl,
+    AuthController? authCtrl,
+    BackupController? backupCtrl,
+    FoodSearchController? foodSearchCtrl,
+    ImportExportController? importExportCtrl,
   }) {
     _database = database ?? AppDatabase();
-    _nutritionRepository = nutritionRepository ??
-        DriftNutritionRepository(database: _database);
-    _weightRepository =
-        weightRepository ?? DriftWeightRepository(database: _database);
-    _settingsRepository =
-        settingsRepository ?? DriftSettingsRepository(database: _database);
+    _nutritionRepository = nutritionRepository ?? DriftNutritionRepository(database: _database);
+    _weightRepository = weightRepository ?? DriftWeightRepository(database: _database);
+    _settingsRepository = settingsRepository ?? DriftSettingsRepository(database: _database);
     _healthRepository = healthRepository ??
         DriftHealthRepository(
           database: _database,
           source: HealthConnectSource(),
         );
-    _cycleRepository =
-        cycleRepository ?? DriftCycleRepository(database: _database);
-    _notificationRepository = notificationRepository ??
-        DriftNotificationRepository(database: _database);
+    _cycleRepository = cycleRepository ?? DriftCycleRepository(database: _database);
+    _notificationRepository = notificationRepository ?? DriftNotificationRepository(database: _database);
 
-    nutritionController =
-        NutritionController(repository: _nutritionRepository);
-    weightController = WeightController(repository: _weightRepository);
-    healthController = HealthController(repository: _healthRepository);
-    activityController = ActivityController(repository: _healthRepository);
-    cycleController = CycleController(repository: _cycleRepository);
-    settingsController = SettingsController(repository: _settingsRepository);
-    localModelController = LocalModelController();
-    notificationController =
-        NotificationController(repository: _notificationRepository);
+    nutritionController = nutritionCtrl ?? NutritionController(repository: _nutritionRepository);
+    weightController = weightCtrl ?? WeightController(repository: _weightRepository);
+    healthController = healthCtrl ?? HealthController(repository: _healthRepository);
+    activityController = activityCtrl ?? ActivityController(repository: _healthRepository);
+    cycleController = cycleCtrl ?? CycleController(repository: _cycleRepository);
+    settingsController = settingsCtrl ?? SettingsController(repository: _settingsRepository);
+    localModelController = localModelCtrl ?? LocalModelController();
+    notificationController = notificationCtrl ?? NotificationController(repository: _notificationRepository);
 
-    dashboardController = DashboardController(
-      nutritionController: nutritionController,
-      weightController: weightController,
-      healthController: healthController,
-      activityController: activityController,
-      cycleController: cycleController,
-      settingsController: settingsController,
-    );
+    dashboardController = dashboardCtrl ??
+        DashboardController(
+          nutritionController: nutritionController,
+          weightController: weightController,
+          healthController: healthController,
+          activityController: activityController,
+          cycleController: cycleController,
+          settingsController: settingsController,
+        );
 
-    // Forward notifications from child controllers
+    authController = authCtrl ??
+        AuthController(
+          settingsController: settingsController,
+        );
+
+    backupController = backupCtrl ??
+        BackupController(
+          database: _database,
+          nutritionRepository: _nutritionRepository,
+          weightRepository: _weightRepository,
+          settingsRepository: _settingsRepository,
+          cycleRepository: _cycleRepository,
+          healthRepository: _healthRepository,
+        );
+
+    foodSearchController = foodSearchCtrl ??
+        FoodSearchController(
+          nutritionRepository: _nutritionRepository,
+        );
+
+    importExportController = importExportCtrl ?? ImportExportController();
+
+    // Listen to child controllers
     nutritionController.addListener(notifyListeners);
     weightController.addListener(notifyListeners);
     healthController.addListener(notifyListeners);
@@ -154,6 +176,10 @@ class AppState extends ChangeNotifier {
     localModelController.addListener(notifyListeners);
     notificationController.addListener(notifyListeners);
     dashboardController.addListener(notifyListeners);
+    authController.addListener(notifyListeners);
+    backupController.addListener(notifyListeners);
+    foodSearchController.addListener(notifyListeners);
+    importExportController.addListener(notifyListeners);
   }
 
   late final AppDatabase _database;
@@ -173,19 +199,23 @@ class AppState extends ChangeNotifier {
   late final LocalModelController localModelController;
   late final DashboardController dashboardController;
   late final NotificationController notificationController;
+  late final AuthController authController;
+  late final BackupController backupController;
+  late final FoodSearchController foodSearchController;
+  late final ImportExportController importExportController;
 
-  final EncryptedBackupService _backupService = EncryptedBackupService();
-  final RemoteDatabaseService _remoteService = RemoteDatabaseService();
   final AppLogger _logger = const AppLogger();
 
-  final Map<String, List<FoodItem>> _offSearchCache = {};
-  final Map<String, FoodItem?> _offBarcodeCache = {};
-
   bool isInitialized = false;
-  bool isLoggedIn = false;
   String? lastUiError;
   String? mondayPopupMessage;
   int recentFoodLimit = 20;
+
+  // Delegated Auth Getters
+  bool get isLoggedIn => authController.isLoggedIn;
+  set isLoggedIn(bool val) {
+    if (!val) authController.logout();
+  }
 
   // Delegated Nutrition Getters
   List<ConsumedFoodItem> get breakfast => nutritionController.breakfast;
@@ -369,8 +399,6 @@ class AppState extends ChangeNotifier {
       localModelController.isDownloading ? localModelController.downloadProgress : null;
   String? get localModelDownloadMessage => localModelController.statusMessage;
 
-
-
   @override
   void dispose() {
     nutritionController.removeListener(notifyListeners);
@@ -382,18 +410,27 @@ class AppState extends ChangeNotifier {
     localModelController.removeListener(notifyListeners);
     notificationController.removeListener(notifyListeners);
     dashboardController.removeListener(notifyListeners);
-
-    nutritionController.dispose();
-    weightController.dispose();
-    healthController.dispose();
-    activityController.dispose();
-    cycleController.dispose();
-    settingsController.dispose();
-    localModelController.dispose();
-    dashboardController.dispose();
-    notificationController.dispose();
-    _database.close();
+    authController.removeListener(notifyListeners);
+    backupController.removeListener(notifyListeners);
+    foodSearchController.removeListener(notifyListeners);
+    importExportController.removeListener(notifyListeners);
     super.dispose();
+  }
+
+  Future<void> initializeCompletely() async {
+    await settingsController.initialize();
+    await authController.initialize();
+    await nutritionController.initialize();
+    await weightController.initialize();
+    await healthController.initialize();
+    await activityController.initialize();
+    await cycleController.initialize();
+    await localModelController.initialize();
+    await notificationController.initialize();
+    await dashboardController.initialize();
+
+    isInitialized = true;
+    notifyListeners();
   }
 
   void markInitialized() {
@@ -401,9 +438,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void reportUiError(String context, Object error, [StackTrace? stackTrace]) {
-    lastUiError = '$context fehlgeschlagen.';
-    _logger.error(context, error);
+  void reportUiError(String context, dynamic error, [StackTrace? stackTrace]) {
+    lastUiError = '$context: $error';
+    _logger.error(context, error ?? '');
     notifyListeners();
   }
 
@@ -412,44 +449,16 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> initializeCompletely() async {
-    await SharedPreferencesHelper.migrateLegacyCredentials();
-    await Future.wait([
-      nutritionController.initialize(),
-      weightController.initialize(),
-      settingsController.initialize(),
-      healthController.load(),
-      activityController.initialize(),
-      cycleController.load(),
-      notificationController.initialize(),
-      localModelController.initialize(),
-    ]);
-
-    // Check login credentials
-    final email = await settingsController.getSavedEmail();
-    isLoggedIn = email != null && email.isNotEmpty;
-
-    // Check auto calorie mode goal updates
-    if (weightController.currentWeight != null) {
-      final autoCal = settingsController.calculateAutoCalorieGoal(
-        currentWeightKg: weightController.currentWeight!,
-      );
-      if (autoCal != settingsController.goals.dailyCalories &&
-          settingsController.goals.autoCalorieMode != AutoCalorieMode.off) {
-        await settingsController.updateGoals(
-          settingsController.goals.copyWith(dailyCalories: autoCal),
-        );
-      }
-    }
-
-    markInitialized();
+  // Nutrition Delegations
+  Future<void> setDate(DateTime date) => nutritionController.loadDailyFoods(date);
+  Future<void> goToPreviousDay() {
+    nutritionController.goToPreviousDay();
+    return Future.value();
   }
-
-  // Nutrition Methods
-  Future<void> loadDailyFoods() => nutritionController.loadDailyFoods();
-  void goToPreviousDay() => nutritionController.goToPreviousDay();
-  void goToNextDay() => nutritionController.goToNextDay();
-  void setDate(DateTime date) => nutritionController.setDate(date);
+  Future<void> goToNextDay() {
+    nutritionController.goToNextDay();
+    return Future.value();
+  }
 
   Future<void> addConsumedFood(ConsumedFoodItem item) =>
       nutritionController.addConsumedFood(
@@ -457,19 +466,6 @@ class AppState extends ChangeNotifier {
         food: item.food,
         quantity: item.quantity,
         date: item.date,
-      );
-
-  Future<void> addFood(
-    String mealName,
-    FoodItem food,
-    int quantity, {
-    DateTime? date,
-  }) =>
-      nutritionController.addConsumedFood(
-        mealName: mealName,
-        food: food,
-        quantity: quantity,
-        date: date,
       );
 
   Future<void> updateFood(ConsumedFoodItem item, int newQuantity) =>
@@ -535,9 +531,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> loadFrequentFoods() => nutritionController.loadFrequentFoods();
-
-
   Future<void> loadSavedMeals() => nutritionController.loadSavedMeals();
+
   Future<SavedMeal> saveMeal(
     String name,
     String defaultMealName,
@@ -550,10 +545,11 @@ class AppState extends ChangeNotifier {
         ingredients: ingredients,
         recipeTotalWeight: recipeTotalWeight,
       );
+
   Future<void> deleteSavedMeal(int id) =>
       nutritionController.deleteSavedMeal(id);
 
-  // Weight Methods
+  // Weight Delegations
   Future<void> loadWeightEntries() => weightController.loadWeights();
   Future<void> addWeightEntry(DateTime date, double weight) =>
       weightController.addWeight(date, weight);
@@ -561,7 +557,7 @@ class AppState extends ChangeNotifier {
       weightController.updateWeight(id, date, weight);
   Future<void> deleteWeightEntry(int id) => weightController.deleteWeight(id);
 
-  // Settings & Goals Methods
+  // Settings & Goals Delegations
   Future<void> toggleDarkMode(bool value) =>
       settingsController.toggleDarkMode(value);
 
@@ -820,58 +816,26 @@ class AppState extends ChangeNotifier {
                 : mealName == 'dinner'
                     ? dinner
                     : snacks);
-    return jsonEncode({
-      'type': 'macromate_meal_share',
-      'version': 1,
-      'mealName': mealName,
-      'createdAt': DateTime.now().toIso8601String(),
-      'items': list
-          .map((i) => {
-                'food': i.food.toMap(),
-                'quantity': i.quantity,
-              })
-          .toList(),
-    });
+    return importExportController.buildMealSharePayload(
+      mealName: mealName,
+      items: list,
+    );
   }
 
   Future<int> importMealSharePayload(
     String payload, [
     String? targetMealName,
     DateTime? targetDate,
-  ]) async {
-    try {
-      final data = jsonDecode(payload);
-      if (data is! Map || data['items'] is! List) return 0;
-      final meal = targetMealName ?? (data['mealName'] as String? ?? 'snacks');
-      final items = data['items'] as List;
-      var count = 0;
-      for (final item in items) {
-        if (item is Map) {
-          final foodMap = Map<String, dynamic>.from(item['food'] ?? {});
-          final food = FoodItem.fromMap(foodMap);
-          final qty = (item['quantity'] as num?)?.toInt() ?? 100;
-          await addConsumedFood(
-            ConsumedFoodItem(
-              mealName: meal,
-              food: food,
-              quantity: qty,
-              date: targetDate ?? currentDate,
-            ),
-          );
-          count++;
-        }
-      }
-      return count;
-    } catch (_) {
-      return 0;
-    }
-  }
+  ]) =>
+      importExportController.importMealSharePayload(
+        payloadJson: payload,
+        nutritionController: nutritionController,
+        targetMealName: targetMealName,
+        targetDate: targetDate,
+      );
 
   void previousDay() => goToPreviousDay();
   void nextDay() => goToNextDay();
-
-
-
 
   Future<void> resetGoals() => settingsController.resetGoals();
   Future<void> resetDatabase() async {
@@ -882,270 +846,43 @@ class AppState extends ChangeNotifier {
   // Notifications
   Future<void> scheduleAllNotifications() async {
     final nextPeriod = cycleController.forecastState?.nextPeriod;
-    final tip = dashboardController.discreteCycleTip;
-
     await notificationController.rescheduleAll(
       breakfastTime: reminderBreakfast,
       lunchTime: reminderLunch,
       dinnerTime: reminderDinner,
       weighTime: reminderWeighTime,
       nextPeriodDate: nextPeriod,
-      personalizedInsight: tip,
     );
   }
 
-  // Backup & Restore
+  // Backup Delegations
   Future<String> exportDatabase({
     required String password,
-    Set<String> categories = const {
-      'nutrition',
-      'goals',
-      'settings',
-      'weight',
-      'health',
-      'cycle',
-      'notifications',
-    },
-  }) async {
-    final payload = <String, dynamic>{
-      'version': 27,
-      'createdAt': DateTime.now().toIso8601String(),
-    };
-
-    if (categories.contains('nutrition')) {
-      final foods = await _nutritionRepository.searchFoods('');
-      payload['foods'] = foods.map((f) => f.toMap()).toList();
-      final saved = await _nutritionRepository.getSavedMeals();
-      payload['saved_meals'] = saved.map((s) => {
-        'id': s.id,
-        'name': s.name,
-        'default_meal_name': s.defaultMealName,
-        'created_at': s.createdAt.toIso8601String(),
-        'recipe_total_weight': s.recipeTotalWeight,
-        'ingredients': s.ingredients.map((i) => {
-          'id': i.id,
-          'saved_meal_id': i.savedMealId,
-          'food_id': i.food.id,
-          'quantity': i.quantity,
-        }).toList(),
-      }).toList();
-    }
-
-    if (categories.contains('weight')) {
-      final weights = await _weightRepository.list();
-      payload['weights'] = weights.map((w) => {
-        'id': w.id,
-        'date': '${w.day.year}-${w.day.month.toString().padLeft(2, '0')}-${w.day.day.toString().padLeft(2, '0')}',
-        'weight': w.kilograms,
-      }).toList();
-    }
-
-    if (categories.contains('settings') || categories.contains('goals')) {
-      final goals = await _settingsRepository.getGoals();
-      final settings = await _settingsRepository.getSettings();
-      payload['goals'] = {
-        'daily_calories': goals.dailyCalories,
-        'carb_percentage': goals.carbPercentage,
-        'protein_percentage': goals.proteinPercentage,
-        'fat_percentage': goals.fatPercentage,
-        'sugar_percentage': goals.sugarPercentage,
-        'auto_calorie_mode': goals.autoCalorieMode.index,
-        'custom_percent_per_month': goals.customPercentPerMonth,
-        'use_custom_start_calories': goals.useCustomStartCalories ? 1 : 0,
-        'user_start_calories': goals.userStartCalories,
-        'user_age': goals.userAge,
-        'user_activity_level': goals.userActivityLevel,
-        'user_height': goals.userHeight,
-        'use_protein_per_kg': goals.useProteinPerKg ? 1 : 0,
-        'protein_per_kg': goals.proteinPerKg,
-      };
-      payload['settings'] = {
-        'dark_mode': settings.darkMode ? 1 : 0,
-        'reminder_weigh_enabled': settings.reminderWeighEnabled ? 1 : 0,
-        'reminder_weigh_time': settings.reminderWeighTime,
-        'reminder_weigh_time2': settings.reminderWeighTime2,
-        'reminder_supplement_enabled': settings.reminderSupplementEnabled ? 1 : 0,
-        'reminder_supplement_time': settings.reminderSupplementTime,
-        'reminder_supplement_time2': settings.reminderSupplementTime2,
-        'reminder_meals_enabled': settings.reminderMealsEnabled ? 1 : 0,
-        'reminder_breakfast': settings.reminderBreakfast,
-        'reminder_lunch': settings.reminderLunch,
-        'reminder_dinner': settings.reminderDinner,
-      };
-    }
-
-    if (categories.contains('cycle')) {
-      final periods = await _cycleRepository.periods();
-      final logs = await _cycleRepository.dailyLogs(from: DateTime.now().subtract(const Duration(days: 365)));
-      payload['periods'] = periods.map((p) => {
-        'id': p.id,
-        'start_day': '${p.startDay.year}-${p.startDay.month.toString().padLeft(2, '0')}-${p.startDay.day.toString().padLeft(2, '0')}',
-        'end_day': p.endDay != null ? '${p.endDay!.year}-${p.endDay!.month.toString().padLeft(2, '0')}-${p.endDay!.day.toString().padLeft(2, '0')}' : null,
-        'flow': p.flow?.name,
-        'source': p.source,
-      }).toList();
-      payload['cycle_logs'] = logs.map((l) => {
-        'day': '${l.day.year}-${l.day.month.toString().padLeft(2, '0')}-${l.day.day.toString().padLeft(2, '0')}',
-        'bleeding': l.bleeding?.name,
-        'mood': l.mood,
-        'pain': l.pain,
-        'energy': l.energy,
-        'sleep_quality': l.sleepQuality,
-        'notes': l.notes,
-        'tags': l.tags,
-      }).toList();
-    }
-
-    return await _backupService.encrypt(
-      payload,
-      password: password,
-    );
-  }
+    bool includeCycle = true,
+  }) =>
+      backupController.exportBackup(
+        password: password,
+        categories: includeCycle ? null : {'nutrition', 'weights', 'settings'},
+      );
 
   Future<void> importDatabase(String encryptedJson, {String password = ''}) async {
-    Map<String, dynamic> data;
-    try {
-      data = await _backupService.decrypt(encryptedJson, password: password);
-    } catch (_) {
-      try {
-        final decoded = jsonDecode(encryptedJson);
-        data = decoded is Map<String, dynamic> ? decoded : {};
-      } catch (_) {
-        data = {};
-      }
-    }
-
-    if (data.containsKey('foods') && data['foods'] is List) {
-      for (final f in data['foods']) {
-        final item = FoodItem.fromMap(Map<String, dynamic>.from(f));
-        await _nutritionRepository.saveFood(item);
-      }
-    }
-
-    if (data.containsKey('weights') && data['weights'] is List) {
-      for (final w in data['weights']) {
-        final date = DateTime.parse(w['date']);
-        final weight = (w['weight'] as num).toDouble();
-        await _weightRepository.add(day: date, kilograms: weight);
-      }
-    }
-
+    await backupController.restoreBackup(
+      encryptedJson: encryptedJson,
+      password: password,
+    );
     await initializeCompletely();
   }
 
-  // Food Search Methods
-  Future<List<FoodItem>> searchFood(String query) async {
-    final local = await _nutritionRepository.searchFoods(query);
-    if (local.isNotEmpty) return local;
-    return await searchOpenFoodFacts(query);
-  }
+  // Food Search Delegations
+  Future<List<FoodItem>> searchFood(String query) =>
+      foodSearchController.searchFood(query);
 
-  Future<List<FoodItem>> searchOpenFoodFacts(String query) async {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) return [];
-    if (_offSearchCache.containsKey(trimmed)) {
-      return _offSearchCache[trimmed]!;
-    }
+  Future<List<FoodItem>> searchOpenFoodFacts(String query) =>
+      foodSearchController.searchOpenFoodFacts(query);
 
-    try {
-      final url = Uri.parse(
-        '$openFoodFactsBaseUrl/cgi/search.pl?search_terms=$trimmed&search_simple=1&action=process&json=1&page_size=20',
-      );
-      final response = await http.get(url).timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final products = data['products'] as List? ?? [];
-        final results = <FoodItem>[];
-        for (final p in products) {
-          final nutriments = p['nutriments'] ?? {};
-          final name = p['product_name'] ?? p['generic_name'] ?? 'Unbekannt';
-          final brand = p['brands'] ?? 'Unbekannt';
-          final cal = nutriments['energy-kcal_100g'] ??
-              nutriments['energy-kcal'] ??
-              0;
-          final fat = (nutriments['fat_100g'] ?? 0).toDouble();
-          final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
-          final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
-          final prot = (nutriments['proteins_100g'] ?? 0).toDouble();
+  Future<FoodItem?> searchOpenFoodFactsByBarcode(String barcode) =>
+      foodSearchController.searchOpenFoodFactsByBarcode(barcode);
 
-          if (name != 'Unbekannt' && cal > 0) {
-            results.add(
-              FoodItem(
-                name: name,
-                brand: brand,
-                barcode: p['code'],
-                caloriesPer100g: (cal as num).round(),
-                fatPer100g: fat,
-                carbsPer100g: carbs,
-                sugarPer100g: sugar,
-                proteinPer100g: prot,
-                source: 'openfoodfacts',
-                isVerified: false,
-              ),
-            );
-          }
-        }
-        _offSearchCache[trimmed] = results;
-        return results;
-      }
-    } catch (_) {
-      // Fallback to empty list on network failure
-    }
-    return [];
-  }
-
-  Future<FoodItem?> searchOpenFoodFactsByBarcode(String barcode) async {
-    final code = barcode.trim().toLowerCase();
-    if (code.isEmpty) return null;
-
-    final local = await _nutritionRepository.getFoodByBarcode(code);
-    if (local != null) return local;
-
-    if (_offBarcodeCache.containsKey(code)) {
-      return _offBarcodeCache[code];
-    }
-
-    try {
-      final url = Uri.parse('$openFoodFactsBaseUrl/api/v2/product/$code.json');
-      final response = await http.get(url).timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 1 && data['product'] != null) {
-          final p = data['product'];
-          final nutriments = p['nutriments'] ?? {};
-          final name = p['product_name'] ?? p['generic_name'] ?? 'Unbekannt';
-          final brand = p['brands'] ?? 'Unbekannt';
-          final cal = nutriments['energy-kcal_100g'] ??
-              nutriments['energy-kcal'] ??
-              0;
-          final fat = (nutriments['fat_100g'] ?? 0).toDouble();
-          final carbs = (nutriments['carbohydrates_100g'] ?? 0).toDouble();
-          final sugar = (nutriments['sugars_100g'] ?? 0).toDouble();
-          final prot = (nutriments['proteins_100g'] ?? 0).toDouble();
-
-          final item = FoodItem(
-            name: name,
-            brand: brand,
-            barcode: code,
-            caloriesPer100g: (cal as num).round(),
-            fatPer100g: fat,
-            carbsPer100g: carbs,
-            sugarPer100g: sugar,
-            proteinPer100g: prot,
-            source: 'openfoodfacts',
-            isVerified: false,
-          );
-          _offBarcodeCache[code] = item;
-          return item;
-        }
-      }
-    } catch (_) {
-      // Offline fallback
-    }
-    return null;
-  }
-
-  // Weekly Summaries
   Future<WeeklyNutritionSummary> getWeeklyNutritionSummary({
     DateTime? startDate,
     DateTime? endDate,
@@ -1294,77 +1031,22 @@ class AppState extends ChangeNotifier {
         ),
       );
 
-  // Account & Authentication
-  Future<bool> registerUser(String email, String password) async {
-    try {
-      final existing = await _remoteService.getUserByEmail(email);
-      if (existing != null) return false;
-      final salt = BCrypt.gensalt();
-      final hash = BCrypt.hashpw(password, salt);
-      final code = (100000 + Random().nextInt(900000)).toString();
-      await _remoteService.insertUserWithVerification(email, hash, code);
-      return true;
-    } catch (e, st) {
-      reportUiError('registerUser', e, st);
-      return false;
-    }
-  }
+  // Auth Delegations
+  Future<bool> registerUser(String email, String password) =>
+      authController.registerUser(email, password);
 
-  Future<bool> verifyAccount(String email, String code) async {
-    try {
-      final user = await _remoteService.getUserByEmail(email);
-      if (user == null) return false;
-      if (user['verification_code'] == code) {
-        await _remoteService.verifyUser(email);
-        return true;
-      }
-    } catch (e, st) {
-      reportUiError('verifyAccount', e, st);
-    }
-    return false;
-  }
+  Future<bool> verifyAccount(String email, String code) =>
+      authController.verifyAccount(email, code);
 
-  Future<bool> login(String email, String password) async {
-    try {
-      final user = await _remoteService.getUserByEmail(email);
-      if (user != null) {
-        final isVerified = user['is_verified'] == true;
-        final hash = user['password_hash'] as String?;
-        if (isVerified && hash != null && BCrypt.checkpw(password, hash)) {
-          await settingsController.saveCredentials(email, password);
-          isLoggedIn = true;
-          notifyListeners();
-          return true;
-        }
-      }
-    } catch (e, st) {
-      reportUiError('login', e, st);
-    }
-    return false;
-  }
+  Future<bool> login(String email, String password) =>
+      authController.login(email, password);
 
-  Future<void> logout() async {
-    await settingsController.clearCredentials();
-    isLoggedIn = false;
-    notifyListeners();
-  }
+  Future<void> logout() => authController.logout();
 
-  Future<bool> deleteAccount() async {
-    try {
-      final email = await settingsController.getSavedEmail();
-      if (email != null) {
-        await _remoteService.deleteUserByEmail(email);
-      }
-    } catch (_) {}
-    await settingsController.clearCredentials();
-    await resetDatabase();
-    isLoggedIn = false;
-    notifyListeners();
-    return true;
-  }
+  Future<bool> deleteAccount() =>
+      authController.deleteAccount(onLocalReset: resetDatabase);
 
-
-
+  // AI & Local LLM Helpers
   Future<void> addLocalAiFood(
     String mealName,
     FoodItem food,
@@ -1401,7 +1083,6 @@ class AppState extends ChangeNotifier {
 
   Future<void> startLocalModelDownload(LocalLlmModel model) =>
       localModelController.downloadSelectedModel();
-
 
   TimeOfDay _parseTimeOfDay(String timeStr, TimeOfDay fallback) {
     try {

@@ -126,17 +126,20 @@ class DriftNutritionRepository implements NutritionRepository {
   @override
   Future<List<FoodItem>> searchFoods(String query) async {
     final trimmed = query.trim();
-    if (trimmed.isEmpty) return [];
 
-    final rows = await (_database.select(_database.localFoods)
-          ..where((tbl) =>
-              tbl.name.contains(trimmed) |
-              tbl.brand.contains(trimmed) |
-              tbl.barcode.equals(trimmed.toLowerCase()))
+    final queryExpr = _database.select(_database.localFoods);
+    if (trimmed.isNotEmpty) {
+      queryExpr.where((tbl) =>
+          tbl.name.contains(trimmed) |
+          tbl.brand.contains(trimmed) |
+          tbl.barcode.equals(trimmed.toLowerCase()));
+    }
+
+    final rows = await (queryExpr
           ..orderBy([
             (tbl) => OrderingTerm(expression: tbl.name, mode: OrderingMode.asc)
           ])
-          ..limit(50))
+          ..limit(500))
         .get();
 
     return rows.map(_mapFood).toList();

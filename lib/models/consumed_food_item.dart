@@ -32,20 +32,25 @@ class ConsumedFoodItem {
     );
   }
 
-  factory ConsumedFoodItem.fromJson(Map<String, dynamic> json) {
+  factory ConsumedFoodItem.fromJson(Map<String, dynamic> json) =>
+      ConsumedFoodItem.fromMap(json);
+
+  factory ConsumedFoodItem.fromMap(Map<String, dynamic> json) {
     return ConsumedFoodItem(
       id: json['id'],
-      food: FoodItem.fromJson(json['food']),
-      quantity: json['quantity'],
+      food: FoodItem.fromMap(Map<String, dynamic>.from(json['food'] ?? {})),
+      quantity: json['quantity'] ?? 100,
       date: DateTime.parse(json['date']),
-      mealName: json['meal_name'],
+      mealName: json['meal_name'] ?? json['mealName'] ?? 'snacks',
     );
   }
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson() => toMap();
+
+  Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'food': food.toJson(),
+      'food': food.toMap(),
       'quantity': quantity,
       'date': date.toIso8601String(),
       'meal_name': mealName,

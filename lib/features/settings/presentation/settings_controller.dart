@@ -159,6 +159,8 @@ class SettingsController extends ChangeNotifier {
 
   Future<String?> getSavedEmail() => _repository.getSecureCredential('credential_email');
 
+  Future<String?> getSavedPassword() => _repository.getSecureCredential('credential_password');
+
   Future<void> saveCredentials(String email, String password) async {
     await _repository.setSecureCredential('credential_email', email);
     await _repository.setSecureCredential('credential_password', password);

@@ -21,10 +21,14 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'features/activity/presentation/activity_controller.dart';
+import 'features/auth/presentation/auth_controller.dart';
+import 'features/backup/presentation/backup_controller.dart';
 import 'features/cycle/presentation/cycle_controller.dart';
 import 'features/dashboard/presentation/dashboard_controller.dart';
 import 'features/health/presentation/health_controller.dart';
 import 'features/local_llm/presentation/local_model_controller.dart';
+import 'features/nutrition/presentation/food_search_controller.dart';
+import 'features/nutrition/presentation/import_export_controller.dart';
 import 'features/nutrition/presentation/nutrition_controller.dart';
 import 'features/settings/presentation/settings_controller.dart';
 import 'features/weight/presentation/weight_controller.dart';
@@ -158,6 +162,18 @@ void main() async {
         ),
         ChangeNotifierProvider<NotificationController>.value(
           value: appState.notificationController,
+        ),
+        ChangeNotifierProvider<AuthController>.value(
+          value: appState.authController,
+        ),
+        ChangeNotifierProvider<BackupController>.value(
+          value: appState.backupController,
+        ),
+        ChangeNotifierProvider<FoodSearchController>.value(
+          value: appState.foodSearchController,
+        ),
+        ChangeNotifierProvider<ImportExportController>.value(
+          value: appState.importExportController,
         ),
       ],
       child: MyApp(initialFilePath: initialFilePath),

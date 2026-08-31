@@ -35,6 +35,7 @@ class CycleController extends ChangeNotifier {
     return 'Lutealphase';
   }
 
+  Future<void> initialize() => load();
 
   Future<void> load() async {
     await _run(() async {

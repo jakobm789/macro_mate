@@ -14,6 +14,24 @@ class CycleProfile {
   final bool predictionsEnabled;
   final bool healthImportEnabled;
   final String timezone;
+
+  Map<String, dynamic> toMap() => {
+        'typicalCycleLength': typicalCycleLength,
+        'typicalPeriodLength': typicalPeriodLength,
+        'predictionsEnabled': predictionsEnabled,
+        'healthImportEnabled': healthImportEnabled,
+        'timezone': timezone,
+      };
+
+  factory CycleProfile.fromMap(Map<String, dynamic> map) => CycleProfile(
+        typicalCycleLength:
+            (map['typicalCycleLength'] as num?)?.toInt() ?? 28,
+        typicalPeriodLength:
+            (map['typicalPeriodLength'] as num?)?.toInt() ?? 5,
+        predictionsEnabled: map['predictionsEnabled'] != false,
+        healthImportEnabled: map['healthImportEnabled'] == true,
+        timezone: map['timezone'] as String? ?? 'UTC',
+      );
 }
 
 class PeriodEntry {
@@ -30,6 +48,29 @@ class PeriodEntry {
   final DateTime? endDay;
   final BleedingLevel? flow;
   final String source;
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'startDay': startDay.toIso8601String(),
+        'endDay': endDay?.toIso8601String(),
+        'flow': flow?.name,
+        'source': source,
+      };
+
+  factory PeriodEntry.fromMap(Map<String, dynamic> map) => PeriodEntry(
+        id: map['id'] as String,
+        startDay: DateTime.parse(map['startDay'] as String),
+        endDay: map['endDay'] != null
+            ? DateTime.tryParse(map['endDay'] as String)
+            : null,
+        flow: map['flow'] != null
+            ? BleedingLevel.values.firstWhere(
+                (b) => b.name == map['flow'],
+                orElse: () => BleedingLevel.medium,
+              )
+            : null,
+        source: map['source'] as String? ?? 'local',
+      );
 }
 
 class CycleDailyLog {
@@ -52,6 +93,34 @@ class CycleDailyLog {
   final int? sleepQuality;
   final String? notes;
   final List<String> tags;
+
+  Map<String, dynamic> toMap() => {
+        'day': day.toIso8601String(),
+        'bleeding': bleeding?.name,
+        'mood': mood,
+        'pain': pain,
+        'energy': energy,
+        'sleepQuality': sleepQuality,
+        'notes': notes,
+        'tags': tags,
+      };
+
+  factory CycleDailyLog.fromMap(Map<String, dynamic> map) => CycleDailyLog(
+        day: DateTime.parse(map['day'] as String),
+        bleeding: map['bleeding'] != null
+            ? BleedingLevel.values.firstWhere(
+                (b) => b.name == map['bleeding'],
+                orElse: () => BleedingLevel.none,
+              )
+            : null,
+        mood: map['mood'] as String?,
+        pain: (map['pain'] as num?)?.toInt(),
+        energy: (map['energy'] as num?)?.toInt(),
+        sleepQuality: (map['sleepQuality'] as num?)?.toInt(),
+        notes: map['notes'] as String?,
+        tags: (map['tags'] as List?)?.map((t) => t.toString()).toList() ??
+            const [],
+      );
 }
 
 class CyclePrediction {

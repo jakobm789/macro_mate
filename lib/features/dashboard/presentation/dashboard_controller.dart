@@ -49,6 +49,8 @@ class DashboardController extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  Future<void> initialize() async {}
+
   // Nutrition getters
   double get consumedCalories => _nutrition.consumedCalories;
   int get dailyCalorieGoal => _settings.goals.dailyCalories;
