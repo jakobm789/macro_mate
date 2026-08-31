@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../features/notifications/presentation/notification_settings_page.dart';
 import '../models/app_state.dart';
 import '../models/local_llm_model.dart';
 import '../services/llm_service.dart';
@@ -1437,6 +1438,18 @@ class _SettingsPageState extends State<SettingsPage> {
                     );
                   },
                   child: Text('Benachrichtigungen speichern'),
+                ),
+                SizedBox(height: 8),
+                OutlinedButton.icon(
+                  icon: Icon(Icons.tune),
+                  label: Text('Erweiterte Einstellungen & Ruhezeiten (8 Kategorien)'),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationSettingsPage(),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
