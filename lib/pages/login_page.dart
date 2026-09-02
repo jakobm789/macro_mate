@@ -40,9 +40,10 @@ class _LoginPageState extends State<LoginPage> {
       if (success) {
         Navigator.pushReplacementNamed(context, '/');
       } else {
+        final errorMsg = appState.authController.errorMessage ??
+            'Login fehlgeschlagen. Evtl. nicht verifiziert?';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Login fehlgeschlagen. Evtl. nicht verifiziert?')),
+          SnackBar(content: Text(errorMsg)),
         );
         setState(() {
           _showCodeField = true;
@@ -89,8 +90,10 @@ class _LoginPageState extends State<LoginPage> {
           ),
         );
       } else {
+        final errorMsg = appState.authController.errorMessage ??
+            'E-Mail bereits vergeben oder Fehler.';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('E-Mail bereits vergeben oder Fehler.')),
+          SnackBar(content: Text(errorMsg)),
         );
       }
     } catch (e) {
@@ -134,8 +137,10 @@ class _LoginPageState extends State<LoginPage> {
           _showCodeField = false;
         });
       } else {
+        final errorMsg =
+            appState.authController.errorMessage ?? 'Code ungültig.';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Code ungültig.')),
+          SnackBar(content: Text(errorMsg)),
         );
       }
     } catch (e) {

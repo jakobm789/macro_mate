@@ -12,10 +12,16 @@ import 'cycle_import_preview_sheet.dart';
 import 'correlations_page.dart';
 
 class CyclePage extends StatefulWidget {
-  const CyclePage({super.key, this.database, this.controller});
+  const CyclePage({
+    super.key,
+    this.database,
+    this.controller,
+    this.initialFocusedDay,
+  });
 
   final AppDatabase? database;
   final CycleController? controller;
+  final DateTime? initialFocusedDay;
 
   @override
   State<CyclePage> createState() => _CyclePageState();
@@ -27,8 +33,14 @@ class _CyclePageState extends State<CyclePage> {
   bool _ownsDatabase = false;
   bool _ownsController = false;
   bool _initialized = false;
-  DateTime _focusedDay = DateTime.now();
+  late DateTime _focusedDay;
   DateTime? _selectedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusedDay = widget.initialFocusedDay ?? DateTime.now();
+  }
 
   @override
   void didChangeDependencies() {

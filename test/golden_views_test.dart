@@ -285,7 +285,11 @@ void main() {
     testWidgets('CyclePage renders in Light Mode', (tester) async {
       await testScreenGolden(
         tester: tester,
-        child: CyclePage(database: db, controller: cycleController),
+        child: CyclePage(
+          database: db,
+          controller: cycleController,
+          initialFocusedDay: DateTime(2026, 8, 31),
+        ),
         goldenName: 'cycle_page_light',
         brightness: Brightness.light,
       );
@@ -294,7 +298,11 @@ void main() {
     testWidgets('CyclePage renders in Dark Mode', (tester) async {
       await testScreenGolden(
         tester: tester,
-        child: CyclePage(database: db, controller: cycleController),
+        child: CyclePage(
+          database: db,
+          controller: cycleController,
+          initialFocusedDay: DateTime(2026, 8, 31),
+        ),
         goldenName: 'cycle_page_dark',
         brightness: Brightness.dark,
       );

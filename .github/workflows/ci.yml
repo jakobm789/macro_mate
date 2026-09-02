@@ -58,7 +58,28 @@ jobs:
         run: flutter build apk --debug
 
       - name: Build Android Release APK
-        run: flutter build apk --release
+        env:
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
+        run: |
+          DART_DEFINES=()
+          [ -n "$POSTGRES_HOST" ] && DART_DEFINES+=(--dart-define=POSTGRES_HOST="$POSTGRES_HOST")
+          [ -n "$POSTGRES_PORT" ] && DART_DEFINES+=(--dart-define=POSTGRES_PORT="$POSTGRES_PORT")
+          [ -n "$POSTGRES_DB" ] && DART_DEFINES+=(--dart-define=POSTGRES_DB="$POSTGRES_DB")
+          [ -n "$POSTGRES_USER" ] && DART_DEFINES+=(--dart-define=POSTGRES_USER="$POSTGRES_USER")
+          [ -n "$POSTGRES_PASSWORD" ] && DART_DEFINES+=(--dart-define=POSTGRES_PASSWORD="$POSTGRES_PASSWORD")
+          [ -n "$SENDER_EMAIL" ] && DART_DEFINES+=(--dart-define=SENDER_EMAIL="$SENDER_EMAIL")
+          [ -n "$BREVO_API_KEY" ] && DART_DEFINES+=(--dart-define=BREVO_API_KEY="$BREVO_API_KEY")
+          [ -n "$OPENAI_API_KEY" ] && DART_DEFINES+=(--dart-define=OPENAI_API_KEY="$OPENAI_API_KEY")
+          [ -n "$HUGGINGFACE_TOKEN" ] && DART_DEFINES+=(--dart-define=HUGGINGFACE_TOKEN="$HUGGINGFACE_TOKEN")
+          flutter build apk --release "${DART_DEFINES[@]}"
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
