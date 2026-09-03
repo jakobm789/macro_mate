@@ -71,6 +71,7 @@ class HealthController extends ChangeNotifier {
       phoneSensorTodaySteps = phoneStepSensorService.currentTodaySteps;
       if (isPhoneSensorEnabled) {
         await phoneStepSensorService.startListening();
+        await phoneStepSensorService.refreshPriorSteps();
         phoneSensorTodaySteps = phoneStepSensorService.currentTodaySteps;
       }
     } catch (_) {}
@@ -82,6 +83,7 @@ class HealthController extends ChangeNotifier {
       isPhoneSensorEnabled = enabled;
       if (enabled) {
         await phoneStepSensorService.startListening();
+        await phoneStepSensorService.refreshPriorSteps();
         phoneSensorTodaySteps = phoneStepSensorService.currentTodaySteps;
         await _loadSummaries();
       } else {
@@ -93,6 +95,7 @@ class HealthController extends ChangeNotifier {
       notifyListeners();
     }
   }
+
 
   Future<void> requestPermissions({
     bool includeHistory = false,
@@ -147,8 +150,14 @@ class HealthController extends ChangeNotifier {
     final now = _clock.nowUtc();
     final start = now.subtract(const Duration(days: 30));
     summariesState = await _repository.sync(startUtc: start, endUtc: now);
+    if (isPhoneSensorEnabled) {
+      await phoneStepSensorService.refreshPriorSteps();
+      phoneSensorTodaySteps = phoneStepSensorService.currentTodaySteps;
+      await _loadSummaries();
+    }
     await _loadDiagnostics();
   }
+
 
   Future<void> revokePermissions() async {
     await _run(() async {

@@ -88,8 +88,16 @@ class MainActivity : FlutterFragmentActivity(), SensorEventListener {
                     }
                 }
                 "getRawStepCount" -> {
+                    if (lastRawStepCount == 0f && stepSensor != null) {
+                        sensorManager?.registerListener(
+                            this@MainActivity,
+                            stepSensor,
+                            SensorManager.SENSOR_DELAY_NORMAL
+                        )
+                    }
                     result.success(lastRawStepCount.toInt())
                 }
+
                 else -> result.notImplemented()
             }
         }

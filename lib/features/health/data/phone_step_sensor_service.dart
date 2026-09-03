@@ -13,21 +13,25 @@ class PhoneStepSensorService {
     HealthRepository? healthRepository,
     MethodChannel? methodChannel,
     EventChannel? eventChannel,
+    Future<int?> Function(DateTime start, DateTime end)? getStepsInInterval,
   })  : _repository = healthRepository,
         _methodChannel =
             methodChannel ?? const MethodChannel('macro_mate/step_sensor'),
         _eventChannel =
-            eventChannel ?? const EventChannel('macro_mate/step_sensor_events');
+            eventChannel ?? const EventChannel('macro_mate/step_sensor_events'),
+        _getStepsInInterval = getStepsInInterval;
 
   final HealthRepository? _repository;
   final MethodChannel _methodChannel;
   final EventChannel _eventChannel;
+  final Future<int?> Function(DateTime start, DateTime end)? _getStepsInInterval;
 
   static const String prefEnabled = 'phone_step_sensor_enabled';
   static const String prefDate = 'phone_step_sensor_date';
   static const String prefBaseline = 'phone_step_sensor_baseline';
   static const String prefLastRaw = 'phone_step_sensor_last_raw';
   static const String prefRebootOffset = 'phone_step_sensor_reboot_offset';
+  static const String prefPriorSteps = 'phone_step_sensor_prior_steps';
   static const String prefTodaySteps = 'phone_step_sensor_today_steps';
 
   StreamSubscription<dynamic>? _subscription;
@@ -91,6 +95,52 @@ class PhoneStepSensorService {
     }
   }
 
+  /// Queries steps taken earlier today before sensor initialization
+  /// from HealthRepository, Health Connect, or SharedPreferences.
+  Future<int> queryInitialStepsForToday(DateTime currentTime) async {
+    int maxSteps = 0;
+
+    // 1. Query HealthRepository (other sources like Health Connect, Wear OS, etc.)
+    if (_repository != null) {
+      try {
+        final repoSteps = await _repository.getPriorStepsToday(
+          currentTime,
+          excludeSourceId: 'phone_step_sensor',
+        );
+        if (repoSteps > maxSteps) {
+          maxSteps = repoSteps;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Query custom step callback or Health Connect directly
+    if (_getStepsInInterval != null) {
+      try {
+        final midnight =
+            DateTime(currentTime.year, currentTime.month, currentTime.day);
+        final externalSteps = await _getStepsInInterval(midnight, currentTime);
+        if (externalSteps != null && externalSteps > maxSteps) {
+          maxSteps = externalSteps;
+        }
+      } catch (_) {}
+    }
+
+    // 3. Query SharedPreferences for steps recorded earlier today
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final todayStr = _formatDay(currentTime);
+      final savedDate = prefs.getString(prefDate);
+      if (savedDate == todayStr) {
+        final savedSteps = prefs.getInt(prefTodaySteps) ?? 0;
+        final savedPrior = prefs.getInt(prefPriorSteps) ?? 0;
+        if (savedSteps > maxSteps) maxSteps = savedSteps;
+        if (savedPrior > maxSteps) maxSteps = savedPrior;
+      }
+    } catch (_) {}
+
+    return maxSteps;
+  }
+
   /// Starts listening to step updates from the hardware sensor.
   Future<void> startListening() async {
     if (_isListening) return;
@@ -107,22 +157,21 @@ class PhoneStepSensorService {
 
     _isListening = true;
 
-    // Load initial today's steps from storage
+    // Load initial today's steps from storage or query initial steps
+    final now = DateTime.now();
+    final today = _formatDay(now);
     final prefs = await SharedPreferences.getInstance();
-    final today = _formatDay(DateTime.now());
     final savedDate = prefs.getString(prefDate);
     if (savedDate == today) {
       _currentTodaySteps = prefs.getInt(prefTodaySteps) ?? 0;
       _stepController.add(_currentTodaySteps);
-    }
-
-    // Try reading current raw boot step count immediately
-    try {
-      final raw = await _methodChannel.invokeMethod<int>('getRawStepCount');
-      if (raw != null && raw > 0) {
-        await processRawStepCount(raw);
+    } else {
+      final prior = await queryInitialStepsForToday(now);
+      if (prior > 0) {
+        _currentTodaySteps = prior;
+        _stepController.add(prior);
       }
-    } catch (_) {}
+    }
 
     // Listen to live hardware step events
     _subscription?.cancel();
@@ -138,6 +187,14 @@ class PhoneStepSensorService {
         // Sensor error handling
       },
     );
+
+    // Try reading current raw boot step count immediately
+    try {
+      final raw = await _methodChannel.invokeMethod<int>('getRawStepCount');
+      if (raw != null && raw > 0) {
+        await processRawStepCount(raw);
+      }
+    } catch (_) {}
   }
 
   /// Stops listening to step sensor updates.
@@ -149,7 +206,11 @@ class PhoneStepSensorService {
 
   /// Processes raw steps since device boot, calculates today's steps,
   /// handles device reboots and date boundaries, and persists the data.
-  Future<int> processRawStepCount(int rawCount, {DateTime? now}) async {
+  Future<int> processRawStepCount(
+    int rawCount, {
+    DateTime? now,
+    int? initialPriorSteps,
+  }) async {
     final currentTime = now ?? DateTime.now();
     final todayStr = _formatDay(currentTime);
 
@@ -158,24 +219,50 @@ class PhoneStepSensorService {
     int baseline = prefs.getInt(prefBaseline) ?? rawCount;
     int lastRaw = prefs.getInt(prefLastRaw) ?? rawCount;
     int rebootOffset = prefs.getInt(prefRebootOffset) ?? 0;
+    int priorSteps = prefs.getInt(prefPriorSteps) ?? (initialPriorSteps ?? 0);
 
     // Detect phone reboot: raw counter reset to near 0 while last raw was higher
     if (rawCount < lastRaw) {
       rebootOffset += lastRaw;
     }
 
-    // Detect new day rollover (midnight)
+    // Detect new day rollover (midnight) or first run today
     if (savedDate != todayStr) {
       savedDate = todayStr;
       baseline = rawCount + rebootOffset;
+      if (initialPriorSteps != null) {
+        priorSteps = initialPriorSteps;
+      } else {
+        priorSteps = await queryInitialStepsForToday(currentTime);
+      }
     }
 
-    // Calculate steps taken today
-    int todaySteps = (rawCount + rebootOffset) - baseline;
-    if (todaySteps < 0) {
-      todaySteps = 0;
+    // Check if external sources (e.g. Health Connect) have higher recorded steps for today
+    if (_repository != null) {
+      try {
+        final knownPrior = await _repository.getPriorStepsToday(
+          currentTime,
+          excludeSourceId: 'phone_step_sensor',
+        );
+        final currentDelta = (rawCount + rebootOffset) - baseline;
+        if (knownPrior >
+            (priorSteps + (currentDelta > 0 ? currentDelta : 0))) {
+          priorSteps = knownPrior;
+          baseline = lastRaw + rebootOffset;
+        }
+      } catch (_) {}
+    }
+
+
+    // Calculate sensor delta since baseline
+    int delta = (rawCount + rebootOffset) - baseline;
+    if (delta < 0) {
+      delta = 0;
       baseline = rawCount + rebootOffset;
     }
+
+    // Today's total steps = steps before starting + steps counted by sensor
+    int todaySteps = priorSteps + delta;
 
     _currentTodaySteps = todaySteps;
     _stepController.add(todaySteps);
@@ -185,6 +272,7 @@ class PhoneStepSensorService {
     await prefs.setInt(prefBaseline, baseline);
     await prefs.setInt(prefLastRaw, rawCount);
     await prefs.setInt(prefRebootOffset, rebootOffset);
+    await prefs.setInt(prefPriorSteps, priorSteps);
     await prefs.setInt(prefTodaySteps, todaySteps);
 
     // Save to health repository
@@ -202,6 +290,39 @@ class PhoneStepSensorService {
     return todaySteps;
   }
 
+  /// Manually refreshes prior steps from repository/external sources,
+  /// e.g. after connecting Health Connect or performing a sync.
+  Future<void> refreshPriorSteps() async {
+    final now = DateTime.now();
+    final prior = await queryInitialStepsForToday(now);
+    if (prior > _currentTodaySteps) {
+      final prefs = await SharedPreferences.getInstance();
+      final lastRaw = prefs.getInt(prefLastRaw);
+      if (lastRaw != null) {
+        await processRawStepCount(
+          lastRaw,
+          now: now,
+          initialPriorSteps: prior,
+        );
+      } else {
+        _currentTodaySteps = prior;
+        _stepController.add(prior);
+        await prefs.setInt(prefPriorSteps, prior);
+        await prefs.setInt(prefTodaySteps, prior);
+        if (_repository != null) {
+          try {
+            await _repository.recordSteps(
+              steps: prior,
+              date: now,
+              sourceId: 'phone_step_sensor',
+              sourceName: 'OnePlus Hardware-Sensor',
+            );
+          } catch (_) {}
+        }
+      }
+    }
+  }
+
   String _formatDay(DateTime date) {
     final local = date.toLocal();
     return '${local.year.toString().padLeft(4, '0')}-'
@@ -214,3 +335,4 @@ class PhoneStepSensorService {
     _stepController.close();
   }
 }
+

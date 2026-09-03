@@ -132,7 +132,22 @@ class _FakeHealthRepository implements HealthRepository {
     String sourceId = 'phone_step_sensor',
     String sourceName = 'Interner Handy-Sensor',
   }) async {}
+
+  @override
+  Future<int> getPriorStepsToday(
+    DateTime date, {
+    String? excludeSourceId,
+  }) async =>
+      0;
+
+  @override
+  Future<int?> getTotalStepsInInterval(
+    DateTime startTime,
+    DateTime endTime,
+  ) async =>
+      null;
 }
+
 
 void main() {
   late ActivityController controller;

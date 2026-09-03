@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:health/health.dart';
 
 import '../../../core/logging/app_logger.dart';
@@ -18,16 +20,29 @@ class HealthConnectSource implements HealthDataSource {
   final AppLogger _logger;
   bool _configured = false;
 
-  static const _generalTypes = <HealthDataType>[
-    HealthDataType.STEPS,
-    HealthDataType.ACTIVE_ENERGY_BURNED,
-    HealthDataType.BASAL_ENERGY_BURNED,
-    HealthDataType.DISTANCE_WALKING_RUNNING,
-    HealthDataType.HEART_RATE,
-    HealthDataType.RESTING_HEART_RATE,
-    HealthDataType.SLEEP_SESSION,
-    HealthDataType.WORKOUT,
-  ];
+  List<HealthDataType> get _generalTypes {
+    final types = <HealthDataType>[
+      HealthDataType.STEPS,
+      HealthDataType.ACTIVE_ENERGY_BURNED,
+      HealthDataType.BASAL_ENERGY_BURNED,
+      if (!kIsWeb && Platform.isAndroid)
+        HealthDataType.DISTANCE_DELTA
+      else
+        HealthDataType.DISTANCE_WALKING_RUNNING,
+      HealthDataType.HEART_RATE,
+      HealthDataType.RESTING_HEART_RATE,
+      HealthDataType.SLEEP_SESSION,
+      HealthDataType.WORKOUT,
+    ];
+    return types.where((t) {
+      try {
+        return _client.isDataTypeAvailable(t);
+      } catch (_) {
+        return true;
+      }
+    }).toList();
+  }
+
 
   static const _menstruationTypes = <HealthDataType>[
     HealthDataType.MENSTRUATION_FLOW,
@@ -107,11 +122,32 @@ class HealthConnectSource implements HealthDataSource {
   @override
   Future<List<HealthRecord>> read(DateTime startUtc, DateTime endUtc) async {
     await _configure();
-    final points = await _client.getHealthDataFromTypes(
-      types: _generalTypes,
-      startTime: startUtc.toUtc(),
-      endTime: endUtc.toUtc(),
-    );
+    final types = _generalTypes;
+    final points = <HealthDataPoint>[];
+
+    try {
+      final batchPoints = await _client.getHealthDataFromTypes(
+        types: types,
+        startTime: startUtc.toUtc(),
+        endTime: endUtc.toUtc(),
+      );
+      points.addAll(batchPoints);
+    } catch (e) {
+      _logger.warning('HealthConnect read batch failed: $e, falling back to individual types');
+      for (final type in types) {
+        try {
+          final singlePoints = await _client.getHealthDataFromTypes(
+            types: [type],
+            startTime: startUtc.toUtc(),
+            endTime: endUtc.toUtc(),
+          );
+          points.addAll(singlePoints);
+        } catch (singleError) {
+          _logger.warning('Skipping health type $type: $singleError');
+        }
+      }
+    }
+
     return [
       for (final point in points)
         if (_metricFor(point.type) case final metric?)
@@ -131,6 +167,7 @@ class HealthConnectSource implements HealthDataSource {
             ),
     ];
   }
+
 
   @override
   Future<List<HealthMenstruationRecord>> readMenstruation(
@@ -194,12 +231,14 @@ class HealthConnectSource implements HealthDataSource {
         HealthDataType.ACTIVE_ENERGY_BURNED => HealthMetric.activeCalories,
         HealthDataType.BASAL_ENERGY_BURNED => HealthMetric.basalCalories,
         HealthDataType.DISTANCE_WALKING_RUNNING => HealthMetric.distance,
+        HealthDataType.DISTANCE_DELTA => HealthMetric.distance,
         HealthDataType.HEART_RATE => HealthMetric.heartRate,
         HealthDataType.RESTING_HEART_RATE => HealthMetric.restingHeartRate,
         HealthDataType.SLEEP_SESSION => HealthMetric.sleep,
         HealthDataType.WORKOUT => HealthMetric.workout,
         _ => null,
       };
+
 
   double? _valueFor(HealthDataPoint point) {
     final value = point.value;
@@ -215,4 +254,19 @@ class HealthConnectSource implements HealthDataSource {
     final day = local.day.toString().padLeft(2, '0');
     return '${local.year}-$month-$day';
   }
+
+  @override
+  Future<int?> getTotalStepsInInterval(
+    DateTime startTime,
+    DateTime endTime,
+  ) async {
+    await _configure();
+    try {
+      return await _client.getTotalStepsInInterval(startTime, endTime);
+    } catch (e) {
+      _logger.error('getTotalStepsInInterval', e);
+      return null;
+    }
+  }
 }
+

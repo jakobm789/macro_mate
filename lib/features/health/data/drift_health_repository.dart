@@ -545,13 +545,24 @@ class DriftHealthRepository implements HealthRepository {
     final name = sourceName.toLowerCase();
     if (name.contains('phone_step_sensor') ||
         name.contains('interner') ||
-        name.contains('oneplus')) return 40;
-    if (name.contains('samsung')) return 30;
-    if (name.contains('garmin') || name.contains('fitbit')) return 25;
-    if (name.contains('watch') || name.contains('wear')) return 20;
-    if (name.contains('google') || name.contains('phone')) return 10;
+        name.contains('oneplus')) {
+      return 40;
+    }
+    if (name.contains('samsung')) {
+      return 30;
+    }
+    if (name.contains('garmin') || name.contains('fitbit')) {
+      return 25;
+    }
+    if (name.contains('watch') || name.contains('wear')) {
+      return 20;
+    }
+    if (name.contains('google') || name.contains('phone')) {
+      return 10;
+    }
     return 0;
   }
+
 
   static String _keyForMetric(HealthMetric metric) =>
       '$_syncPrefix${metric.name}';
@@ -680,7 +691,69 @@ class DriftHealthRepository implements HealthRepository {
       await _rebuildAggregate(dayStr);
     });
   }
+
+  @override
+  Future<int?> getTotalStepsInInterval(
+    DateTime startTime,
+    DateTime endTime,
+  ) async {
+    try {
+      return await _source.getTotalStepsInInterval(startTime, endTime);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<int> getPriorStepsToday(
+    DateTime date, {
+    String? excludeSourceId,
+  }) async {
+    final dayStr = _day(date);
+
+    // 1. Check existing healthRecords for today from other sources
+    final rows = await (_database.select(_database.healthRecords)
+          ..where((row) =>
+              row.localDay.equals(dayStr) &
+              row.type.equals(HealthMetric.steps.name)))
+        .get();
+
+    int maxRecordSteps = 0;
+    for (final row in rows) {
+      if (excludeSourceId != null && row.sourceId == excludeSourceId) continue;
+      final val = row.value.round();
+      if (val > maxRecordSteps) {
+        maxRecordSteps = val;
+      }
+    }
+    if (maxRecordSteps > 0) return maxRecordSteps;
+
+    // 2. Check daily aggregates
+    final aggRows = await (_database.select(_database.dailyHealthAggregates)
+          ..where((row) => row.day.equals(dayStr)))
+        .get();
+    if (aggRows.isNotEmpty) {
+      final aggSteps = aggRows.first.steps;
+      if (aggSteps > maxRecordSteps) {
+        maxRecordSteps = aggSteps;
+      }
+    }
+
+    if (maxRecordSteps > 0) return maxRecordSteps;
+
+    // 3. Query Health Connect directly for today if available
+    try {
+      final midnight = DateTime(date.year, date.month, date.day);
+      final sourceSteps = await getTotalStepsInInterval(midnight, date);
+      if (sourceSteps != null && sourceSteps > maxRecordSteps) {
+        maxRecordSteps = sourceSteps;
+      }
+    } catch (_) {}
+
+    return maxRecordSteps;
+  }
 }
+
 
 class _RoutePoint {
   const _RoutePoint({

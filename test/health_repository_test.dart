@@ -52,7 +52,21 @@ class _FakeHealthSource implements HealthDataSource {
     DateTime endUtc,
   ) async =>
       [];
+
+  @override
+  Future<int?> getTotalStepsInInterval(
+    DateTime startTime,
+    DateTime endTime,
+  ) async {
+    final stepRecords = records.where((r) =>
+        r.metric == HealthMetric.steps &&
+        !r.startUtc.isBefore(startTime) &&
+        !r.startUtc.isAfter(endTime));
+    if (stepRecords.isEmpty) return null;
+    return stepRecords.fold<int>(0, (sum, r) => sum + r.value.round());
+  }
 }
+
 
 HealthRecord _record({
   required String id,

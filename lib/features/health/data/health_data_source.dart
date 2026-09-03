@@ -23,4 +23,10 @@ abstract interface class HealthDataSource {
     DateTime startUtc,
     DateTime endUtc,
   );
+
+  Future<int?> getTotalStepsInInterval(
+    DateTime startTime,
+    DateTime endTime,
+  );
 }
+

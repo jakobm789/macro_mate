@@ -48,4 +48,15 @@ abstract interface class HealthRepository {
     String sourceId = 'phone_step_sensor',
     String sourceName = 'Interner Handy-Sensor',
   });
+
+  Future<int> getPriorStepsToday(
+    DateTime date, {
+    String? excludeSourceId,
+  });
+
+  Future<int?> getTotalStepsInInterval(
+    DateTime startTime,
+    DateTime endTime,
+  );
 }
+
