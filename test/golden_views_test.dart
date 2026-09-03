@@ -8,6 +8,8 @@ import 'package:macro_mate/core/notifications/drift_notification_repository.dart
 import 'package:macro_mate/core/notifications/notification_controller.dart';
 import 'package:macro_mate/features/activity/presentation/activity_controller.dart';
 import 'package:macro_mate/features/activity/presentation/activity_page.dart';
+import 'package:macro_mate/features/activity/presentation/running_tracker_controller.dart';
+import 'package:macro_mate/features/gym/presentation/gym_controller.dart';
 import 'package:macro_mate/features/cycle/data/drift_cycle_repository.dart';
 import 'package:macro_mate/features/cycle/presentation/cycle_controller.dart';
 import 'package:macro_mate/features/cycle/presentation/cycle_page.dart';
@@ -180,6 +182,13 @@ void main() {
         ),
         ChangeNotifierProvider<NotificationController>.value(
           value: notificationController,
+        ),
+        Provider<AppDatabase>.value(value: db),
+        ChangeNotifierProvider<GymController>.value(
+          value: appState.gymController,
+        ),
+        ChangeNotifierProvider<RunningTrackerController>.value(
+          value: appState.runningTrackerController,
         ),
       ],
       child: MaterialApp(

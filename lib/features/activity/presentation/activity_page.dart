@@ -10,7 +10,10 @@ import '../../../core/ui/design_system.dart';
 import '../../../models/app_state.dart';
 import '../../health/domain/health_models.dart';
 import '../domain/cardio_metrics_calculator.dart';
+import '../domain/location_tracker_service.dart';
 import 'activity_controller.dart';
+import 'live_running_tracker_page.dart';
+import 'running_tracker_controller.dart';
 
 class ActivityPage extends StatefulWidget {
   const ActivityPage({super.key, this.database, this.controller});
@@ -143,13 +146,60 @@ class _ActivityPageState extends State<ActivityPage> {
       return const Scaffold(body: LoadingState());
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Aktivität')),
+      appBar: AppBar(
+        title: const Text('Aktivität'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.play_circle_outline),
+            tooltip: 'Aktivität aufzeichnen (GPS)',
+            onPressed: () => _openTrackerModal(context),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             if (_error != null) ErrorState(message: _error!, onRetry: _load),
+
+            // Active GPS Tracking Banner if a session is currently running
+            Builder(
+              builder: (ctx) {
+                RunningTrackerController? tracker;
+                try {
+                  tracker = ctx.watch<RunningTrackerController>();
+                } catch (_) {
+                  try {
+                    tracker = ctx.watch<AppState>().runningTrackerController;
+                  } catch (_) {
+                    tracker = null;
+                  }
+                }
+                if (tracker == null || !tracker.isTrackingActive) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Card(
+                    color: Colors.green.shade100.withValues(alpha: 0.3),
+                    child: ListTile(
+                      leading: const Icon(Icons.directions_run, color: Colors.green),
+                      title: Text(
+                        'Laufendes Tracking: ${tracker.sport.displayName}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        '${tracker.distanceKm.toStringAsFixed(2)} km · ${RunningTrackerController.formatDuration(tracker.elapsedSeconds)}',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.pushNamed(context, '/tracker'),
+                    ),
+                  ),
+                );
+              },
+            ),
+
             Row(
               children: [
                 Expanded(
@@ -179,6 +229,19 @@ class _ActivityPageState extends State<ActivityPage> {
               icon: Icons.favorite_outline,
             ),
             const SizedBox(height: 16),
+
+            // Outdoor GPS Tracker Card
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.directions_run, color: Colors.green),
+                title: const Text('Outdoor-Aktivität starten (GPS)', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Laufen, Radfahren, Wandern mit Live-Route & Splits'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () => _openTrackerModal(context),
+              ),
+            ),
+            const SizedBox(height: 12),
+
             Card(
               color: Theme.of(context).colorScheme.primaryContainer,
               child: ListTile(
@@ -219,6 +282,110 @@ class _ActivityPageState extends State<ActivityPage> {
                   subtitle:
                       Text('${session.startUtc} · Quelle: ${session.sourceId}'),
                 ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openTrackerModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Aktivität aufzeichnen',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Wähle deine Sportart für Live-GPS-Tracking und Splits:',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _SportSelectTile(
+                  icon: Icons.directions_run,
+                  label: 'Laufen',
+                  color: Colors.orange,
+                  onTap: () => _launchTracker(ctx, SportType.running),
+                ),
+                _SportSelectTile(
+                  icon: Icons.directions_bike,
+                  label: 'Radfahren',
+                  color: Colors.blue,
+                  onTap: () => _launchTracker(ctx, SportType.cycling),
+                ),
+                _SportSelectTile(
+                  icon: Icons.terrain,
+                  label: 'Wandern',
+                  color: Colors.green,
+                  onTap: () => _launchTracker(ctx, SportType.hiking),
+                ),
+                _SportSelectTile(
+                  icon: Icons.directions_walk,
+                  label: 'Gehen',
+                  color: Colors.teal,
+                  onTap: () => _launchTracker(ctx, SportType.walking),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _launchTracker(BuildContext modalCtx, SportType sport) {
+    Navigator.pop(modalCtx);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LiveRunningTrackerPage(initialSport: sport),
+      ),
+    );
+  }
+}
+
+class _SportSelectTile extends StatelessWidget {
+  const _SportSelectTile({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          children: [
+            CircleAvatar(
+              radius: 26,
+              backgroundColor: color.withValues(alpha: 0.15),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
           ],
         ),
       ),

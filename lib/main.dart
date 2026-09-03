@@ -23,6 +23,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'features/activity/presentation/activity_controller.dart';
+import 'features/activity/presentation/live_running_tracker_page.dart';
+import 'features/activity/presentation/running_tracker_controller.dart';
 import 'features/auth/presentation/auth_controller.dart';
 import 'features/backup/presentation/backup_controller.dart';
 import 'features/cycle/presentation/cycle_controller.dart';
@@ -180,6 +182,9 @@ void main() async {
         ChangeNotifierProvider<GymController>.value(
           value: appState.gymController,
         ),
+        ChangeNotifierProvider<RunningTrackerController>.value(
+          value: appState.runningTrackerController,
+        ),
       ],
       child: MyApp(initialFilePath: initialFilePath),
     ),
@@ -330,6 +335,8 @@ class _MyAppState extends State<MyApp> {
               const AppDiagnosticsBanner(child: BackupPage()),
           '/gym': (context) =>
               const AppDiagnosticsBanner(child: GymPage()),
+          '/tracker': (context) =>
+              const AppDiagnosticsBanner(child: LiveRunningTrackerPage()),
         },
       ),
     );

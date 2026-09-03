@@ -9,6 +9,7 @@ import '../core/notifications/drift_notification_repository.dart';
 import '../core/notifications/notification_controller.dart';
 import '../core/notifications/notification_repository.dart';
 import '../features/activity/presentation/activity_controller.dart';
+import '../features/activity/presentation/running_tracker_controller.dart';
 import '../features/auth/presentation/auth_controller.dart';
 import '../features/backup/presentation/backup_controller.dart';
 import '../features/cycle/data/drift_cycle_repository.dart';
@@ -115,6 +116,7 @@ class AppState extends ChangeNotifier {
     ImportExportController? importExportCtrl,
     DriftGymRepository? gymRepository,
     GymController? gymCtrl,
+    RunningTrackerController? runningTrackerCtrl,
   }) {
     _database = database ?? AppDatabase();
     _nutritionRepository =
@@ -187,12 +189,14 @@ class AppState extends ChangeNotifier {
         );
 
     importExportController = importExportCtrl ?? ImportExportController();
+    runningTrackerController = runningTrackerCtrl ?? RunningTrackerController();
 
     // Listen to child controllers
     nutritionController.addListener(notifyListeners);
     weightController.addListener(notifyListeners);
     healthController.addListener(notifyListeners);
     activityController.addListener(notifyListeners);
+    runningTrackerController.addListener(notifyListeners);
     gymController.addListener(notifyListeners);
     cycleController.addListener(notifyListeners);
     settingsController.addListener(notifyListeners);
@@ -218,6 +222,7 @@ class AppState extends ChangeNotifier {
   late final WeightController weightController;
   late final HealthController healthController;
   late final ActivityController activityController;
+  late final RunningTrackerController runningTrackerController;
   late final GymController gymController;
   late final CycleController cycleController;
   late final SettingsController settingsController;
@@ -452,6 +457,7 @@ class AppState extends ChangeNotifier {
     weightController.removeListener(notifyListeners);
     healthController.removeListener(notifyListeners);
     activityController.removeListener(notifyListeners);
+    runningTrackerController.removeListener(notifyListeners);
     gymController.removeListener(notifyListeners);
     cycleController.removeListener(notifyListeners);
     settingsController.removeListener(notifyListeners);
@@ -462,6 +468,7 @@ class AppState extends ChangeNotifier {
     backupController.removeListener(notifyListeners);
     foodSearchController.removeListener(notifyListeners);
     importExportController.removeListener(notifyListeners);
+    runningTrackerController.dispose();
     gymController.dispose();
     super.dispose();
   }
