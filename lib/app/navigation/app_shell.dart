@@ -19,12 +19,18 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
+  void _onSelectTab(int index) {
+    if (_index != index) {
+      setState(() => _index = index);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         body: IndexedStack(
           index: _index,
           children: [
-            const TodayPage(),
+            TodayPage(onNavigateToTab: _onSelectTab),
             const MyHomePage(title: 'Ernährung'),
             const ActivityPage(),
             const CyclePage(),

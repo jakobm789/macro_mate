@@ -7,13 +7,43 @@ import 'dashboard_config_sheet.dart';
 import 'dashboard_controller.dart';
 
 class TodayPage extends StatefulWidget {
-  const TodayPage({super.key});
+  const TodayPage({super.key, this.onNavigateToTab});
+
+  final ValueChanged<int>? onNavigateToTab;
 
   @override
   State<TodayPage> createState() => _TodayPageState();
 }
 
 class _TodayPageState extends State<TodayPage> {
+  String get _formattedDate {
+    final now = DateTime.now();
+    const weekdays = [
+      'Montag',
+      'Dienstag',
+      'Mittwoch',
+      'Donnerstag',
+      'Freitag',
+      'Samstag',
+      'Sonntag'
+    ];
+    const months = [
+      'Januar',
+      'Februar',
+      'März',
+      'April',
+      'Mai',
+      'Juni',
+      'Juli',
+      'August',
+      'September',
+      'Oktober',
+      'November',
+      'Dezember'
+    ];
+    return '${weekdays[now.weekday - 1]}, ${now.day}. ${months[now.month - 1]}';
+  }
+
   void _openConfigSheet(DashboardController controller) {
     showModalBottomSheet(
       context: context,
@@ -92,48 +122,72 @@ class _TodayPageState extends State<TodayPage> {
             await dashboard.refresh();
           }
         },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const SectionHeader(title: 'Dein Überblick'),
-            const SizedBox(height: 12),
-            for (final cardId in cardOrder)
-              if (visibility[cardId] != false) ...[
-                _buildCardById(
-                  context: context,
-                  cardId: cardId,
-                  consumedCal: consumedCal,
-                  targetCal: targetCal,
-                  consumedCarbs: consumedCarbs,
-                  targetCarbs: targetCarbs,
-                  consumedProt: consumedProt,
-                  targetProt: targetProt,
-                  consumedFat: consumedFat,
-                  targetFat: targetFat,
-                  steps: steps,
-                  distanceKm: distanceKm,
-                  activeKcal: activeKcal,
-                  totalKcal: totalKcal,
-                  weight: weight,
-                  weightTrend: weightTrend,
-                  lastSync: lastSync,
-                  healthError: healthError,
-                  cycleDay: cycleDay,
-                  cyclePhase: cyclePhase,
-                  cycleTip: cycleTip,
-                  impulses: impulses,
-                ),
-                const SizedBox(height: 8),
-              ],
-            const SizedBox(height: 16),
-            const Center(
-              child: Text(
-                'Health- und Zyklusdaten bleiben stets lokal auf diesem Gerät. Verschlüsselte Backups werden separat geschützt.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-                textAlign: TextAlign.center,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _formattedDate,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.3,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Dein Überblick',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 14),
+              for (final cardId in cardOrder)
+                if (visibility[cardId] != false) ...[
+                  _buildCardById(
+                    context: context,
+                    cardId: cardId,
+                    consumedCal: consumedCal,
+                    targetCal: targetCal,
+                    consumedCarbs: consumedCarbs,
+                    targetCarbs: targetCarbs,
+                    consumedProt: consumedProt,
+                    targetProt: targetProt,
+                    consumedFat: consumedFat,
+                    targetFat: targetFat,
+                    steps: steps,
+                    distanceKm: distanceKm,
+                    activeKcal: activeKcal,
+                    totalKcal: totalKcal,
+                    weight: weight,
+                    weightTrend: weightTrend,
+                    lastSync: lastSync,
+                    healthError: healthError,
+                    cycleDay: cycleDay,
+                    cyclePhase: cyclePhase,
+                    cycleTip: cycleTip,
+                    impulses: impulses,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              const SizedBox(height: 12),
+              const Center(
+                child: Text(
+                  'Health- und Zyklusdaten bleiben stets lokal auf diesem Gerät. Verschlüsselte Backups werden separat geschützt.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -165,62 +219,151 @@ class _TodayPageState extends State<TodayPage> {
   }) {
     switch (cardId) {
       case 'calories':
-        return KpiCard(
-          title: 'Kalorien & Makros',
-          value: '${consumedCal.round()} / $targetCal kcal',
-          subtitle:
-              'KH: ${consumedCarbs.round()}/${targetCarbs.round()}g · Protein: ${consumedProt.round()}/${targetProt.round()}g · Fett: ${consumedFat.round()}/${targetFat.round()}g',
-          icon: Icons.local_fire_department_outlined,
-          onTap: () => Navigator.pushNamed(context, '/nutrition'),
+        return NutritionHeroCard(
+          consumedCal: consumedCal,
+          targetCal: targetCal,
+          consumedCarbs: consumedCarbs,
+          targetCarbs: targetCarbs,
+          consumedProt: consumedProt,
+          targetProt: targetProt,
+          consumedFat: consumedFat,
+          targetFat: targetFat,
+          onTap: () {
+            if (widget.onNavigateToTab != null) {
+              widget.onNavigateToTab!(1);
+            } else {
+              Navigator.pushNamed(context, '/nutrition');
+            }
+          },
         );
       case 'steps':
-        return KpiCard(
+        return ActivityMetricCard(
           title: 'Schritte & Distanz',
           value: '$steps Schritte',
           subtitle: steps == 0
               ? 'Noch keine Schritte synchronisiert'
-              : '${distanceKm.toStringAsFixed(1)} km zurückgelegt',
+              : '${distanceKm.toStringAsFixed(1)} km zurückgelegt (Ziel: 10.000)',
           icon: Icons.directions_walk,
-          onTap: () => Navigator.pushNamed(context, '/activity'),
+          accentColor: Colors.teal,
+          progress: steps > 0 ? (steps / 10000.0) : null,
+          onTap: () {
+            if (widget.onNavigateToTab != null) {
+              widget.onNavigateToTab!(2);
+            } else {
+              Navigator.pushNamed(context, '/activity');
+            }
+          },
         );
       case 'active_energy':
-        return KpiCard(
+        return ActivityMetricCard(
           title: 'Aktivenergie',
           value: '${activeKcal.round()} kcal aktiv',
           subtitle: totalKcal != null
               ? 'Gesamtumsatz: ${totalKcal.round()} kcal'
               : 'Reine Aktivkalorien (getrennt vom Grundumsatz)',
           icon: Icons.bolt,
-          onTap: () => Navigator.pushNamed(context, '/activity'),
+          accentColor: Colors.deepOrange,
+          onTap: () {
+            if (widget.onNavigateToTab != null) {
+              widget.onNavigateToTab!(2);
+            } else {
+              Navigator.pushNamed(context, '/activity');
+            }
+          },
         );
       case 'weight':
-        return KpiCard(
-          title: 'Gewicht',
-          value: weight == null ? '–' : '${weight.toStringAsFixed(1)} kg',
-          subtitle: weightTrend != null
-              ? '7-Tage-Trend: ${weightTrend >= 0 ? '+' : ''}${weightTrend.toStringAsFixed(1)} kg'
-              : 'Letzter Messwert',
-          icon: Icons.monitor_weight_outlined,
+        return WeightMetricCard(
+          weight: weight,
+          trendKg: weightTrend,
           onTap: () => Navigator.pushNamed(context, '/weight'),
         );
       case 'health_sync':
         return Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: Theme.of(context)
+                  .colorScheme
+                  .outlineVariant
+                  .withValues(alpha: 0.3),
+            ),
+          ),
           child: SyncStatus(
             lastSyncUtc: lastSync,
             error: healthError,
           ),
         );
       case 'cycle':
+        final hasCycleData = cyclePhase != null || cycleDay != null;
         return Card(
-          child: ListTile(
-            leading:
-                const Icon(Icons.water_drop_outlined, color: Colors.purple),
-            title: Text(cyclePhase != null
-                ? 'Zyklustag $cycleDay · $cyclePhase'
-                : 'Zyklus-Status'),
-            subtitle: Text(cycleTip ?? 'Tippe für Zyklushistorie und Kalender'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.pushNamed(context, '/cycle'),
+          elevation: 1.5,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: Colors.purple.withValues(alpha: 0.25),
+            ),
+          ),
+          child: InkWell(
+            onTap: () {
+              if (widget.onNavigateToTab != null) {
+                widget.onNavigateToTab!(3);
+              } else {
+                Navigator.pushNamed(context, '/cycle');
+              }
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.water_drop_outlined,
+                      color: Colors.purple,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hasCycleData
+                              ? 'Zyklustag $cycleDay · $cyclePhase'
+                              : 'Zyklus & Wohlbefinden',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          cycleTip ?? 'Tippe für Zyklushistorie und Kalender',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       case 'impulses':
@@ -228,21 +371,63 @@ class _TodayPageState extends State<TodayPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 4),
-              child: Text('Handlungsimpulse',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.lightbulb_outline,
+                      size: 18, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Handlungsimpulse',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                ],
+              ),
             ),
             for (final impulse in impulses)
               Card(
-                margin: const EdgeInsets.only(bottom: 6),
+                elevation: 1.5,
+                margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outlineVariant
+                        .withValues(alpha: 0.4),
+                  ),
+                ),
                 child: ListTile(
-                  leading: const Icon(Icons.lightbulb_outline),
-                  title: Text(impulse.title),
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.auto_awesome,
+                        color: Colors.amber, size: 20),
+                  ),
+                  title: Text(
+                    impulse.title,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   subtitle: Text(impulse.description),
                   trailing: FilledButton.tonal(
-                    onPressed: () =>
-                        Navigator.pushNamed(context, impulse.targetRoute),
+                    onPressed: () {
+                      if (impulse.targetRoute == '/nutrition' &&
+                          widget.onNavigateToTab != null) {
+                        widget.onNavigateToTab!(1);
+                      } else if (impulse.targetRoute == '/activity' &&
+                          widget.onNavigateToTab != null) {
+                        widget.onNavigateToTab!(2);
+                      } else if (impulse.targetRoute == '/cycle' &&
+                          widget.onNavigateToTab != null) {
+                        widget.onNavigateToTab!(3);
+                      } else {
+                        Navigator.pushNamed(context, impulse.targetRoute);
+                      }
+                    },
                     child: const Text('Öffnen'),
                   ),
                 ),

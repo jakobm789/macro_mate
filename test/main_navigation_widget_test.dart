@@ -145,5 +145,37 @@ void main() {
       expect(find.text('Health Connect & Diagnose'), findsOneWidget);
       expect(find.text('Backup & Wiederherstellung'), findsOneWidget);
     });
+
+    testWidgets(
+        'tapping dashboard cards smoothly switches AppShell bottom tabs',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createShellWidget());
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Initially on Tab 0: Heute
+      expect(find.text('Dein Überblick'), findsOneWidget);
+
+      // Tap Kalorien & Makros hero card -> switches to Tab 1: Ernährung
+      await tester.tap(find.text('Kalorien & Makros'));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byIcon(Icons.restaurant), findsWidgets);
+      // Bottom navigation bar must remain visible!
+      expect(find.byType(NavigationBar), findsOneWidget);
+
+      // Return to Tab 0: Heute
+      await tester.tap(find.byIcon(Icons.today_outlined));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('Dein Überblick'), findsOneWidget);
+
+      // Tap Schritte & Distanz card -> switches to Tab 2: Aktivität
+      await tester.tap(find.text('Schritte & Distanz'));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byType(ActivityPage), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
   });
 }
