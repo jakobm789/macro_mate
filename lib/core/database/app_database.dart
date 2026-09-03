@@ -435,6 +435,142 @@ class BackupManifests extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+@DataClassName('GymExerciseRow')
+class GymExercises extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get primaryMuscle => text().named('primary_muscle')();
+  TextColumn get secondaryMusclesJson =>
+      text().named('secondary_muscles_json').withDefault(const Constant('[]'))();
+  TextColumn get equipment => text()();
+  TextColumn get instructions => text().nullable()();
+  TextColumn get gifUrl => text().named('gif_url').nullable()();
+  BoolColumn get isCustom =>
+      boolean().named('is_custom').withDefault(const Constant(false))();
+  BoolColumn get isTimed =>
+      boolean().named('is_timed').withDefault(const Constant(false))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('GymWorkoutPlanRow')
+class GymWorkoutPlans extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get description => text().nullable()();
+  IntColumn get daysPerWeek =>
+      integer().named('days_per_week').withDefault(const Constant(3))();
+  BoolColumn get isActive =>
+      boolean().named('is_active').withDefault(const Constant(true))();
+  TextColumn get createdAtUtc => text().named('created_at_utc')();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('GymPlanRoutineRow')
+class GymPlanRoutines extends Table {
+  TextColumn get id => text()();
+  TextColumn get planId => text()
+      .named('plan_id')
+      .references(GymWorkoutPlans, #id, onDelete: KeyAction.cascade)();
+  IntColumn get dayOfWeek => integer().named('day_of_week')();
+  TextColumn get name => text()();
+  TextColumn get progressionType =>
+      text().named('progression_type').withDefault(const Constant('linear'))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('GymPlanRoutineExerciseRow')
+class GymPlanRoutineExercises extends Table {
+  TextColumn get id => text()();
+  TextColumn get routineId => text()
+      .named('routine_id')
+      .references(GymPlanRoutines, #id, onDelete: KeyAction.cascade)();
+  TextColumn get exerciseId => text()
+      .named('exercise_id')
+      .references(GymExercises, #id)();
+  IntColumn get orderIndex => integer().named('order_index')();
+  IntColumn get targetSets =>
+      integer().named('target_sets').withDefault(const Constant(3))();
+  IntColumn get targetRepsMin =>
+      integer().named('target_reps_min').withDefault(const Constant(8))();
+  IntColumn get targetRepsMax =>
+      integer().named('target_reps_max').withDefault(const Constant(12))();
+  IntColumn get targetHoldSeconds =>
+      integer().named('target_hold_seconds').nullable()();
+  IntColumn get restSeconds =>
+      integer().named('rest_seconds').withDefault(const Constant(90))();
+  TextColumn get supersetGroupId =>
+      text().named('superset_group_id').nullable()();
+  TextColumn get notes => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('GymWorkoutSessionRow')
+class GymWorkoutSessions extends Table {
+  TextColumn get id => text()();
+  TextColumn get routineId => text().named('routine_id').nullable()();
+  TextColumn get routineName => text().named('routine_name')();
+  TextColumn get startUtc => text().named('start_utc')();
+  TextColumn get endUtc => text().named('end_utc').nullable()();
+  RealColumn get durationSeconds =>
+      real().named('duration_seconds').withDefault(const Constant(0))();
+  RealColumn get totalTonnageKg =>
+      real().named('total_tonnage_kg').withDefault(const Constant(0))();
+  TextColumn get notes => text().nullable()();
+  RealColumn get rpeAverage => real().named('rpe_average').nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('GymSetLogRow')
+class GymSetLogs extends Table {
+  TextColumn get id => text()();
+  TextColumn get sessionId => text()
+      .named('session_id')
+      .references(GymWorkoutSessions, #id, onDelete: KeyAction.cascade)();
+  TextColumn get exerciseId => text()
+      .named('exercise_id')
+      .references(GymExercises, #id)();
+  IntColumn get setIndex => integer().named('set_index')();
+  TextColumn get setType =>
+      text().named('set_type').withDefault(const Constant('normal'))();
+  RealColumn get weightKg =>
+      real().named('weight_kg').withDefault(const Constant(0))();
+  IntColumn get reps => integer().nullable()();
+  IntColumn get holdSeconds => integer().named('hold_seconds').nullable()();
+  RealColumn get rpe => real().nullable()();
+  IntColumn get rir => integer().nullable()();
+  BoolColumn get completed =>
+      boolean().withDefault(const Constant(false))();
+  TextColumn get loggedAtUtc => text().named('logged_at_utc')();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('Gym1RmHistoryRow')
+class Gym1RmHistories extends Table {
+  TextColumn get id => text()();
+  TextColumn get exerciseId => text()
+      .named('exercise_id')
+      .references(GymExercises, #id)();
+  RealColumn get calculated1Rm => real().named('calculated_1rm')();
+  RealColumn get weightKg => real().named('weight_kg')();
+  IntColumn get reps => integer()();
+  TextColumn get date => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 @DriftDatabase(
   tables: [
     Goals,
@@ -463,6 +599,13 @@ class BackupManifests extends Table {
     CyclePredictions,
     NotificationPreferences,
     BackupManifests,
+    GymExercises,
+    GymWorkoutPlans,
+    GymPlanRoutines,
+    GymPlanRoutineExercises,
+    GymWorkoutSessions,
+    GymSetLogs,
+    Gym1RmHistories,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -471,7 +614,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 27;
+  int get schemaVersion => 28;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -479,6 +622,7 @@ class AppDatabase extends _$AppDatabase {
           await migrator.createAll();
           await _createV26Indexes();
           await _createV27Indexes();
+          await _createV28Indexes();
           await _writeMetadata(isMigration: false);
         },
         onUpgrade: (migrator, from, to) async {
@@ -509,6 +653,17 @@ class AppDatabase extends _$AppDatabase {
             await migrator.createTable(notificationPreferences);
             await migrator.createTable(backupManifests);
             await _createV27Indexes();
+            await _writeMetadata(isMigration: true);
+          }
+          if (from < 28) {
+            await migrator.createTable(gymExercises);
+            await migrator.createTable(gymWorkoutPlans);
+            await migrator.createTable(gymPlanRoutines);
+            await migrator.createTable(gymPlanRoutineExercises);
+            await migrator.createTable(gymWorkoutSessions);
+            await migrator.createTable(gymSetLogs);
+            await migrator.createTable(gym1RmHistories);
+            await _createV28Indexes();
             await _writeMetadata(isMigration: true);
           }
         },
@@ -612,6 +767,33 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_symptom_logs_day '
       'ON symptom_logs(day)',
+    );
+  }
+
+  Future<void> _createV28Indexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_gym_plan_routines_plan '
+      'ON gym_plan_routines(plan_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_gym_plan_routine_exercises_routine '
+      'ON gym_plan_routine_exercises(routine_id, order_index)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_gym_workout_sessions_start '
+      'ON gym_workout_sessions(start_utc)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_gym_set_logs_session '
+      'ON gym_set_logs(session_id, set_index)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_gym_set_logs_exercise '
+      'ON gym_set_logs(exercise_id, logged_at_utc)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_gym_1rm_history_exercise '
+      'ON gym1_rm_histories(exercise_id, date)',
     );
   }
 }

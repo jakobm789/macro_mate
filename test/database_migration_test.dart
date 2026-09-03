@@ -32,7 +32,7 @@ void main() {
     expect(consumed.single.uuid, isNotNull);
     expect(weights.single.uuid, isNotNull);
     expect(meals.single.uuid, isNotNull);
-    expect(metadata.single.schemaVersion, 27);
+    expect(metadata.single.schemaVersion, 28);
 
     final healthTables = await database
         .customSelect(
@@ -42,6 +42,16 @@ void main() {
     expect(
       healthTables.map((row) => row.read<String>('name')),
       containsAll(['health_sources', 'health_records', 'health_sync_states']),
+    );
+
+    final gymTables = await database
+        .customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'gym_%'",
+        )
+        .get();
+    expect(
+      gymTables.map((row) => row.read<String>('name')),
+      containsAll(['gym_exercises', 'gym_workout_plans', 'gym_workout_sessions', 'gym_set_logs']),
     );
 
     final indexes = await database

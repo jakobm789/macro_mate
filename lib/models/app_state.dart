@@ -15,6 +15,8 @@ import '../features/cycle/data/drift_cycle_repository.dart';
 import '../features/cycle/domain/cycle_repository.dart';
 import '../features/cycle/presentation/cycle_controller.dart';
 import '../features/dashboard/presentation/dashboard_controller.dart';
+import '../features/gym/data/drift_gym_repository.dart';
+import '../features/gym/presentation/gym_controller.dart';
 import '../features/health/data/drift_health_repository.dart';
 import '../features/health/data/health_connect_source.dart';
 import '../features/health/domain/health_repository.dart';
@@ -111,6 +113,8 @@ class AppState extends ChangeNotifier {
     BackupController? backupCtrl,
     FoodSearchController? foodSearchCtrl,
     ImportExportController? importExportCtrl,
+    DriftGymRepository? gymRepository,
+    GymController? gymCtrl,
   }) {
     _database = database ?? AppDatabase();
     _nutritionRepository =
@@ -128,6 +132,8 @@ class AppState extends ChangeNotifier {
         cycleRepository ?? DriftCycleRepository(database: _database);
     _notificationRepository = notificationRepository ??
         DriftNotificationRepository(database: _database);
+    _gymRepository =
+        gymRepository ?? DriftGymRepository(database: _database);
 
     nutritionController =
         nutritionCtrl ?? NutritionController(repository: _nutritionRepository);
@@ -137,6 +143,8 @@ class AppState extends ChangeNotifier {
         healthCtrl ?? HealthController(repository: _healthRepository);
     activityController =
         activityCtrl ?? ActivityController(repository: _healthRepository);
+    gymController =
+        gymCtrl ?? GymController(repository: _gymRepository);
     cycleController = cycleCtrl ??
         CycleController(
           repository: _cycleRepository,
@@ -185,6 +193,7 @@ class AppState extends ChangeNotifier {
     weightController.addListener(notifyListeners);
     healthController.addListener(notifyListeners);
     activityController.addListener(notifyListeners);
+    gymController.addListener(notifyListeners);
     cycleController.addListener(notifyListeners);
     settingsController.addListener(notifyListeners);
     localModelController.addListener(notifyListeners);
@@ -203,11 +212,13 @@ class AppState extends ChangeNotifier {
   late final HealthRepository _healthRepository;
   late final CycleRepository _cycleRepository;
   late final NotificationRepository _notificationRepository;
+  late final DriftGymRepository _gymRepository;
 
   late final NutritionController nutritionController;
   late final WeightController weightController;
   late final HealthController healthController;
   late final ActivityController activityController;
+  late final GymController gymController;
   late final CycleController cycleController;
   late final SettingsController settingsController;
   late final LocalModelController localModelController;
@@ -441,6 +452,7 @@ class AppState extends ChangeNotifier {
     weightController.removeListener(notifyListeners);
     healthController.removeListener(notifyListeners);
     activityController.removeListener(notifyListeners);
+    gymController.removeListener(notifyListeners);
     cycleController.removeListener(notifyListeners);
     settingsController.removeListener(notifyListeners);
     localModelController.removeListener(notifyListeners);
@@ -450,6 +462,7 @@ class AppState extends ChangeNotifier {
     backupController.removeListener(notifyListeners);
     foodSearchController.removeListener(notifyListeners);
     importExportController.removeListener(notifyListeners);
+    gymController.dispose();
     super.dispose();
   }
 
@@ -460,6 +473,7 @@ class AppState extends ChangeNotifier {
     await weightController.initialize();
     await healthController.initialize();
     await activityController.initialize();
+    await gymController.initialize();
     await cycleController.initialize();
     await localModelController.initialize();
     await notificationController.initialize();

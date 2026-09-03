@@ -85,6 +85,12 @@ class MorePage extends StatelessWidget {
               child: Column(
                 children: [
                   ListTile(
+                    leading: const Icon(Icons.fitness_center),
+                    title: const Text('Kraftsport & Gym (OpenGym)'),
+                    subtitle: const Text('Pläne, Live-Workout, Muscle Map & AI Coach'),
+                    onTap: () => Navigator.pushNamed(context, '/gym'),
+                  ),
+                  ListTile(
                     leading: const Icon(Icons.monitor_weight_outlined),
                     title: const Text('Gewicht'),
                     onTap: () => Navigator.pushNamed(context, '/weight'),

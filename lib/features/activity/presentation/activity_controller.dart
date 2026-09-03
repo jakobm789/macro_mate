@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../health/domain/health_models.dart';
 import '../../health/domain/health_repository.dart';
+import '../domain/cardio_metrics_calculator.dart';
 
 class ActivityController extends ChangeNotifier {
   ActivityController({required HealthRepository repository})
@@ -95,41 +96,23 @@ class ActivityController extends ChangeNotifier {
     notifyListeners();
   }
 
+  final CardioMetricsCalculator _cardioCalculator = const CardioMetricsCalculator();
+
+  /// Calculates typed KmSplit objects using GPS points or uniform average
+  List<KmSplit> calculateKmSplits(WorkoutDetail workout) =>
+      _cardioCalculator.calculateSplits(workout);
+
   /// Calculates km splits for a workout based on route points or uniform pace
   List<Map<String, dynamic>> calculateSplits(WorkoutDetail workout) {
-    if (workout.distanceMeters == null ||
-        workout.distanceMeters! <= 0 ||
-        workout.durationSeconds <= 0) {
-      return [];
-    }
-
-    final totalKm = workout.distanceMeters! / 1000.0;
-    final totalSeconds = workout.durationSeconds;
-    final avgSecondsPerKm = totalSeconds / totalKm;
-
-    final splits = <Map<String, dynamic>>[];
-    final fullKm = totalKm.floor();
-
-    for (int km = 1; km <= fullKm; km++) {
-      splits.add({
-        'km': km,
-        'durationSeconds': avgSecondsPerKm,
-        'paceMinPerKm': avgSecondsPerKm / 60.0,
-      });
-    }
-
-    final remainingKm = totalKm - fullKm;
-    if (remainingKm > 0.05) {
-      final remainingSeconds = avgSecondsPerKm * remainingKm;
-      splits.add({
-        'km': fullKm + 1,
-        'distanceKm': remainingKm,
-        'durationSeconds': remainingSeconds,
-        'paceMinPerKm': avgSecondsPerKm / 60.0,
-      });
-    }
-
-    return splits;
+    final kmSplits = _cardioCalculator.calculateSplits(workout);
+    return kmSplits
+        .map((s) => {
+              'km': s.km,
+              'durationSeconds': s.durationSeconds,
+              'paceMinPerKm': s.paceMinPerKm,
+              'speedKmh': s.speedKmh,
+            })
+        .toList();
   }
 
   String _formatDay(DateTime value) {

@@ -16,6 +16,8 @@ import 'features/cycle/presentation/cycle_page.dart';
 import 'pages/backup_page.dart';
 import 'app/navigation/app_shell.dart';
 import 'features/activity/presentation/activity_page.dart';
+import 'features/gym/presentation/gym_page.dart';
+import 'features/gym/presentation/gym_controller.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -175,6 +177,9 @@ void main() async {
         ChangeNotifierProvider<ImportExportController>.value(
           value: appState.importExportController,
         ),
+        ChangeNotifierProvider<GymController>.value(
+          value: appState.gymController,
+        ),
       ],
       child: MyApp(initialFilePath: initialFilePath),
     ),
@@ -323,6 +328,8 @@ class _MyAppState extends State<MyApp> {
           '/cycle': (context) => const AppDiagnosticsBanner(child: CyclePage()),
           '/backup': (context) =>
               const AppDiagnosticsBanner(child: BackupPage()),
+          '/gym': (context) =>
+              const AppDiagnosticsBanner(child: GymPage()),
         },
       ),
     );
