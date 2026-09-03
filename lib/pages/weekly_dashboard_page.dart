@@ -6,7 +6,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../models/app_state.dart';
 
 class WeeklyDashboardPage extends StatefulWidget {
-  const WeeklyDashboardPage({Key? key}) : super(key: key);
+  const WeeklyDashboardPage({super.key});
 
   @override
   State<WeeklyDashboardPage> createState() => _WeeklyDashboardPageState();

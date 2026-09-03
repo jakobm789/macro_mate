@@ -72,6 +72,19 @@ class GymController extends ChangeNotifier {
   List<GymSetLog> get activeSets => List.unmodifiable(_activeSets);
 
   // Rest timer
+  int _defaultRestSeconds = 180; // 3 Minuten Standard
+  int get defaultRestSeconds => _defaultRestSeconds;
+
+  void setDefaultRestSeconds(int seconds) {
+    if (seconds <= 0) return;
+    _defaultRestSeconds = seconds;
+    notifyListeners();
+  }
+
+  List<GymPlanRoutineExerciseRow> _activeRoutineExercises = [];
+  List<GymPlanRoutineExerciseRow> get activeRoutineExercises =>
+      List.unmodifiable(_activeRoutineExercises);
+
   int _restTimerSecondsRemaining = 0;
   int get restTimerSecondsRemaining => _restTimerSecondsRemaining;
   bool get isRestTimerRunning => _restTimerSecondsRemaining > 0;
@@ -134,6 +147,7 @@ class GymController extends ChangeNotifier {
   }) async {
     _activeSessionId = _uuid.v4();
     _activeRoutine = routine;
+    _activeRoutineExercises = exercises;
     _workoutStartTime = DateTime.now().toUtc();
     _activeSets = [];
 
@@ -192,14 +206,28 @@ class GymController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleSetCompleted(int index, bool completed, {int restSeconds = 90}) {
+  void toggleSetCompleted(int index, bool completed, {int? restSeconds}) {
     if (index < 0 || index >= _activeSets.length) return;
     _activeSets[index] = _activeSets[index].copyWith(completed: completed);
 
-    if (completed && restSeconds > 0) {
-      startRestTimer(restSeconds);
+    final effectiveRest = restSeconds ?? _getRestSecondsForSet(index);
+    if (completed && effectiveRest > 0) {
+      startRestTimer(effectiveRest);
     }
     notifyListeners();
+  }
+
+  int _getRestSecondsForSet(int setIndex) {
+    if (setIndex >= 0 && setIndex < _activeSets.length) {
+      final set = _activeSets[setIndex];
+      final planned = _activeRoutineExercises
+          .where((e) => e.exerciseId == set.exerciseId)
+          .firstOrNull;
+      if (planned != null && planned.restSeconds > 0) {
+        return planned.restSeconds;
+      }
+    }
+    return _defaultRestSeconds;
   }
 
   void addSetToExercise(String exerciseId) {
@@ -297,6 +325,20 @@ class GymController extends ChangeNotifier {
     await loadData();
   }
 
+  Future<void> deleteWorkoutSession(String sessionId) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _repository.deleteWorkoutSession(sessionId);
+      await loadData();
+    } catch (e) {
+      _errorMessage = 'Fehler beim Löschen des Workouts: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> applyProposal(PlanProposalAction proposal) async {
     if (_activePlan == null) return;
     _isLoading = true;
@@ -382,6 +424,37 @@ class GymController extends ChangeNotifier {
       await loadData();
     } catch (e) {
       _errorMessage = 'Fehler beim Erstellen des Plans: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // --- MANUAL PLAN CREATION ---
+
+  Future<void> saveManualPlan({
+    required String name,
+    String? description,
+    required int daysPerWeek,
+    required List<Map<String, dynamic>> routinesWithExercises,
+    bool isActive = true,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final planId = _uuid.v4();
+      await _repository.saveWorkoutPlan(
+        planId: planId,
+        name: name,
+        description: description,
+        daysPerWeek: daysPerWeek,
+        isActive: isActive,
+        routinesWithExercises: routinesWithExercises,
+      );
+      await loadData();
+    } catch (e) {
+      _errorMessage = 'Fehler beim Speichern des Plans: $e';
     } finally {
       _isLoading = false;
       notifyListeners();

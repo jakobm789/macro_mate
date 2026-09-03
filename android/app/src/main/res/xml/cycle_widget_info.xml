@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/cycle_widget_description"
+    android:initialLayout="@layout/cycle_widget"
+    android:minWidth="110dp"
+    android:minHeight="55dp"
+    android:previewImage="@mipmap/launcher_icon"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

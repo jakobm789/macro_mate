@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/ui/design_system.dart';
+import '../../health/presentation/health_controller.dart';
 import '../data/drift_cycle_repository.dart';
 import '../domain/cycle_engine.dart';
 import '../domain/cycle_models.dart';
@@ -17,11 +19,13 @@ class CyclePage extends StatefulWidget {
     this.database,
     this.controller,
     this.initialFocusedDay,
+    this.onBackToHome,
   });
 
   final AppDatabase? database;
   final CycleController? controller;
   final DateTime? initialFocusedDay;
+  final VoidCallback? onBackToHome;
 
   @override
   State<CyclePage> createState() => _CyclePageState();
@@ -346,6 +350,13 @@ class _CyclePageState extends State<CyclePage> {
           final history = CycleEngine.historyStats(_controller.periodsState);
           return Scaffold(
             appBar: AppBar(
+              leading: widget.onBackToHome != null
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      tooltip: 'Zurück zur Hauptseite',
+                      onPressed: widget.onBackToHome,
+                    )
+                  : null,
               title: const Text('Zyklus & Wohlbefinden'),
               actions: [
                 IconButton(
@@ -481,6 +492,35 @@ class _CyclePageState extends State<CyclePage> {
                     label: const Text('Heutigen Check-in erfassen'),
                   ),
                   const SizedBox(height: 12),
+                  Builder(
+                    builder: (ctx) {
+                      HealthController? healthCtrl;
+                      try {
+                        healthCtrl = ctx.watch<HealthController>();
+                      } catch (_) {
+                        try {
+                          healthCtrl = ctx.watch<AppState>().healthController;
+                        } catch (_) {}
+                      }
+                      return Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: Theme.of(ctx)
+                                .colorScheme
+                                .outlineVariant
+                                .withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: SyncStatus(
+                          lastSyncUtc: healthCtrl?.lastSyncTime,
+                          error: healthCtrl?.errorMessage,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
                   Text('Erfasste Perioden',
                       style: Theme.of(context).textTheme.titleLarge),
                   if (_controller.periodsState.isEmpty)

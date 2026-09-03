@@ -20,6 +20,7 @@ import 'features/gym/presentation/gym_page.dart';
 import 'features/gym/presentation/gym_controller.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'features/activity/presentation/activity_controller.dart';
@@ -37,6 +38,7 @@ import 'features/nutrition/presentation/nutrition_controller.dart';
 import 'features/settings/presentation/settings_controller.dart';
 import 'features/weight/presentation/weight_controller.dart';
 import 'core/notifications/notification_controller.dart';
+import 'core/database/app_database.dart';
 
 final FlutterLocalNotificationsPlugin notificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -118,6 +120,7 @@ class AppDiagnosticsBanner extends StatelessWidget {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('de_DE', null);
   await FlutterGemma.initialize(
     huggingFaceToken: const String.fromEnvironment('HUGGINGFACE_TOKEN').isEmpty
         ? null
@@ -140,6 +143,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider<AppState>.value(value: appState),
+        Provider<AppDatabase>.value(value: appState.database),
         ChangeNotifierProvider<NutritionController>.value(
           value: appState.nutritionController,
         ),
@@ -367,7 +371,9 @@ class AppRoot extends StatelessWidget {
         if (!appState.isLoggedIn) {
           return const AppDiagnosticsBanner(child: LoginPage());
         }
-        return const AppDiagnosticsBanner(child: AppShell());
+        return AppDiagnosticsBanner(
+          child: AppShell(database: appState.database),
+        );
       },
     );
   }

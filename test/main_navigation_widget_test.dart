@@ -5,6 +5,8 @@ import 'package:macro_mate/app/navigation/app_shell.dart';
 import 'package:macro_mate/core/database/app_database.dart';
 import 'package:macro_mate/features/activity/presentation/activity_controller.dart';
 import 'package:macro_mate/features/activity/presentation/activity_page.dart';
+import 'package:macro_mate/features/activity/presentation/live_running_tracker_page.dart';
+import 'package:macro_mate/features/activity/presentation/running_tracker_controller.dart';
 import 'package:macro_mate/features/cycle/data/drift_cycle_repository.dart';
 import 'package:macro_mate/features/cycle/presentation/cycle_controller.dart';
 import 'package:macro_mate/features/cycle/presentation/cycle_page.dart';
@@ -18,6 +20,7 @@ import 'package:macro_mate/features/settings/presentation/settings_controller.da
 import 'package:macro_mate/features/weight/data/drift_weight_repository.dart';
 import 'package:macro_mate/features/weight/presentation/weight_controller.dart';
 import 'package:macro_mate/models/app_state.dart';
+import 'package:macro_mate/pages/home_page.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -99,6 +102,9 @@ void main() {
         ChangeNotifierProvider<CycleController>.value(value: cycleController),
         ChangeNotifierProvider<SettingsController>.value(
             value: settingsController),
+        Provider<AppDatabase>.value(value: db),
+        ChangeNotifierProvider<RunningTrackerController>.value(
+            value: appState.runningTrackerController),
       ],
       child: MaterialApp(
         home: AppShell(database: db),
@@ -176,6 +182,117 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
       expect(find.byType(ActivityPage), findsOneWidget);
       expect(find.byType(NavigationBar), findsOneWidget);
+    });
+
+    testWidgets(
+        'tapping Outdoor-Aktivität starten opens LiveRunningTrackerPage smoothly without gray screen',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createShellWidget());
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Switch to Activity Tab
+      await tester.tap(find.byIcon(Icons.directions_run_outlined));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byType(ActivityPage), findsOneWidget);
+
+      // Tap on 'Outdoor-Aktivität starten (GPS)' card
+      final startCard = find.text('Outdoor-Aktivität starten (GPS)');
+      expect(startCard, findsOneWidget);
+      await tester.tap(startCard);
+      await tester.pumpAndSettle();
+
+      // Modal bottom sheet should appear with sport options
+      expect(find.text('Aktivität aufzeichnen'), findsOneWidget);
+      expect(find.text('Laufen'), findsOneWidget);
+
+      // Tap 'Laufen'
+      await tester.tap(find.text('Laufen'));
+      await tester.pumpAndSettle();
+
+      // Should open LiveRunningTrackerPage without crashing or gray screen
+      expect(tester.takeException(), isNull);
+      expect(find.byType(LiveRunningTrackerPage), findsOneWidget);
+      expect(find.text('Laufen · Tracker'), findsOneWidget);
+      expect(find.text('START (Laufen)'), findsOneWidget);
+    });
+
+    testWidgets(
+        'pressing back in any tab redirects back to the main page (Heute)',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createShellWidget());
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // 1. Tab 1: Ernährung -> Press Back -> Should go to Tab 0 (Heute)
+      await tester.tap(find.byIcon(Icons.restaurant_outlined));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byType(MyHomePage), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pump(const Duration(milliseconds: 200));
+      final navBar1 = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      expect(navBar1.selectedIndex, 0);
+
+      // 2. Tab 2: Aktivität -> Press Back -> Should go to Tab 0 (Heute)
+      await tester.tap(find.byIcon(Icons.directions_run_outlined));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byType(ActivityPage), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pump(const Duration(milliseconds: 200));
+      final navBar2 = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      expect(navBar2.selectedIndex, 0);
+
+      // 3. Tab 3: Zyklus -> Press Back -> Should go to Tab 0 (Heute)
+      await tester.tap(find.byIcon(Icons.water_drop_outlined));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byType(CyclePage), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pump(const Duration(milliseconds: 200));
+      final navBar3 = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      expect(navBar3.selectedIndex, 0);
+
+      // 4. Tab 4: Mehr -> Press Back -> Should go to Tab 0 (Heute)
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byType(MorePage), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pump(const Duration(milliseconds: 200));
+      final navBar4 = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      expect(navBar4.selectedIndex, 0);
+    });
+
+    testWidgets(
+        'tapping AppBar back button in tabs redirects to main page (Heute)',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createShellWidget());
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Tab 4: Mehr -> Tap AppBar back button -> Tab 0
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byType(MorePage), findsOneWidget);
+
+      final backButton = find.byTooltip('Zurück zur Hauptseite');
+      expect(backButton, findsOneWidget);
+      await tester.tap(backButton);
+      await tester.pump(const Duration(milliseconds: 200));
+
+      final navBar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      expect(navBar.selectedIndex, 0);
     });
   });
 }

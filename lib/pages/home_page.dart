@@ -15,7 +15,8 @@ import '../widgets/meal_section.dart';
 
 class MyHomePage extends StatefulWidget {
   final String title;
-  const MyHomePage({Key? key, required this.title}) : super(key: key);
+  final VoidCallback? onBackToHome;
+  const MyHomePage({super.key, required this.title, this.onBackToHome});
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
@@ -813,14 +814,22 @@ class _MyHomePageState extends State<MyHomePage> {
         }
         return Scaffold(
           appBar: AppBar(
+            leading: widget.onBackToHome != null
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Zurück zur Hauptseite',
+                    onPressed: widget.onBackToHome,
+                  )
+                : null,
             title: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  icon: Icon(Icons.arrow_back),
+                  icon: const Icon(Icons.chevron_left),
+                  tooltip: 'Vorheriger Tag',
                   onPressed: () => _goToPreviousDay(state),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     formattedDate,
@@ -828,9 +837,10 @@ class _MyHomePageState extends State<MyHomePage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 IconButton(
-                  icon: Icon(Icons.arrow_forward),
+                  icon: const Icon(Icons.chevron_right),
+                  tooltip: 'Nächster Tag',
                   onPressed: () => _goToNextDay(state),
                 ),
               ],

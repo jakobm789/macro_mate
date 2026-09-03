@@ -16,10 +16,16 @@ import 'live_running_tracker_page.dart';
 import 'running_tracker_controller.dart';
 
 class ActivityPage extends StatefulWidget {
-  const ActivityPage({super.key, this.database, this.controller});
+  const ActivityPage({
+    super.key,
+    this.database,
+    this.controller,
+    this.onBackToHome,
+  });
 
   final AppDatabase? database;
   final ActivityController? controller;
+  final VoidCallback? onBackToHome;
 
   @override
   State<ActivityPage> createState() => _ActivityPageState();
@@ -147,6 +153,13 @@ class _ActivityPageState extends State<ActivityPage> {
     }
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onBackToHome != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Zurück zur Hauptseite',
+                onPressed: widget.onBackToHome,
+              )
+            : null,
         title: const Text('Aktivität'),
         actions: [
           IconButton(
@@ -269,7 +282,11 @@ class _ActivityPageState extends State<ActivityPage> {
               )
             else
               for (final workout in _workouts)
-                _WorkoutTile(database: _database, workout: workout),
+                _WorkoutTile(
+                  database: _database,
+                  workout: workout,
+                  onDeleted: _load,
+                ),
             const SizedBox(height: 16),
             const SectionHeader(title: 'Schlaf'),
             const SizedBox(height: 8),
@@ -357,7 +374,10 @@ class _ActivityPageState extends State<ActivityPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => LiveRunningTrackerPage(initialSport: sport),
+        builder: (_) => LiveRunningTrackerPage(
+          initialSport: sport,
+          database: _database,
+        ),
       ),
     );
   }
@@ -402,10 +422,59 @@ class _SportSelectTile extends StatelessWidget {
 }
 
 class _WorkoutTile extends StatelessWidget {
-  const _WorkoutTile({required this.database, required this.workout});
+  const _WorkoutTile({
+    required this.database,
+    required this.workout,
+    this.onDeleted,
+  });
 
   final AppDatabase? database;
   final WorkoutSessionRow workout;
+  final VoidCallback? onDeleted;
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    if (database == null) return;
+    final dateStr = workout.startUtc.split('T').first;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Workout löschen?'),
+        content: Text(
+            'Möchtest du dieses Workout (${workout.type} vom $dateStr) wirklich unwiderruflich löschen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await database!.transaction(() async {
+        await (database!.delete(database!.workoutRoutePoints)
+              ..where((p) => p.workoutId.equals(workout.id)))
+            .go();
+        await (database!.delete(database!.workoutSessions)
+              ..where((w) => w.id.equals(workout.id)))
+            .go();
+      });
+      onDeleted?.call();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Workout erfolgreich gelöscht.')),
+        );
+      }
+    }
+  }
 
   IconData _iconForType(String type) {
     final lower = type.toLowerCase();
@@ -458,8 +527,11 @@ class _WorkoutTile extends StatelessWidget {
           '${metricText == null ? '' : (isCycling ? ' · $metricText' : ' · Pace $metricText')}\n'
           'Quelle: ${workout.sourceId}',
         ),
-        trailing: workout.routeStatus == 'available' && database != null
-            ? IconButton(
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (workout.routeStatus == 'available' && database != null)
+              IconButton(
                 tooltip: 'Route anzeigen',
                 icon: const Icon(Icons.map_outlined),
                 onPressed: () => Navigator.push(
@@ -468,22 +540,35 @@ class _WorkoutTile extends StatelessWidget {
                     builder: (_) => WorkoutRoutePage(
                       database: database!,
                       workout: workout,
+                      onDeleted: onDeleted,
                     ),
                   ),
                 ),
-              )
-            : const Icon(Icons.route_outlined),
+              ),
+            if (database != null)
+              IconButton(
+                tooltip: 'Workout löschen',
+                icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                onPressed: () => _confirmDelete(context),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class WorkoutRoutePage extends StatefulWidget {
-  const WorkoutRoutePage(
-      {super.key, required this.database, required this.workout});
+  const WorkoutRoutePage({
+    super.key,
+    required this.database,
+    required this.workout,
+    this.onDeleted,
+  });
 
   final AppDatabase database;
   final WorkoutSessionRow workout;
+  final VoidCallback? onDeleted;
 
   @override
   State<WorkoutRoutePage> createState() => _WorkoutRoutePageState();
@@ -519,6 +604,50 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
     await Share.share(gpxContent, subject: '${widget.workout.type}_route.gpx');
   }
 
+  Future<void> _confirmDelete(BuildContext context) async {
+    final dateStr = widget.workout.startUtc.split('T').first;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Workout löschen?'),
+        content: Text(
+            'Möchtest du dieses Workout (${widget.workout.type} vom $dateStr) wirklich unwiderruflich löschen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await widget.database.transaction(() async {
+        await (widget.database.delete(widget.database.workoutRoutePoints)
+              ..where((p) => p.workoutId.equals(widget.workout.id)))
+            .go();
+        await (widget.database.delete(widget.database.workoutSessions)
+              ..where((w) => w.id.equals(widget.workout.id)))
+            .go();
+      });
+      widget.onDeleted?.call();
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Workout erfolgreich gelöscht.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -542,6 +671,11 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
               }
               return const SizedBox.shrink();
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+            tooltip: 'Workout löschen',
+            onPressed: () => _confirmDelete(context),
           ),
         ],
       ),

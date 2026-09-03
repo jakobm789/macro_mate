@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/logging/app_logger.dart';
+import '../../../core/widgets/app_widget_service.dart';
 import '../../activity/presentation/activity_controller.dart';
 import '../../cycle/presentation/cycle_controller.dart';
 import '../../health/domain/health_models.dart';
@@ -59,9 +60,10 @@ class DashboardController extends ChangeNotifier {
     'steps',
     'active_energy',
     'weight',
-    'health_sync',
     'cycle',
+    'health_sync',
     'impulses',
+    'overview',
   ];
 
   static const Map<String, String> cardTitles = {
@@ -72,6 +74,7 @@ class DashboardController extends ChangeNotifier {
     'health_sync': 'Health Connect Status',
     'cycle': 'Zyklus & Wohlbefinden (diskret)',
     'impulses': 'Handlungsimpulse',
+    'overview': 'Große Tagesübersicht (Alles auf einen Blick)',
   };
 
   List<String> _cardOrder = List.from(defaultCardOrder);
@@ -82,9 +85,10 @@ class DashboardController extends ChangeNotifier {
     'steps': true,
     'active_energy': true,
     'weight': true,
+    'cycle': true,
     'health_sync': true,
-    'cycle': false,
     'impulses': true,
+    'overview': false,
   };
   Map<String, bool> get cardVisibility => Map.unmodifiable(_cardVisibility);
 
@@ -100,9 +104,10 @@ class DashboardController extends ChangeNotifier {
       'steps': true,
       'active_energy': true,
       'weight': true,
-      'health_sync': true,
       'cycle': cycleOptedIn,
+      'health_sync': true,
       'impulses': true,
+      'overview': false,
     };
   }
 
@@ -207,6 +212,7 @@ class DashboardController extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+      AppWidgetService.updateFromDashboard(this);
     }
   }
 
@@ -222,10 +228,50 @@ class DashboardController extends ChangeNotifier {
 
   // Activity getters
   int get steps => _activity.todaySummary?.steps ?? 0;
+  int get stepGoal => 10000;
   double get activeCalories => _activity.todaySummary?.activeCalories ?? 0.0;
   double get distanceKm =>
       (_activity.todaySummary?.distanceMeters ?? 0.0) / 1000.0;
-  double? get totalCalories => _activity.todaySummary?.totalCalories;
+
+  /// Missing parameters needed for calculating accurate BMR (Grundumsatz).
+  List<String> get missingBmrParameters {
+    final missing = <String>[];
+    final weight = latestWeight;
+    if (weight == null || weight <= 0) {
+      missing.add('Körpergewicht');
+    }
+    if (_settings.goals.userHeight <= 0 || _settings.goals.userHeight < 50) {
+      missing.add('Körpergröße');
+    }
+    if (_settings.goals.userAge <= 0 || _settings.goals.userAge < 10) {
+      missing.add('Alter');
+    }
+    return missing;
+  }
+
+  /// Whether all necessary values for Grundumsatz calculation are present.
+  bool get isBmrCalculationComplete => missingBmrParameters.isEmpty;
+
+  /// Calculated BMR (Grundumsatz).
+  /// Uses Mifflin-St Jeor or Harris-Benedict formula if weight, height, and age are valid.
+  /// Falls back to 1750.0 kcal baseline estimate if values are missing.
+  double get bmr {
+    final weight = latestWeight;
+    if (weight != null && weight > 0) {
+      final height = _settings.goals.userHeight;
+      final age = _settings.goals.userAge;
+      if (height >= 50 && age >= 10) {
+        return _settings.calculateBmr(weightKg: weight);
+      }
+    }
+    return 1750.0;
+  }
+
+  /// Total Daily Energy Expenditure (Gesamtumsatz = Aktivkalorien + Grundumsatz).
+  double get totalEnergyExpenditure => activeCalories + bmr;
+
+  /// Total calories expenditure (Gesamtumsatz).
+  double? get totalCalories => totalEnergyExpenditure;
   double? get averageHeartRate => _activity.todaySummary?.averageHeartRate;
   double? get restingHeartRate => _activity.todaySummary?.restingHeartRate;
   double? get sleepMinutes => _activity.todaySummary?.sleepMinutes;
@@ -233,6 +279,7 @@ class DashboardController extends ChangeNotifier {
   // Weight getters
   double? get latestWeight => _weight.currentWeight;
   double? get weightTrend => _weight.sevenDayTrend;
+  double? get targetWeight => _settings.goals.targetWeight;
 
   // Health sync
   HealthSyncStatus get syncStatus => _health.syncStatus;

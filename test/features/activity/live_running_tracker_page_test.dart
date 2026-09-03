@@ -5,6 +5,7 @@ import 'package:macro_mate/core/database/app_database.dart';
 import 'package:macro_mate/features/activity/domain/location_tracker_service.dart';
 import 'package:macro_mate/features/activity/presentation/live_running_tracker_page.dart';
 import 'package:macro_mate/features/activity/presentation/running_tracker_controller.dart';
+import 'package:macro_mate/models/app_state.dart';
 import 'package:provider/provider.dart';
 
 void main() {
@@ -55,6 +56,54 @@ void main() {
 
       expect(find.text('Radfahren · Tracker'), findsOneWidget);
       expect(find.text('START (Radfahren)'), findsOneWidget);
+    });
+
+    testWidgets(
+        'Renders without gray screen even when AppDatabase is not in Provider tree',
+        (tester) async {
+      final appState = AppState(database: db);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AppState>.value(value: appState),
+            ChangeNotifierProvider<RunningTrackerController>.value(
+                value: controller),
+          ],
+          child: const MaterialApp(
+            home: LiveRunningTrackerPage(initialSport: SportType.running),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Laufen · Tracker'), findsOneWidget);
+      expect(find.text('START (Laufen)'), findsOneWidget);
+    });
+
+    testWidgets(
+        'Renders without gray screen when database is passed via constructor',
+        (tester) async {
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<RunningTrackerController>.value(
+                value: controller),
+          ],
+          child: MaterialApp(
+            home: LiveRunningTrackerPage(
+              initialSport: SportType.running,
+              database: db,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Laufen · Tracker'), findsOneWidget);
+      expect(find.text('START (Laufen)'), findsOneWidget);
     });
   });
 }

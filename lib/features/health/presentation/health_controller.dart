@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'package:flutter/widgets.dart';
 
 import '../../../core/errors/app_failure.dart';
 import '../../../core/logging/app_logger.dart';
@@ -12,7 +13,8 @@ class HealthController extends ChangeNotifier {
     required HealthRepository repository,
     PhoneStepSensorService? phoneStepSensorService,
     Clock clock = const SystemClock(),
-    this.minimumSyncInterval = const Duration(minutes: 5),
+    this.minimumSyncInterval = const Duration(seconds: 25),
+    this.foregroundSyncInterval = const Duration(seconds: 30),
     this.maxRetries = 3,
   })  : _repository = repository,
         _phoneStepSensorService = phoneStepSensorService,
@@ -26,8 +28,13 @@ class HealthController extends ChangeNotifier {
 
   final Clock _clock;
   final Duration minimumSyncInterval;
+  final Duration foregroundSyncInterval;
   final int maxRetries;
   final AppLogger _logger = const AppLogger();
+
+  Timer? _foregroundSyncTimer;
+  bool _isForegroundSyncActive = false;
+  bool get isForegroundSyncActive => _isForegroundSyncActive;
   HealthAvailability? availabilityState;
   HealthPermissionState? permissionState;
   List<DailyHealthSummary> summariesState = const [];
@@ -204,5 +211,57 @@ class HealthController extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  void startPeriodicForegroundSync({Duration? interval}) {
+    final syncInterval = interval ?? foregroundSyncInterval;
+    _isForegroundSyncActive = true;
+    _foregroundSyncTimer?.cancel();
+    _foregroundSyncTimer = Timer.periodic(syncInterval, (_) {
+      triggerForegroundPeriodicSync();
+    });
+  }
+
+  void stopPeriodicForegroundSync() {
+    _isForegroundSyncActive = false;
+    _foregroundSyncTimer?.cancel();
+    _foregroundSyncTimer = null;
+  }
+
+  Future<void> handleLifecycleChange(AppLifecycleState state) async {
+    if (state == AppLifecycleState.resumed) {
+      if (_isForegroundSyncActive) {
+        _foregroundSyncTimer?.cancel();
+        _foregroundSyncTimer = Timer.periodic(foregroundSyncInterval, (_) {
+          triggerForegroundPeriodicSync();
+        });
+        await triggerForegroundPeriodicSync();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      _foregroundSyncTimer?.cancel();
+      _foregroundSyncTimer = null;
+    }
+  }
+
+  Future<void> triggerForegroundPeriodicSync() async {
+    if (!_isForegroundSyncActive) return;
+    if (isLoading) return;
+    if (permissionState?.readGranted != true && !isPhoneSensorEnabled) {
+      return;
+    }
+    try {
+      await _run(_syncLast30Days);
+    } catch (e) {
+      _logger.warning('Fehler beim periodischen Vordergrund-Sync: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    stopPeriodicForegroundSync();
+    super.dispose();
   }
 }

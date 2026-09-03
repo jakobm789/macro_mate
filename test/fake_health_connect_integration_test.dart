@@ -1,4 +1,5 @@
 import 'package:drift/native.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:macro_mate/core/database/app_database.dart';
 import 'package:macro_mate/features/activity/presentation/activity_controller.dart';
@@ -278,6 +279,65 @@ void main() {
       expect(newPeriod.startDay.day, 1);
       expect(newPeriod.endDay?.day, 5);
       expect(newPeriod.source, 'Garmin Connect');
+    });
+
+    test('foreground sync runs periodically and respects lifecycle changes',
+        () async {
+      await healthController.requestPermissions();
+      expect(healthController.permissionState?.readGranted, isTrue);
+
+      // Start periodic foreground sync
+      healthController.startPeriodicForegroundSync(
+        interval: const Duration(seconds: 30),
+      );
+      expect(healthController.isForegroundSyncActive, isTrue);
+
+      final nowUtc = DateTime.now().toUtc();
+      final todayStr = nowUtc.toIso8601String().substring(0, 10);
+
+      // Add a record to fake source
+      fakeSource.addRecord(
+        HealthRecord(
+          id: 'step_fg_1',
+          metric: HealthMetric.steps,
+          sourceId: 'com.google.android.apps.fitness',
+          sourceName: 'Google Fit',
+          startUtc: nowUtc.subtract(const Duration(minutes: 10)),
+          endUtc: nowUtc.subtract(const Duration(minutes: 5)),
+          localDay: todayStr,
+          value: 750,
+          unit: 'count',
+        ),
+      );
+
+      // Trigger foreground periodic sync
+      await healthController.triggerForegroundPeriodicSync();
+      expect(healthController.summariesState.any((s) => s.steps == 750), isTrue);
+
+      // Pause lifecycle -> pauses active timer
+      healthController.handleLifecycleChange(AppLifecycleState.paused);
+
+      // Resume lifecycle -> resumes and triggers sync
+      fakeSource.addRecord(
+        HealthRecord(
+          id: 'step_fg_2',
+          metric: HealthMetric.steps,
+          sourceId: 'com.google.android.apps.fitness',
+          sourceName: 'Google Fit',
+          startUtc: nowUtc.subtract(const Duration(minutes: 4)),
+          endUtc: nowUtc.subtract(const Duration(minutes: 1)),
+          localDay: todayStr,
+          value: 250,
+          unit: 'count',
+        ),
+      );
+      await healthController.handleLifecycleChange(AppLifecycleState.resumed);
+      expect(
+          healthController.summariesState.any((s) => s.steps == 1000), isTrue);
+
+      // Cleanup
+      healthController.stopPeriodicForegroundSync();
+      expect(healthController.isForegroundSyncActive, isFalse);
     });
   });
 }

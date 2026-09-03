@@ -256,5 +256,85 @@ void main() {
       dashCtrl.dispose();
       settingsCtrl.dispose();
     });
+
+    test('health_sync is directly under cycle in defaultCardOrder', () {
+      final cycleIdx = DashboardController.defaultCardOrder.indexOf('cycle');
+      final syncIdx = DashboardController.defaultCardOrder.indexOf('health_sync');
+      expect(cycleIdx, isNonNegative);
+      expect(syncIdx, equals(cycleIdx + 1));
+    });
+
+    testWidgets('tapping Aktivenergie opens ActiveCaloriesBreakdownSheet', (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createTestWidget());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aktivenergie'), findsOneWidget);
+      await tester.tap(find.text('Aktivenergie'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Kalorienverbrauch heute'), findsOneWidget);
+      expect(find.text('Aufschlüsselung der Herkunft'), findsOneWidget);
+      expect(find.text('Alltagsbewegung & Schritte (NEAT)'), findsOneWidget);
+      expect(find.text('Grundumsatz (BMR / Ruheenergie)'), findsOneWidget);
+    });
+
+    test(
+        'DashboardController calculates Gesamtumsatz as activeCalories + bmr and detects missing parameters',
+        () async {
+      await dashboardController.initialize();
+
+      // Initially no weight entry -> Körpergewicht is missing
+      expect(dashboardController.missingBmrParameters, contains('Körpergewicht'));
+      expect(dashboardController.isBmrCalculationComplete, isFalse);
+      expect(dashboardController.bmr, equals(1750.0));
+      expect(
+        dashboardController.totalCalories,
+        equals(dashboardController.activeCalories + 1750.0),
+      );
+
+      // Add weight entry
+      await weightController.addWeight(DateTime.now(), 80.0);
+      await dashboardController.refresh();
+
+      expect(dashboardController.missingBmrParameters, isEmpty);
+      expect(dashboardController.isBmrCalculationComplete, isTrue);
+      final expectedBmr = settingsController.calculateBmr(weightKg: 80.0);
+      expect(dashboardController.bmr, equals(expectedBmr));
+      expect(
+        dashboardController.totalCalories,
+        equals(dashboardController.activeCalories + expectedBmr),
+      );
+    });
+
+    testWidgets(
+        'TodayPage and breakdown sheet display missing BMR parameters when weight is missing',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createTestWidget());
+      await tester.pumpAndSettle();
+
+      // TodayPage shows missing parameter in subtitle
+      expect(
+        find.textContaining('Fehlend für Grundumsatz: Körpergewicht'),
+        findsOneWidget,
+      );
+
+      // Open breakdown sheet
+      await tester.tap(find.text('Aktivenergie'));
+      await tester.pumpAndSettle();
+
+      // Breakdown sheet informs user about missing parameter
+      expect(
+        find.textContaining('Für die genaue Grundumsatz-Berechnung fehlen: Körpergewicht'),
+        findsOneWidget,
+      );
+    });
   });
 }

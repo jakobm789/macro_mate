@@ -13,9 +13,11 @@ class LiveRunningTrackerPage extends StatefulWidget {
   const LiveRunningTrackerPage({
     super.key,
     this.initialSport = SportType.running,
+    this.database,
   });
 
   final SportType initialSport;
+  final AppDatabase? database;
 
   @override
   State<LiveRunningTrackerPage> createState() => _LiveRunningTrackerPageState();
@@ -50,6 +52,20 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
     }
   }
 
+  AppDatabase? _getDatabase(BuildContext context) {
+    if (widget.database != null) return widget.database;
+    try {
+      return context.read<AppDatabase>();
+    } catch (_) {
+      try {
+        final appState = context.read<AppState?>();
+        return appState?.database;
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
   void _recenterMap(LatLng target) {
     _followRunner = true;
     _mapController.move(target, 16);
@@ -59,7 +75,6 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
   Widget build(BuildContext context) {
     final controller = _getController(context, listen: true);
     final theme = Theme.of(context);
-    final database = context.read<AppDatabase>();
 
     final hasPoints = controller.routePoints.isNotEmpty;
     final currentLatLng = hasPoints
@@ -78,15 +93,35 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
 
     if (_followRunner && hasPoints) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _mapController.move(currentLatLng, _mapController.camera.zoom);
+        if (!mounted) return;
+        try {
+          final zoom = _mapController.camera.zoom;
+          _mapController.move(currentLatLng, zoom);
+        } catch (_) {}
       });
     }
 
     final isCycling = controller.sport == SportType.cycling;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${controller.sport.displayName} · Tracker'),
+    return PopScope(
+      canPop: !controller.isTrackingActive,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _confirmDiscard(context, controller);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (controller.isTrackingActive) {
+                _confirmDiscard(context, controller);
+              } else {
+                Navigator.pop(context);
+              }
+            },
+          ),
+          title: Text('${controller.sport.displayName} · Tracker'),
         actions: [
           // Auto Pause Switch
           IconButton(
@@ -424,7 +459,7 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                           ),
                           icon: const Icon(Icons.stop),
                           onPressed: () =>
-                              _confirmFinish(context, controller, database),
+                              _confirmFinish(context, controller),
                         ),
                       ],
                     ),
@@ -434,8 +469,9 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showSplitsModal(
       BuildContext context, RunningTrackerController controller) {
@@ -479,7 +515,6 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
   Future<void> _confirmFinish(
     BuildContext context,
     RunningTrackerController controller,
-    AppDatabase database,
   ) async {
     final finish = await showDialog<bool>(
       context: context,
@@ -506,7 +541,9 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
     );
 
     if (finish == true) {
-      final savedWorkout = await controller.finishAndSaveWorkout(database);
+      if (!context.mounted) return;
+      final db = _getDatabase(context) ?? AppDatabase();
+      final savedWorkout = await controller.finishAndSaveWorkout(db);
       if (context.mounted) {
         if (savedWorkout != null) {
           // Replace tracker with detailed route view
@@ -514,7 +551,7 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
             context,
             MaterialPageRoute(
               builder: (_) => WorkoutRoutePage(
-                database: database,
+                database: db,
                 workout: savedWorkout,
               ),
             ),

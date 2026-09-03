@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../../core/ui/design_system.dart';
 import '../../../models/app_state.dart';
+import 'active_calories_breakdown_sheet.dart';
 import 'dashboard_config_sheet.dart';
 import 'dashboard_controller.dart';
+import 'overview_summary_card.dart';
 
 class TodayPage extends StatefulWidget {
   const TodayPage({super.key, this.onNavigateToTab});
@@ -75,13 +77,33 @@ class _TodayPageState extends State<TodayPage> {
     final steps = dashboard?.steps ?? 0;
     final activeKcal = dashboard?.activeCalories ?? 0.0;
     final distanceKm = dashboard?.distanceKm ?? 0.0;
-    final totalKcal = dashboard?.totalCalories;
 
     final weight = dashboard?.latestWeight ??
         (appState.weightEntries.isNotEmpty
             ? appState.weightEntries.last.weight
             : null);
     final weightTrend = dashboard?.weightTrend;
+
+    final missingBmr = dashboard?.missingBmrParameters ??
+        (() {
+          final list = <String>[];
+          if (weight == null || weight <= 0) list.add('Körpergewicht');
+          if (appState.userHeight <= 0 || appState.userHeight < 50) {
+            list.add('Körpergröße');
+          }
+          if (appState.userAge <= 0 || appState.userAge < 10) {
+            list.add('Alter');
+          }
+          return list;
+        })();
+
+    final bmr = dashboard?.bmr ??
+        (weight != null && weight > 0 && missingBmr.isEmpty
+            ? appState.settingsController.calculateBmr(weightKg: weight)
+            : 1750.0);
+
+    // Gesamtumsatz = Aktivkalorien + Grundumsatz
+    final totalKcal = dashboard?.totalCalories ?? (activeKcal + bmr);
 
     final lastSync = dashboard?.lastSyncTime;
     final healthError = dashboard?.healthErrorMessage;
@@ -166,6 +188,8 @@ class _TodayPageState extends State<TodayPage> {
                     distanceKm: distanceKm,
                     activeKcal: activeKcal,
                     totalKcal: totalKcal,
+                    bmr: bmr,
+                    missingBmr: missingBmr,
                     weight: weight,
                     weightTrend: weightTrend,
                     lastSync: lastSync,
@@ -208,6 +232,8 @@ class _TodayPageState extends State<TodayPage> {
     required double distanceKm,
     required double activeKcal,
     required double? totalKcal,
+    double bmr = 1750.0,
+    List<String> missingBmr = const [],
     required double? weight,
     required double? weightTrend,
     required DateTime? lastSync,
@@ -255,21 +281,37 @@ class _TodayPageState extends State<TodayPage> {
           },
         );
       case 'active_energy':
+        final effectiveTotal = totalKcal ?? (activeKcal + bmr);
+        final String subtitleText;
+        if (missingBmr.isNotEmpty) {
+          subtitleText =
+              'Gesamtumsatz: ~${effectiveTotal.round()} kcal · Fehlend für Grundumsatz: ${missingBmr.join(", ")}';
+        } else {
+          subtitleText =
+              'Gesamtumsatz: ${effectiveTotal.round()} kcal (inkl. ${bmr.round()} kcal Grundumsatz)';
+        }
         return ActivityMetricCard(
           title: 'Aktivenergie',
           value: '${activeKcal.round()} kcal aktiv',
-          subtitle: totalKcal != null
-              ? 'Gesamtumsatz: ${totalKcal.round()} kcal'
-              : 'Reine Aktivkalorien (getrennt vom Grundumsatz)',
+          subtitle: subtitleText,
           icon: Icons.bolt,
           accentColor: Colors.deepOrange,
-          onTap: () {
-            if (widget.onNavigateToTab != null) {
-              widget.onNavigateToTab!(2);
-            } else {
-              Navigator.pushNamed(context, '/activity');
-            }
-          },
+          onTap: () => ActiveCaloriesBreakdownSheet.show(
+            context,
+            activeCalories: activeKcal,
+            totalCalories: effectiveTotal,
+            bmr: bmr,
+            missingBmrParameters: missingBmr,
+            steps: steps,
+            distanceKm: distanceKm,
+            onNavigateToActivity: () {
+              if (widget.onNavigateToTab != null) {
+                widget.onNavigateToTab!(2);
+              } else {
+                Navigator.pushNamed(context, '/activity');
+              }
+            },
+          ),
         );
       case 'weight':
         return WeightMetricCard(
@@ -433,6 +475,26 @@ class _TodayPageState extends State<TodayPage> {
                 ),
               ),
           ],
+        );
+      case 'overview':
+        return OverviewSummaryCard(
+          consumedCal: consumedCal,
+          targetCal: targetCal,
+          consumedCarbs: consumedCarbs,
+          targetCarbs: targetCarbs,
+          consumedProt: consumedProt,
+          targetProt: targetProt,
+          consumedFat: consumedFat,
+          targetFat: targetFat,
+          steps: steps,
+          distanceKm: distanceKm,
+          activeKcal: activeKcal,
+          totalKcal: totalKcal ?? (activeKcal + bmr),
+          weight: weight,
+          weightTrend: weightTrend,
+          cycleDay: cycleDay,
+          cyclePhase: cyclePhase,
+          onNavigateToTab: widget.onNavigateToTab,
         );
       default:
         return const SizedBox.shrink();

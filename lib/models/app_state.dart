@@ -208,6 +208,7 @@ class AppState extends ChangeNotifier {
   }
 
   late final AppDatabase _database;
+  AppDatabase get database => _database;
   late final NutritionRepository _nutritionRepository;
   late final WeightRepository _weightRepository;
   late final SettingsRepository _settingsRepository;
@@ -1032,7 +1033,13 @@ class AppState extends ChangeNotifier {
         fat += item.food.fatPer100g * factor;
       }
 
-      final dayName = DateFormat('E', 'de_DE').format(d);
+      String dayName;
+      try {
+        dayName = DateFormat('E', 'de_DE').format(d);
+      } catch (_) {
+        const fallbackDays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+        dayName = fallbackDays[(d.weekday - 1) % 7];
+      }
       summaries.add(
         WeeklyDaySummary(
           date: d,

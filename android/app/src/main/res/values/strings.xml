@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MacroMate</string>
-    <string name="macro_widget_description">Kalorien und Makros fuer heute</string>
+    <string name="macro_widget_description">Kalorien und Makros für heute</string>
+    <string name="activity_widget_description">Schritte, Distanz und Aktivenergie für heute</string>
+    <string name="weight_widget_description">Aktuelles Körpergewicht und Wochentrend</string>
+    <string name="cycle_widget_description">Aktueller Zyklustag und Phase</string>
+    <string name="overview_widget_description">Große Tagesübersicht: Kalorien, Makros, Schritte und Gewicht auf einen Blick</string>
 </resources>

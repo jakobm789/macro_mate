@@ -603,7 +603,7 @@ class DriftGymRepository {
                   targetRepsMin: Value(e['targetRepsMin'] as int? ?? 8),
                   targetRepsMax: Value(e['targetRepsMax'] as int? ?? 12),
                   targetHoldSeconds: Value(e['targetHoldSeconds'] as int?),
-                  restSeconds: Value(e['restSeconds'] as int? ?? 90),
+                  restSeconds: Value(e['restSeconds'] as int? ?? 180),
                   supersetGroupId: Value(e['supersetGroupId'] as String?),
                   notes: Value(e['notes'] as String?),
                 ),
@@ -724,6 +724,17 @@ class DriftGymRepository {
           ..orderBy([(t) => OrderingTerm.desc(t.startUtc)])
           ..limit(limit))
         .get();
+  }
+
+  Future<void> deleteWorkoutSession(String sessionId) async {
+    await _db.transaction(() async {
+      await (_db.delete(_db.gymSetLogs)
+            ..where((t) => t.sessionId.equals(sessionId)))
+          .go();
+      await (_db.delete(_db.gymWorkoutSessions)
+            ..where((t) => t.id.equals(sessionId)))
+          .go();
+    });
   }
 
   Future<List<GymSetLogRow>> getSetsForSession(String sessionId) async {

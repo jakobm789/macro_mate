@@ -4,11 +4,13 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/ui/design_system.dart';
+import '../../../models/app_state.dart';
 import '../data/drift_gym_repository.dart';
 import '../data/open_gym_json_service.dart';
 import 'ai_coach_sheet.dart';
 import 'exercise_library_page.dart';
 import 'gym_controller.dart';
+import 'manual_plan_editor_page.dart';
 import 'widgets/activity_heatmap_widget.dart';
 import 'widgets/muscle_map_widget.dart';
 import 'workout_runner_page.dart';
@@ -40,10 +42,6 @@ class _GymPageState extends State<GymPage> {
 
     final activePlan = controller.activePlan;
     final todayWeekday = DateTime.now().weekday; // 1 (Mon) .. 7 (Sun)
-    final todayRoutine = controller.routines
-            .where((r) => r.dayOfWeek == todayWeekday)
-            .firstOrNull ??
-        controller.routines.firstOrNull;
 
     return Scaffold(
       appBar: AppBar(
@@ -57,13 +55,25 @@ class _GymPageState extends State<GymPage> {
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (val) {
-              if (val == 'export') {
+              if (val == 'create_manual') {
+                _openManualPlanEditor(context);
+              } else if (val == 'export') {
                 _exportActivePlan(context, controller);
               } else if (val == 'import') {
                 _importPlanDialog(context, controller);
               }
             },
             itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'create_manual',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_note, size: 18),
+                    SizedBox(width: 8),
+                    Text('Plan manuell erstellen'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'export',
                 child: Row(
@@ -111,7 +121,18 @@ class _GymPageState extends State<GymPage> {
                   ),
                   subtitle: const Text(
                       'Tippe hier, um zur aktiven Einheit zurückzukehren.'),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.redAccent),
+                        tooltip: 'Training abbrechen',
+                        onPressed: () =>
+                            _confirmCancelActiveWorkout(context, controller),
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -130,7 +151,7 @@ class _GymPageState extends State<GymPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: Column(
@@ -153,68 +174,62 @@ class _GymPageState extends State<GymPage> {
                             ],
                           ),
                         ),
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.auto_awesome, size: 16),
-                          label: const Text('AI Coach'),
-                          onPressed: () => _openAiCoach(context),
+                        const SizedBox(width: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.edit_note, size: 16),
+                              label: const Text('Plan erstellen'),
+                              onPressed: () => _openManualPlanEditor(context),
+                            ),
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.auto_awesome, size: 16),
+                              label: const Text('AI Coach'),
+                              onPressed: () => _openAiCoach(context),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    if (todayRoutine != null) ...[
+                    if (controller.routines.isNotEmpty) ...[
                       const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.fitness_center,
-                                color: Colors.deepOrangeAccent),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Heutige Einheit: ${todayRoutine.name}',
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  Text(
-                                    '${controller.routineExercises[todayRoutine.id]?.length ?? 0} Übungen geplant',
-                                    style: theme.textTheme.bodySmall,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ElevatedButton(
+                      Text(
+                        'Einheiten des Plans (${controller.routines.length})',
+                        style: theme.textTheme.labelLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      for (final routine in controller.routines) ...[
+                        _buildRoutineCard(
+                            context, routine, controller, todayWeekday),
+                        const SizedBox(height: 8),
+                      ],
+                    ] else if (activePlan == null) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.edit_note),
+                              label: const Text('Plan manuell erstellen'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.deepOrangeAccent,
                                 foregroundColor: Colors.white,
                               ),
-                              onPressed: () async {
-                                final exercises = controller
-                                        .routineExercises[todayRoutine.id] ??
-                                    [];
-                                await controller.startWorkout(
-                                  routine: todayRoutine,
-                                  exercises: exercises,
-                                );
-                                if (context.mounted) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const WorkoutRunnerPage(),
-                                    ),
-                                  );
-                                }
-                              },
-                              child: const Text('Starten'),
+                              onPressed: () => _openManualPlanEditor(context),
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.auto_awesome),
+                              label: const Text('Mit AI generieren'),
+                              onPressed: () => _openAiCoach(context),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ],
@@ -274,11 +289,198 @@ class _GymPageState extends State<GymPage> {
                       '${session.totalTonnageKg > 0 ? ' · ${(session.totalTonnageKg / 1000).toStringAsFixed(1)}t Tonnage' : ''}'
                       '${session.rpeAverage != null ? ' · RPE ${session.rpeAverage!.toStringAsFixed(1)}' : ''}',
                     ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                      tooltip: 'Workout löschen',
+                      onPressed: () => _confirmDeleteWorkoutSession(
+                          context, controller, session),
+                    ),
                   ),
                 ),
               ],
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _confirmCancelActiveWorkout(
+      BuildContext context, GymController controller) async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Training abbrechen?'),
+        content: const Text(
+            'Möchtest du das laufende Training wirklich ohne Speichern abbrechen? Alle nicht gespeicherten Sätze werden verworfen.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Weiter trainieren'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ja, abbrechen'),
+          ),
+        ],
+      ),
+    );
+
+    if (discard == true) {
+      controller.cancelWorkout();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Training abgebrochen und verworfen.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteWorkoutSession(
+    BuildContext context,
+    GymController controller,
+    GymWorkoutSessionRow session,
+  ) async {
+    final dateStr = session.startUtc.split('T').first;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Workout löschen?'),
+        content: Text(
+            'Möchtest du dieses Workout ("${session.routineName}" vom $dateStr) wirklich unwiderruflich löschen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await controller.deleteWorkoutSession(session.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Workout erfolgreich gelöscht.')),
+        );
+      }
+    }
+  }
+
+  void _openManualPlanEditor(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider.value(
+          value: context.read<GymController>(),
+          child: const ManualPlanEditorPage(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoutineCard(
+    BuildContext context,
+    GymPlanRoutineRow routine,
+    GymController controller,
+    int todayWeekday,
+  ) {
+    final theme = Theme.of(context);
+    final isToday = routine.dayOfWeek == todayWeekday;
+    final exercises = controller.routineExercises[routine.id] ?? [];
+    final totalSets = exercises.fold<int>(0, (sum, ex) => sum + ex.targetSets);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isToday
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
+            : theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+        border: isToday
+            ? Border.all(color: Colors.deepOrangeAccent.withValues(alpha: 0.5))
+            : null,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.fitness_center,
+            color: isToday ? Colors.deepOrangeAccent : theme.hintColor,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        routine.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    if (isToday)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.deepOrangeAccent,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'HEUTE',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${exercises.length} Übungen · $totalSets Sätze geplant',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isToday ? Colors.deepOrangeAccent : null,
+              foregroundColor: isToday ? Colors.white : null,
+            ),
+            onPressed: () async {
+              await controller.startWorkout(
+                routine: routine,
+                exercises: exercises,
+              );
+              if (context.mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const WorkoutRunnerPage(),
+                  ),
+                );
+              }
+            },
+            child: const Text('Starten'),
+          ),
+        ],
       ),
     );
   }
@@ -295,6 +497,16 @@ class _GymPageState extends State<GymPage> {
     );
   }
 
+  AppDatabase _getDatabase(BuildContext context) {
+    try {
+      return context.read<AppDatabase>();
+    } catch (_) {
+      final appState = context.read<AppState?>();
+      if (appState != null) return appState.database;
+      return AppDatabase();
+    }
+  }
+
   Future<void> _exportActivePlan(
       BuildContext context, GymController controller) async {
     final activePlan = controller.activePlan;
@@ -308,7 +520,7 @@ class _GymPageState extends State<GymPage> {
     }
 
     try {
-      final db = context.read<AppDatabase>();
+      final db = _getDatabase(context);
       final repo = DriftGymRepository(database: db);
       final jsonService = OpenGymJsonService(repository: repo);
       final jsonString = await jsonService.exportPlanToJson(activePlan.id);
@@ -357,7 +569,7 @@ class _GymPageState extends State<GymPage> {
               if (text.isEmpty) return;
 
               try {
-                final db = context.read<AppDatabase>();
+                final db = _getDatabase(context);
                 final repo = DriftGymRepository(database: db);
                 final jsonService = OpenGymJsonService(repository: repo);
                 await jsonService.importPlanFromJson(text);

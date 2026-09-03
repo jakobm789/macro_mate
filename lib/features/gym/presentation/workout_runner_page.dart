@@ -25,19 +25,73 @@ class WorkoutRunnerPage extends StatelessWidget {
       setsByExercise.putIfAbsent(s.exerciseId, () => []).add(MapEntry(i, s));
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(controller.activeRoutine?.name ?? 'Training'),
-        actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.check_circle_outline, color: Colors.green),
-            label: const Text('Abschließen',
-                style: TextStyle(
-                    color: Colors.green, fontWeight: FontWeight.bold)),
-            onPressed: () => _confirmFinish(context, controller),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _confirmCancel(context, controller);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Training abbrechen',
+            onPressed: () => _confirmCancel(context, controller),
           ),
-        ],
-      ),
+          title: Text(controller.activeRoutine?.name ?? 'Training'),
+          actions: [
+            PopupMenuButton<int>(
+              tooltip: 'Standard-Pause anpassen',
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.timer_outlined, size: 18, color: Colors.deepOrangeAccent),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${(controller.defaultRestSeconds / 60).toStringAsFixed(1).replaceAll('.0', '')} min',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              onSelected: (sec) {
+                controller.setDefaultRestSeconds(sec);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    duration: const Duration(seconds: 2),
+                    content: Text(
+                        'Standard-Pausenzeit auf ${(sec / 60).toStringAsFixed(1).replaceAll('.0', '')} Minuten gesetzt.'),
+                  ),
+                );
+              },
+              itemBuilder: (ctx) => const [
+                PopupMenuItem(value: 60, child: Text('1:00 min (60s)')),
+                PopupMenuItem(value: 90, child: Text('1:30 min (90s)')),
+                PopupMenuItem(value: 120, child: Text('2:00 min (120s)')),
+                PopupMenuItem(value: 150, child: Text('2:30 min (150s)')),
+                PopupMenuItem(value: 180, child: Text('3:00 min (180s - Standard)')),
+                PopupMenuItem(value: 240, child: Text('4:00 min (240s)')),
+                PopupMenuItem(value: 300, child: Text('5:00 min (300s)')),
+              ],
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.close, color: Colors.redAccent, size: 18),
+              label: const Text('Abbrechen',
+                  style: TextStyle(
+                      color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              onPressed: () => _confirmCancel(context, controller),
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+              label: const Text('Abschließen',
+                  style: TextStyle(
+                      color: Colors.green, fontWeight: FontWeight.bold)),
+              onPressed: () => _confirmFinish(context, controller),
+            ),
+          ],
+        ),
       body: Column(
         children: [
           // Rest Timer Banner
@@ -50,13 +104,19 @@ class WorkoutRunnerPage extends StatelessWidget {
                   const Icon(Icons.timer_outlined, color: Colors.deepOrange),
                   const SizedBox(width: 8),
                   Text(
-                    'Pause: ${controller.restTimerSecondsRemaining}s',
+                    'Pause: ${(controller.restTimerSecondsRemaining ~/ 60)}:${(controller.restTimerSecondsRemaining % 60).toString().padLeft(2, '0')} min',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: theme.colorScheme.onPrimaryContainer,
                     ),
                   ),
                   const Spacer(),
+                  if (controller.restTimerSecondsRemaining > 30)
+                    TextButton(
+                      onPressed: () => controller.startRestTimer(
+                          controller.restTimerSecondsRemaining - 30),
+                      child: const Text('-30s'),
+                    ),
                   TextButton(
                     onPressed: () => controller.startRestTimer(
                         controller.restTimerSecondsRemaining + 30),
@@ -88,7 +148,41 @@ class WorkoutRunnerPage extends StatelessWidget {
           ),
         ],
       ),
+    ),
+  );
+}
+
+  Future<void> _confirmCancel(
+      BuildContext context, GymController controller) async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Training abbrechen?'),
+        content: const Text(
+            'Möchtest du dieses Training wirklich ohne Speichern abbrechen? Alle nicht gespeicherten Sätze werden verworfen.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Weiter trainieren'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ja, abbrechen'),
+          ),
+        ],
+      ),
     );
+
+    if (discard == true) {
+      controller.cancelWorkout();
+      if (context.mounted) {
+        Navigator.pop(context);
+      }
+    }
   }
 
   void _confirmFinish(BuildContext context, GymController controller) {
