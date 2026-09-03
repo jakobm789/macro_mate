@@ -124,3 +124,5 @@ web/build/
 *.swp
 flutter_sdk/
 .env
+# Widget Preview related
+.widget_preview/

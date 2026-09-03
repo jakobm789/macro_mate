@@ -543,6 +543,9 @@ class DriftHealthRepository implements HealthRepository {
 
   static int _sourcePriority(String sourceName) {
     final name = sourceName.toLowerCase();
+    if (name.contains('phone_step_sensor') ||
+        name.contains('interner') ||
+        name.contains('oneplus')) return 40;
     if (name.contains('samsung')) return 30;
     if (name.contains('garmin') || name.contains('fitbit')) return 25;
     if (name.contains('watch') || name.contains('wear')) return 20;
@@ -599,6 +602,83 @@ class DriftHealthRepository implements HealthRepository {
     required DateTime endUtc,
   }) {
     return _source.readMenstruation(startUtc, endUtc);
+  }
+
+  @override
+  Future<void> recordSteps({
+    required int steps,
+    required DateTime date,
+    String sourceId = 'phone_step_sensor',
+    String sourceName = 'Interner Handy-Sensor',
+  }) async {
+    final dayStr = _day(date);
+    final distanceMeters = steps * 0.75;
+    final activeKcal = steps * 0.04;
+    final nowUtc = _clock.nowUtc();
+
+    await _database.transaction(() async {
+      await _database.into(_database.healthSources).insertOnConflictUpdate(
+            HealthSourcesCompanion.insert(
+              id: sourceId,
+              sourceName: sourceName,
+              sourceDeviceId: const Value.absent(),
+              platform: 'phone_sensor',
+              priority: const Value(40),
+              enabled: const Value(true),
+              discoveredAtUtc: nowUtc.toIso8601String(),
+            ),
+          );
+
+      await _database.into(_database.healthRecords).insertOnConflictUpdate(
+            HealthRecordsCompanion.insert(
+              id: '${sourceId}_${dayStr}_steps',
+              type: HealthMetric.steps.name,
+              sourceId: sourceId,
+              startUtc: DateTime(date.year, date.month, date.day)
+                  .toUtc()
+                  .toIso8601String(),
+              endUtc: date.toUtc().toIso8601String(),
+              value: steps.toDouble(),
+              unit: 'count',
+              localDay: dayStr,
+              payloadJson: const Value.absent(),
+            ),
+          );
+
+      await _database.into(_database.healthRecords).insertOnConflictUpdate(
+            HealthRecordsCompanion.insert(
+              id: '${sourceId}_${dayStr}_distance',
+              type: HealthMetric.distance.name,
+              sourceId: sourceId,
+              startUtc: DateTime(date.year, date.month, date.day)
+                  .toUtc()
+                  .toIso8601String(),
+              endUtc: date.toUtc().toIso8601String(),
+              value: distanceMeters,
+              unit: 'm',
+              localDay: dayStr,
+              payloadJson: const Value.absent(),
+            ),
+          );
+
+      await _database.into(_database.healthRecords).insertOnConflictUpdate(
+            HealthRecordsCompanion.insert(
+              id: '${sourceId}_${dayStr}_energy',
+              type: HealthMetric.activeCalories.name,
+              sourceId: sourceId,
+              startUtc: DateTime(date.year, date.month, date.day)
+                  .toUtc()
+                  .toIso8601String(),
+              endUtc: date.toUtc().toIso8601String(),
+              value: activeKcal,
+              unit: 'kcal',
+              localDay: dayStr,
+              payloadJson: const Value.absent(),
+            ),
+          );
+
+      await _rebuildAggregate(dayStr);
+    });
   }
 }
 

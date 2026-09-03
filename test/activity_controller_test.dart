@@ -124,6 +124,14 @@ class _FakeHealthRepository implements HealthRepository {
     required DateTime endUtc,
   }) async =>
       [];
+
+  @override
+  Future<void> recordSteps({
+    required int steps,
+    required DateTime date,
+    String sourceId = 'phone_step_sensor',
+    String sourceName = 'Interner Handy-Sensor',
+  }) async {}
 }
 
 void main() {

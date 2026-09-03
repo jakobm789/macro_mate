@@ -41,4 +41,11 @@ abstract interface class HealthRepository {
     required DateTime startUtc,
     required DateTime endUtc,
   });
+
+  Future<void> recordSteps({
+    required int steps,
+    required DateTime date,
+    String sourceId = 'phone_step_sensor',
+    String sourceName = 'Interner Handy-Sensor',
+  });
 }

@@ -76,6 +76,9 @@ class _HealthPageState extends State<HealthPage> {
                   permissions: permissions,
                   loading: _controller.isLoading,
                 ),
+                const SizedBox(height: 12),
+                _PhoneSensorCard(controller: _controller),
+                const SizedBox(height: 12),
                 if (_controller.syncStatesState.isNotEmpty ||
                     _controller.sourcesState.isNotEmpty)
                   _DiagnosticsCard(controller: _controller),
@@ -326,4 +329,109 @@ class _Metric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text('$label: $value');
+}
+
+class _PhoneSensorCard extends StatelessWidget {
+  const _PhoneSensorCard({required this.controller});
+
+  final HealthController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = controller.isPhoneSensorEnabled;
+    final steps = controller.phoneSensorTodaySteps;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context)
+              .colorScheme
+              .outlineVariant
+              .withValues(alpha: 0.4),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.directions_walk,
+                    color: Colors.teal,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Direkter Hardware-Schrittzähler',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'OnePlus / Android Sensor (ohne Google Fit)',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch.adaptive(
+                  value: enabled,
+                  onChanged: (val) => controller.togglePhoneSensor(val),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    enabled ? Icons.check_circle_outline : Icons.info_outline,
+                    size: 18,
+                    color: enabled ? Colors.green : Colors.grey,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      enabled
+                          ? 'Aktiv: Zählt Schritte direkt über den internen Chip ($steps Schritte heute)'
+                          : 'Deaktiviert: Schritte werden über Health Connect bezogen oder pausiert.',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

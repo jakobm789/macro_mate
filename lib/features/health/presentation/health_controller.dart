@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/errors/app_failure.dart';
 import '../../../core/logging/app_logger.dart';
+import '../data/phone_step_sensor_service.dart';
 import '../domain/health_models.dart';
 import '../domain/health_repository.dart';
 import '../../../core/time/clock.dart';
@@ -9,13 +10,20 @@ import '../../../core/time/clock.dart';
 class HealthController extends ChangeNotifier {
   HealthController({
     required HealthRepository repository,
+    PhoneStepSensorService? phoneStepSensorService,
     Clock clock = const SystemClock(),
     this.minimumSyncInterval = const Duration(minutes: 5),
     this.maxRetries = 3,
   })  : _repository = repository,
+        _phoneStepSensorService = phoneStepSensorService,
         _clock = clock;
 
   final HealthRepository _repository;
+  PhoneStepSensorService? _phoneStepSensorService;
+  PhoneStepSensorService get phoneStepSensorService =>
+      _phoneStepSensorService ??=
+          PhoneStepSensorService(healthRepository: _repository);
+
   final Clock _clock;
   final Duration minimumSyncInterval;
   final int maxRetries;
@@ -28,6 +36,10 @@ class HealthController extends ChangeNotifier {
   DateTime? lastSuccessfulSyncUtc;
   bool isLoading = false;
   String? errorMessage;
+
+  bool isPhoneSensorAvailable = false;
+  bool isPhoneSensorEnabled = false;
+  int phoneSensorTodaySteps = 0;
 
   HealthSyncStatus get syncStatus {
     if (isLoading) return HealthSyncStatus.running;
@@ -45,10 +57,41 @@ class HealthController extends ChangeNotifier {
       availabilityState = await _repository.availability();
       permissionState = await _repository.permissions();
       await _loadDiagnostics();
-      if (permissionState?.readGranted == true) {
+      await checkPhoneSensor();
+      if (permissionState?.readGranted == true || isPhoneSensorEnabled) {
         await _loadSummaries();
       }
     });
+  }
+
+  Future<void> checkPhoneSensor() async {
+    try {
+      isPhoneSensorAvailable = await phoneStepSensorService.isSensorAvailable();
+      isPhoneSensorEnabled = await phoneStepSensorService.isEnabled();
+      phoneSensorTodaySteps = phoneStepSensorService.currentTodaySteps;
+      if (isPhoneSensorEnabled) {
+        await phoneStepSensorService.startListening();
+        phoneSensorTodaySteps = phoneStepSensorService.currentTodaySteps;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> togglePhoneSensor(bool enabled) async {
+    try {
+      await phoneStepSensorService.setEnabled(enabled);
+      isPhoneSensorEnabled = enabled;
+      if (enabled) {
+        await phoneStepSensorService.startListening();
+        phoneSensorTodaySteps = phoneStepSensorService.currentTodaySteps;
+        await _loadSummaries();
+      } else {
+        await phoneStepSensorService.stopListening();
+      }
+      notifyListeners();
+    } catch (e) {
+      errorMessage = 'Fehler beim Umschalten des Sensors: $e';
+      notifyListeners();
+    }
   }
 
   Future<void> requestPermissions({
