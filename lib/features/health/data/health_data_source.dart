@@ -29,4 +29,3 @@ abstract interface class HealthDataSource {
     DateTime endTime,
   );
 }
-

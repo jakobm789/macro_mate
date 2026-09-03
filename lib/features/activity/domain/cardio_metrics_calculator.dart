@@ -25,7 +25,8 @@ class KmSplit {
   }
 
   String get formattedSpeed {
-    final speed = speedKmh ?? (distanceMeters / 1000.0) / (durationSeconds / 3600.0);
+    final speed =
+        speedKmh ?? (distanceMeters / 1000.0) / (durationSeconds / 3600.0);
     return '${speed.toStringAsFixed(1)} km/h';
   }
 }
@@ -124,7 +125,8 @@ class CardioMetricsCalculator {
     }
 
     // Fallback: Uniform average pace splits
-    return _calculateUniformSplits(workout.distanceMeters!, workout.durationSeconds);
+    return _calculateUniformSplits(
+        workout.distanceMeters!, workout.durationSeconds);
   }
 
   List<KmSplit> _calculateGpsSplits(List<WorkoutRoutePointModel> points) {
@@ -146,7 +148,8 @@ class CardioMetricsCalculator {
       accumulatedMeters += distBetween;
 
       if (accumulatedMeters >= currentKmIndex * 1000.0) {
-        final duration = p2.timestampUtc.difference(kmStartTime).inMilliseconds / 1000.0;
+        final duration =
+            p2.timestampUtc.difference(kmStartTime).inMilliseconds / 1000.0;
         final paceMin = duration > 0 ? (duration / 60.0) : 0.0;
         final speed = duration > 0 ? (1.0 / (duration / 3600.0)) : 0.0;
 
@@ -167,7 +170,9 @@ class CardioMetricsCalculator {
     final targetFullMeters = (currentKmIndex - 1) * 1000.0;
     final remainingMeters = accumulatedMeters - targetFullMeters;
     if (remainingMeters > 50.0) {
-      final duration = points.last.timestampUtc.difference(kmStartTime).inMilliseconds / 1000.0;
+      final duration =
+          points.last.timestampUtc.difference(kmStartTime).inMilliseconds /
+              1000.0;
       final kmFraction = remainingMeters / 1000.0;
       final paceMin = (kmFraction > 0 && duration > 0)
           ? (duration / 60.0) / kmFraction
@@ -186,12 +191,14 @@ class CardioMetricsCalculator {
     return splits;
   }
 
-  List<KmSplit> _calculateUniformSplits(double totalDistanceMeters, double totalDurationSeconds) {
+  List<KmSplit> _calculateUniformSplits(
+      double totalDistanceMeters, double totalDurationSeconds) {
     final splits = <KmSplit>[];
     final totalKm = totalDistanceMeters / 1000.0;
     final avgSecondsPerKm = totalDurationSeconds / totalKm;
     final paceMin = avgSecondsPerKm / 60.0;
-    final speed = (totalDistanceMeters / 1000.0) / (totalDurationSeconds / 3600.0);
+    final speed =
+        (totalDistanceMeters / 1000.0) / (totalDurationSeconds / 3600.0);
 
     final fullKm = totalKm.floor();
     for (int km = 1; km <= fullKm; km++) {
@@ -219,7 +226,8 @@ class CardioMetricsCalculator {
   }
 
   /// Calculates speed in km/h for biking / cycling
-  static double calculateSpeedKmh(double distanceMeters, double durationSeconds) {
+  static double calculateSpeedKmh(
+      double distanceMeters, double durationSeconds) {
     if (distanceMeters <= 0 || durationSeconds <= 0) return 0.0;
     final km = distanceMeters / 1000.0;
     final hours = durationSeconds / 3600.0;
@@ -227,7 +235,8 @@ class CardioMetricsCalculator {
   }
 
   /// Calculates pace in min/km for running / walking
-  static double? calculatePaceMinPerKm(double distanceMeters, double durationSeconds) {
+  static double? calculatePaceMinPerKm(
+      double distanceMeters, double durationSeconds) {
     if (distanceMeters <= 0 || durationSeconds <= 0) return null;
     final km = distanceMeters / 1000.0;
     final minutes = durationSeconds / 60.0;
@@ -235,7 +244,8 @@ class CardioMetricsCalculator {
   }
 
   /// Formats workout metric based on sport type (speed for cycling, pace for running)
-  static String formatSportMetric(String workoutType, double distanceMeters, double durationSeconds) {
+  static String formatSportMetric(
+      String workoutType, double distanceMeters, double durationSeconds) {
     final lower = workoutType.toLowerCase();
     final isCycling = lower.contains('biking') ||
         lower.contains('cycling') ||
@@ -255,7 +265,8 @@ class CardioMetricsCalculator {
   }
 
   /// Great-circle distance between two GPS coordinates using Haversine formula
-  static double _haversineMeters(double lat1, double lon1, double lat2, double lon2) {
+  static double _haversineMeters(
+      double lat1, double lon1, double lat2, double lon2) {
     const r = 6371000.0; // Earth radius in meters
     final dLat = _degToRad(lat2 - lat1);
     final dLon = _degToRad(lon2 - lon1);
@@ -277,13 +288,16 @@ class CardioMetricsCalculator {
   }) {
     final buffer = StringBuffer();
     buffer.writeln('<?xml version="1.0" encoding="UTF-8"?>');
-    buffer.writeln('<gpx version="1.1" creator="MacroMate" xmlns="http://www.topografix.com/GPX/1/1">');
+    buffer.writeln(
+        '<gpx version="1.1" creator="MacroMate" xmlns="http://www.topografix.com/GPX/1/1">');
     buffer.writeln('  <trk>');
     buffer.writeln('    <name>$workoutName</name>');
     buffer.writeln('    <trkseg>');
     for (final pt in points) {
-      buffer.writeln('      <trkpt lat="${pt.latitude}" lon="${pt.longitude}">');
-      buffer.writeln('        <time>${pt.timestampUtc.toIso8601String()}</time>');
+      buffer
+          .writeln('      <trkpt lat="${pt.latitude}" lon="${pt.longitude}">');
+      buffer
+          .writeln('        <time>${pt.timestampUtc.toIso8601String()}</time>');
       buffer.writeln('      </trkpt>');
     }
     buffer.writeln('    </trkseg>');

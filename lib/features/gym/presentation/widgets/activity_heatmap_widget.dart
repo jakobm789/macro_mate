@@ -29,7 +29,8 @@ class ActivityHeatmapWidget extends StatelessWidget {
     // Calculate start date aligned to Monday
     final currentWeekday = now.weekday; // 1 (Mon) .. 7 (Sun)
     final thisSunday = now.add(Duration(days: 7 - currentWeekday));
-    final startDate = thisSunday.subtract(Duration(days: (weeksToShow * 7) - 1));
+    final startDate =
+        thisSunday.subtract(Duration(days: (weeksToShow * 7) - 1));
 
     // Calculate current streak
     var currentStreak = 0;
@@ -62,23 +63,29 @@ class ActivityHeatmapWidget extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.grid_on_outlined, color: Colors.deepOrangeAccent, size: 20),
+                    const Icon(Icons.grid_on_outlined,
+                        color: Colors.deepOrangeAccent, size: 20),
                     const SizedBox(width: 8),
                     Text(
                       'Trainings-Aktivität (Heatmap)',
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.deepOrangeAccent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     'Streak: $currentStreak Tage',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.deepOrange),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: Colors.deepOrange),
                   ),
                 ),
               ],
@@ -86,7 +93,8 @@ class ActivityHeatmapWidget extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               '$totalWorkouts Workouts in der Historie erfasst',
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+              style:
+                  theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
             ),
             const SizedBox(height: 16),
             // Heatmap Grid
@@ -101,7 +109,8 @@ class ActivityHeatmapWidget extends StatelessWidget {
                         for (var day = 0; day < 7; day++) ...[
                           _buildHeatmapCell(
                             context,
-                            date: startDate.add(Duration(days: (week * 7) + day)),
+                            date:
+                                startDate.add(Duration(days: (week * 7) + day)),
                             workoutCounts: workoutCountsByDay,
                             now: now,
                           ),
@@ -119,7 +128,9 @@ class ActivityHeatmapWidget extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Text('Weniger', style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, color: theme.hintColor)),
+                Text('Weniger',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(fontSize: 10, color: theme.hintColor)),
                 const SizedBox(width: 4),
                 _legendSquare(context, 0),
                 const SizedBox(width: 2),
@@ -127,7 +138,9 @@ class ActivityHeatmapWidget extends StatelessWidget {
                 const SizedBox(width: 2),
                 _legendSquare(context, 2),
                 const SizedBox(width: 4),
-                Text('Mehr', style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, color: theme.hintColor)),
+                Text('Mehr',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(fontSize: 10, color: theme.hintColor)),
               ],
             ),
           ],
@@ -151,7 +164,9 @@ class ActivityHeatmapWidget extends StatelessWidget {
     if (isFuture) {
       cellColor = Colors.transparent;
     } else if (count == 0) {
-      cellColor = theme.brightness == Brightness.dark ? Colors.grey.shade900 : Colors.grey.shade200;
+      cellColor = theme.brightness == Brightness.dark
+          ? Colors.grey.shade900
+          : Colors.grey.shade200;
     } else if (count == 1) {
       cellColor = Colors.deepOrangeAccent.shade200;
     } else {
@@ -174,14 +189,17 @@ class ActivityHeatmapWidget extends StatelessWidget {
   Widget _legendSquare(BuildContext context, int level) {
     final theme = Theme.of(context);
     final color = switch (level) {
-      0 => theme.brightness == Brightness.dark ? Colors.grey.shade900 : Colors.grey.shade200,
+      0 => theme.brightness == Brightness.dark
+          ? Colors.grey.shade900
+          : Colors.grey.shade200,
       1 => Colors.deepOrangeAccent.shade200,
       _ => Colors.deepOrangeAccent.shade700,
     };
     return Container(
       width: 10,
       height: 10,
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+      decoration:
+          BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
     );
   }
 }

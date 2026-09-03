@@ -11,7 +11,8 @@ class MuscleMapWidget extends StatelessWidget {
   final Map<GymMuscleGroup, double> muscleTonnage;
   final List<GymMuscleGroup> neglectedMuscles;
 
-  Color _colorForMuscle(BuildContext context, GymMuscleGroup muscle, double maxTonnage) {
+  Color _colorForMuscle(
+      BuildContext context, GymMuscleGroup muscle, double maxTonnage) {
     final tonnage = muscleTonnage[muscle] ?? 0.0;
     if (tonnage <= 0.0) {
       return Theme.of(context).brightness == Brightness.dark
@@ -19,8 +20,10 @@ class MuscleMapWidget extends StatelessWidget {
           : Colors.grey.shade300;
     }
 
-    final ratio = (tonnage / (maxTonnage > 0 ? maxTonnage : 1.0)).clamp(0.2, 1.0);
-    return Color.lerp(Colors.orange.shade300, Colors.deepOrangeAccent.shade700, ratio)!;
+    final ratio =
+        (tonnage / (maxTonnage > 0 ? maxTonnage : 1.0)).clamp(0.2, 1.0);
+    return Color.lerp(
+        Colors.orange.shade300, Colors.deepOrangeAccent.shade700, ratio)!;
   }
 
   @override
@@ -46,13 +49,15 @@ class MuscleMapWidget extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Icon(Icons.accessibility_new, color: Colors.deepOrangeAccent),
+                const Icon(Icons.accessibility_new,
+                    color: Colors.deepOrangeAccent),
               ],
             ),
             const SizedBox(height: 12),
             Text(
               'Farbcodierte Auslastung deiner Muskelgruppen basierend auf absolviertem Volumen (Tonnage).',
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+              style:
+                  theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
             ),
             const SizedBox(height: 16),
             // Front & Back Silhouette Grid
@@ -101,7 +106,8 @@ class MuscleMapWidget extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     'Vernachlässigte Muskeln (letzte 14 Tage):',
-                    style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.labelMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -144,7 +150,9 @@ class _BodyViewColumn extends StatelessWidget {
     final theme = Theme.of(context);
     return Column(
       children: [
-        Text(title, style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600)),
+        Text(title,
+            style: theme.textTheme.labelLarge
+                ?.copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         for (final m in muscles) ...[
           Padding(

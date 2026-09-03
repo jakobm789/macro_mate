@@ -440,8 +440,9 @@ class GymExercises extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get primaryMuscle => text().named('primary_muscle')();
-  TextColumn get secondaryMusclesJson =>
-      text().named('secondary_muscles_json').withDefault(const Constant('[]'))();
+  TextColumn get secondaryMusclesJson => text()
+      .named('secondary_muscles_json')
+      .withDefault(const Constant('[]'))();
   TextColumn get equipment => text()();
   TextColumn get instructions => text().nullable()();
   TextColumn get gifUrl => text().named('gif_url').nullable()();
@@ -490,9 +491,8 @@ class GymPlanRoutineExercises extends Table {
   TextColumn get routineId => text()
       .named('routine_id')
       .references(GymPlanRoutines, #id, onDelete: KeyAction.cascade)();
-  TextColumn get exerciseId => text()
-      .named('exercise_id')
-      .references(GymExercises, #id)();
+  TextColumn get exerciseId =>
+      text().named('exercise_id').references(GymExercises, #id)();
   IntColumn get orderIndex => integer().named('order_index')();
   IntColumn get targetSets =>
       integer().named('target_sets').withDefault(const Constant(3))();
@@ -536,9 +536,8 @@ class GymSetLogs extends Table {
   TextColumn get sessionId => text()
       .named('session_id')
       .references(GymWorkoutSessions, #id, onDelete: KeyAction.cascade)();
-  TextColumn get exerciseId => text()
-      .named('exercise_id')
-      .references(GymExercises, #id)();
+  TextColumn get exerciseId =>
+      text().named('exercise_id').references(GymExercises, #id)();
   IntColumn get setIndex => integer().named('set_index')();
   TextColumn get setType =>
       text().named('set_type').withDefault(const Constant('normal'))();
@@ -548,8 +547,7 @@ class GymSetLogs extends Table {
   IntColumn get holdSeconds => integer().named('hold_seconds').nullable()();
   RealColumn get rpe => real().nullable()();
   IntColumn get rir => integer().nullable()();
-  BoolColumn get completed =>
-      boolean().withDefault(const Constant(false))();
+  BoolColumn get completed => boolean().withDefault(const Constant(false))();
   TextColumn get loggedAtUtc => text().named('logged_at_utc')();
 
   @override
@@ -559,9 +557,8 @@ class GymSetLogs extends Table {
 @DataClassName('Gym1RmHistoryRow')
 class Gym1RmHistories extends Table {
   TextColumn get id => text()();
-  TextColumn get exerciseId => text()
-      .named('exercise_id')
-      .references(GymExercises, #id)();
+  TextColumn get exerciseId =>
+      text().named('exercise_id').references(GymExercises, #id)();
   RealColumn get calculated1Rm => real().named('calculated_1rm')();
   RealColumn get weightKg => real().named('weight_kg')();
   IntColumn get reps => integer()();

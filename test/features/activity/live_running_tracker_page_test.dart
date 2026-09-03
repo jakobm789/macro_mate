@@ -22,12 +22,14 @@ void main() {
       await db.close();
     });
 
-    testWidgets('Renders cockpit, sport chips, and START button in idle state', (tester) async {
+    testWidgets('Renders cockpit, sport chips, and START button in idle state',
+        (tester) async {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
             Provider<AppDatabase>.value(value: db),
-            ChangeNotifierProvider<RunningTrackerController>.value(value: controller),
+            ChangeNotifierProvider<RunningTrackerController>.value(
+                value: controller),
           ],
           child: const MaterialApp(
             home: LiveRunningTrackerPage(initialSport: SportType.running),

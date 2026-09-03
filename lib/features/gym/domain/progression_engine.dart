@@ -61,7 +61,9 @@ class ProgressionEngine {
     List<GymSetLog> sets,
   ) {
     final setsMetTarget = sets.length >= rule.targetSets &&
-        sets.take(rule.targetSets - 1).every((s) => (s.reps ?? 0) >= rule.targetReps);
+        sets
+            .take(rule.targetSets - 1)
+            .every((s) => (s.reps ?? 0) >= rule.targetReps);
 
     if (setsMetTarget) {
       final lastSetReps = sets.last.reps ?? 0;
@@ -77,7 +79,8 @@ class ProgressionEngine {
               'AMRAP Topsatz mit $lastSetReps Reps geschafft! Doppelter Sprung: +$doubleJump kg',
         );
       } else if (lastSetReps >= rule.targetReps) {
-        final nextWeight = _roundWeight(currentWeightKg + rule.weightIncrementKg);
+        final nextWeight =
+            _roundWeight(currentWeightKg + rule.weightIncrementKg);
         return ProgressionResult(
           nextWeightKg: nextWeight,
           nextTargetReps: rule.targetReps,
@@ -89,8 +92,8 @@ class ProgressionEngine {
     }
 
     final newStalls = rule.consecutiveStalls + 1;
-    return _evaluateStall(rule, currentWeightKg, newStalls,
-        'Greyskull Rep-Ziel nicht erreicht');
+    return _evaluateStall(
+        rule, currentWeightKg, newStalls, 'Greyskull Rep-Ziel nicht erreicht');
   }
 
   ProgressionResult _calculateDoubleProgression(
@@ -242,7 +245,8 @@ class OneRepMaxCalculator {
     OneRepMaxFormula formula = OneRepMaxFormula.brzycki,
   }) {
     final eligibleEstimates = sets
-        .where((s) => s.completed && s.reps != null && s.reps! > 0 && s.weightKg > 0)
+        .where((s) =>
+            s.completed && s.reps != null && s.reps! > 0 && s.weightKg > 0)
         .map((s) => calculate(
               weightKg: s.weightKg,
               reps: s.reps!,

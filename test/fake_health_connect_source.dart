@@ -100,7 +100,6 @@ class FakeHealthConnectSource implements HealthDataSource {
     return stepRecords.fold<int>(0, (sum, r) => sum + r.value.round());
   }
 
-
   void addRecord(HealthRecord record) {
     records.add(record);
   }

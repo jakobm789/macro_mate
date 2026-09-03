@@ -67,7 +67,8 @@ class OpenGymJsonService {
   Future<String> importPlanFromJson(String jsonContent) async {
     final dynamic parsed = jsonDecode(jsonContent);
     if (parsed is! Map<String, dynamic>) {
-      throw const FormatException('Ungültiges OpenGym JSON-Format: Root ist keine Map.');
+      throw const FormatException(
+          'Ungültiges OpenGym JSON-Format: Root ist keine Map.');
     }
 
     final name = parsed['name'] as String? ?? 'Importierter Trainingsplan';

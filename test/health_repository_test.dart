@@ -67,7 +67,6 @@ class _FakeHealthSource implements HealthDataSource {
   }
 }
 
-
 HealthRecord _record({
   required String id,
   required HealthMetric metric,

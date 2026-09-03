@@ -124,7 +124,8 @@ void main() {
       expect(mockRepo.recordedSteps, equals(750));
     });
 
-    test('takes over prior steps from HealthRepository and adds new steps on top',
+    test(
+        'takes over prior steps from HealthRepository and adds new steps on top',
         () async {
       final now = DateTime(2026, 9, 3, 14, 30);
       mockRepo.mockPriorSteps = 4200; // User had 4,200 steps before connecting
@@ -189,7 +190,8 @@ void main() {
       expect(stepsLater, equals(2500));
     });
 
-    test('elevates prior steps if external source syncs higher step count mid-day',
+    test(
+        'elevates prior steps if external source syncs higher step count mid-day',
         () async {
       final now = DateTime(2026, 9, 3, 15, 0);
 
@@ -255,4 +257,3 @@ void main() {
     });
   });
 }
-

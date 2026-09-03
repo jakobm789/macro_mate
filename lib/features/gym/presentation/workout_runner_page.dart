@@ -31,7 +31,9 @@ class WorkoutRunnerPage extends StatelessWidget {
         actions: [
           TextButton.icon(
             icon: const Icon(Icons.check_circle_outline, color: Colors.green),
-            label: const Text('Abschließen', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+            label: const Text('Abschließen',
+                style: TextStyle(
+                    color: Colors.green, fontWeight: FontWeight.bold)),
             onPressed: () => _confirmFinish(context, controller),
           ),
         ],
@@ -56,7 +58,8 @@ class WorkoutRunnerPage extends StatelessWidget {
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () => controller.startRestTimer(controller.restTimerSecondsRemaining + 30),
+                    onPressed: () => controller.startRestTimer(
+                        controller.restTimerSecondsRemaining + 30),
                     child: const Text('+30s'),
                   ),
                   IconButton(
@@ -93,7 +96,8 @@ class WorkoutRunnerPage extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Workout abschließen?'),
-        content: const Text('Möchtest du dieses Workout speichern und deine Trainingsstatistiken aktualisieren?'),
+        content: const Text(
+            'Möchtest du dieses Workout speichern und deine Trainingsstatistiken aktualisieren?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -135,12 +139,14 @@ class WorkoutRunnerPage extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'Klasse Leistung!',
-                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
                 'Dein Workout wurde erfolgreich protokolliert.',
-                style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.hintColor),
               ),
               const SizedBox(height: 20),
               Row(
@@ -174,11 +180,14 @@ class WorkoutRunnerPage extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
-                          Icon(Icons.local_fire_department, color: Colors.deepOrange, size: 20),
+                          Icon(Icons.local_fire_department,
+                              color: Colors.deepOrange, size: 20),
                           SizedBox(width: 6),
                           Text(
                             'Neuer persönlicher Rekord (PR)!',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange),
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.deepOrange),
                           ),
                         ],
                       ),
@@ -209,7 +218,8 @@ class WorkoutRunnerPage extends StatelessWidget {
 }
 
 class _SummaryStat extends StatelessWidget {
-  const _SummaryStat({required this.title, required this.value, required this.icon});
+  const _SummaryStat(
+      {required this.title, required this.value, required this.icon});
   final String title;
   final String value;
   final IconData icon;
@@ -220,8 +230,10 @@ class _SummaryStat extends StatelessWidget {
       children: [
         Icon(icon, size: 28, color: Colors.deepOrangeAccent),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        Text(title, style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12)),
+        Text(value,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        Text(title,
+            style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12)),
       ],
     );
   }
@@ -289,10 +301,24 @@ class _ExerciseSectionCard extends StatelessWidget {
             const Divider(),
             Row(
               children: const [
-                SizedBox(width: 42, child: Text('Typ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                Expanded(child: Text('Gewicht (kg)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                Expanded(child: Text('Wdh / Zeit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                SizedBox(width: 48, child: Text('RPE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                SizedBox(
+                    width: 42,
+                    child: Text('Typ',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 11))),
+                Expanded(
+                    child: Text('Gewicht (kg)',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 11))),
+                Expanded(
+                    child: Text('Wdh / Zeit',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 11))),
+                SizedBox(
+                    width: 48,
+                    child: Text('RPE',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 11))),
                 SizedBox(width: 40, child: Icon(Icons.check, size: 16)),
               ],
             ),
@@ -389,10 +415,12 @@ class _SetRowItem extends StatelessWidget {
           Expanded(
             child: TextFormField(
               initialValue: setLog.weightKg > 0 ? '${setLog.weightKg}' : '0',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 border: OutlineInputBorder(),
               ),
               onChanged: (val) {
@@ -412,7 +440,8 @@ class _SetRowItem extends StatelessWidget {
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 border: const OutlineInputBorder(),
                 suffixText: isTimed ? 's' : null,
               ),
@@ -433,11 +462,13 @@ class _SetRowItem extends StatelessWidget {
             width: 48,
             child: TextFormField(
               initialValue: setLog.rpe != null ? '${setLog.rpe}' : '',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 isDense: true,
                 hintText: '8',
-                contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                 border: OutlineInputBorder(),
               ),
               onChanged: (val) {

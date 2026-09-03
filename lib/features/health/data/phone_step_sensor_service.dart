@@ -24,7 +24,8 @@ class PhoneStepSensorService {
   final HealthRepository? _repository;
   final MethodChannel _methodChannel;
   final EventChannel _eventChannel;
-  final Future<int?> Function(DateTime start, DateTime end)? _getStepsInInterval;
+  final Future<int?> Function(DateTime start, DateTime end)?
+      _getStepsInInterval;
 
   static const String prefEnabled = 'phone_step_sensor_enabled';
   static const String prefDate = 'phone_step_sensor_date';
@@ -245,14 +246,12 @@ class PhoneStepSensorService {
           excludeSourceId: 'phone_step_sensor',
         );
         final currentDelta = (rawCount + rebootOffset) - baseline;
-        if (knownPrior >
-            (priorSteps + (currentDelta > 0 ? currentDelta : 0))) {
+        if (knownPrior > (priorSteps + (currentDelta > 0 ? currentDelta : 0))) {
           priorSteps = knownPrior;
           baseline = lastRaw + rebootOffset;
         }
       } catch (_) {}
     }
-
 
     // Calculate sensor delta since baseline
     int delta = (rawCount + rebootOffset) - baseline;
@@ -335,4 +334,3 @@ class PhoneStepSensorService {
     _stepController.close();
   }
 }
-

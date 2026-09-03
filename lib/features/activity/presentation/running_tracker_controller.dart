@@ -145,7 +145,8 @@ class RunningTrackerController extends ChangeNotifier {
       );
 
       if (_distanceMeters >= 50) {
-        _averagePaceMinPerKm = (_elapsedSeconds / 60.0) / (_distanceMeters / 1000.0);
+        _averagePaceMinPerKm =
+            (_elapsedSeconds / 60.0) / (_distanceMeters / 1000.0);
       }
       notifyListeners();
     });

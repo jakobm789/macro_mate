@@ -11,7 +11,11 @@ void main() {
         goal: 'hypertrophy',
         experience: 'intermediate',
         daysPerWeek: 3,
-        equipment: [GymEquipment.barbell, GymEquipment.dumbbell, GymEquipment.cable],
+        equipment: [
+          GymEquipment.barbell,
+          GymEquipment.dumbbell,
+          GymEquipment.cable
+        ],
       );
 
       final plan = coach.generateDeterministicPlan(profile);
@@ -80,11 +84,13 @@ Viel Erfolg beim Training!
 
       expect(proposals.length, 2);
 
-      final deload = proposals.firstWhere((p) => p.type == ProposalActionType.deload);
+      final deload =
+          proposals.firstWhere((p) => p.type == ProposalActionType.deload);
       expect(deload.exerciseId, 'ex_squat');
       expect(deload.adjustmentValue, -10.0);
 
-      final volume = proposals.firstWhere((p) => p.type == ProposalActionType.adjustVolume);
+      final volume = proposals
+          .firstWhere((p) => p.type == ProposalActionType.adjustVolume);
       expect(volume.exerciseId, 'ex_deadlift');
       expect(volume.adjustmentValue, -1.0);
     });

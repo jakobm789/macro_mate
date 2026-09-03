@@ -51,7 +51,8 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
                 prefixIcon: const Icon(Icons.search),
                 hintText: 'Übung suchen...',
                 isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
@@ -80,7 +81,8 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
                     FilterChip(
                       label: Text(m.displayName),
                       selected: _selectedMuscle == m,
-                      onSelected: (sel) => setState(() => _selectedMuscle = sel ? m : null),
+                      onSelected: (sel) =>
+                          setState(() => _selectedMuscle = sel ? m : null),
                     ),
                     const SizedBox(width: 6),
                   ],
@@ -105,7 +107,8 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
                   FilterChip(
                     label: Text(eq.displayName),
                     selected: _selectedEquipment == eq,
-                    onSelected: (sel) => setState(() => _selectedEquipment = sel ? eq : null),
+                    onSelected: (sel) =>
+                        setState(() => _selectedEquipment = sel ? eq : null),
                   ),
                   const SizedBox(width: 6),
                 ],
@@ -121,9 +124,12 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
               children: [
                 Text(
                   '${filtered.length} Übungen gefunden',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.hintColor),
                 ),
-                if (_selectedMuscle != null || _selectedEquipment != null || _searchQuery.isNotEmpty)
+                if (_selectedMuscle != null ||
+                    _selectedEquipment != null ||
+                    _searchQuery.isNotEmpty)
                   TextButton(
                     onPressed: () {
                       setState(() {
@@ -140,7 +146,8 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
           // List
           Expanded(
             child: filtered.isEmpty
-                ? const Center(child: Text('Keine Übungen mit diesen Kriterien gefunden.'))
+                ? const Center(
+                    child: Text('Keine Übungen mit diesen Kriterien gefunden.'))
                 : ListView.builder(
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
@@ -150,13 +157,17 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
                           backgroundColor: theme.colorScheme.primaryContainer,
                           child: const Icon(Icons.fitness_center, size: 20),
                         ),
-                        title: Text(ex.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        title: Text(ex.name,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600)),
                         subtitle: Text(
                           '${ex.primaryMuscle.displayName} · ${ex.equipment.displayName}'
                           '${ex.secondaryMuscles.isNotEmpty ? ' (+${ex.secondaryMuscles.map((m) => m.displayName).join(', ')})' : ''}',
                         ),
                         trailing: ex.isTimed
-                            ? const Chip(label: Text('Timer', style: TextStyle(fontSize: 10)))
+                            ? const Chip(
+                                label: Text('Timer',
+                                    style: TextStyle(fontSize: 10)))
                             : const Icon(Icons.chevron_right),
                         onTap: () => _showExerciseDetails(context, ex),
                       );
@@ -201,15 +212,19 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
               children: [
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Übungsname *', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: 'Übungsname *', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 const Text('Haupt-Muskelgruppe:'),
                 DropdownButton<GymMuscleGroup>(
                   value: muscle,
                   isExpanded: true,
-                  items: GymMuscleGroup.values.where((m) => m != GymMuscleGroup.fullBody).map((m) {
-                    return DropdownMenuItem(value: m, child: Text(m.displayName));
+                  items: GymMuscleGroup.values
+                      .where((m) => m != GymMuscleGroup.fullBody)
+                      .map((m) {
+                    return DropdownMenuItem(
+                        value: m, child: Text(m.displayName));
                   }).toList(),
                   onChanged: (v) => setDialogState(() => muscle = v!),
                 ),
@@ -219,7 +234,8 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
                   value: equipment,
                   isExpanded: true,
                   items: GymEquipment.values.map((eq) {
-                    return DropdownMenuItem(value: eq, child: Text(eq.displayName));
+                    return DropdownMenuItem(
+                        value: eq, child: Text(eq.displayName));
                   }).toList(),
                   onChanged: (v) => setDialogState(() => equipment = v!),
                 ),
@@ -233,7 +249,9 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: instrCtrl,
-                  decoration: const InputDecoration(labelText: 'Anleitung / Ausführungshinweise', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: 'Anleitung / Ausführungshinweise',
+                      border: OutlineInputBorder()),
                   maxLines: 2,
                 ),
               ],
@@ -263,7 +281,9 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
                 if (context.mounted) {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Übung "$name" erfolgreich gespeichert.')),
+                    SnackBar(
+                        content:
+                            Text('Übung "$name" erfolgreich gespeichert.')),
                   );
                 }
               },
@@ -321,7 +341,9 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
           title: Text(ex.name),
           automaticallyImplyLeading: false,
           actions: [
-            IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+            IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(ctx)),
           ],
         ),
         body: ListView(
@@ -353,19 +375,23 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
               const SizedBox(height: 8),
               Text(
                 'Unterstützende Muskeln: ${ex.secondaryMuscles.map((m) => m.displayName).join(', ')}',
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                style:
+                    theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
               ),
             ],
             const SizedBox(height: 16),
 
             // Instructions
             if (ex.instructions != null && ex.instructions!.isNotEmpty) ...[
-              Text('Ausführungshinweise', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              Text('Ausführungshinweise',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
-                  child: Text(ex.instructions!, style: theme.textTheme.bodyMedium),
+                  child:
+                      Text(ex.instructions!, style: theme.textTheme.bodyMedium),
                 ),
               ),
               const SizedBox(height: 16),
@@ -381,9 +407,12 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.calculate_outlined, color: Colors.deepOrangeAccent),
+                        const Icon(Icons.calculate_outlined,
+                            color: Colors.deepOrangeAccent),
                         const SizedBox(width: 8),
-                        Text('1RM Rechner (One Rep Max)', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                        Text('1RM Rechner (One Rep Max)',
+                            style: theme.textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -392,8 +421,12 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                         Expanded(
                           child: TextField(
                             controller: weightCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(labelText: 'Gewicht (kg)', border: OutlineInputBorder(), isDense: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            decoration: const InputDecoration(
+                                labelText: 'Gewicht (kg)',
+                                border: OutlineInputBorder(),
+                                isDense: true),
                             onChanged: (_) => _recalculate1Rm(),
                           ),
                         ),
@@ -402,7 +435,10 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                           child: TextField(
                             controller: repsCtrl,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: 'Wiederholungen', border: OutlineInputBorder(), isDense: true),
+                            decoration: const InputDecoration(
+                                labelText: 'Wiederholungen',
+                                border: OutlineInputBorder(),
+                                isDense: true),
                             onChanged: (_) => _recalculate1Rm(),
                           ),
                         ),
@@ -413,16 +449,21 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.deepOrangeAccent.withValues(alpha: 0.15),
+                          color:
+                              Colors.deepOrangeAccent.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Geschätzte Maximalkraft (1RM):', style: TextStyle(fontWeight: FontWeight.w600)),
+                            const Text('Geschätzte Maximalkraft (1RM):',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
                             Text(
                               '${_calculated1Rm!.toStringAsFixed(1)} kg',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.deepOrange),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Colors.deepOrange),
                             ),
                           ],
                         ),

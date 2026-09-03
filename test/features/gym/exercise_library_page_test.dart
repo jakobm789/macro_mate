@@ -26,7 +26,8 @@ void main() {
       await db.close();
     });
 
-    testWidgets('Renders exercises, filters by search, and shows details modal', (tester) async {
+    testWidgets('Renders exercises, filters by search, and shows details modal',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: ChangeNotifierProvider<GymController>.value(

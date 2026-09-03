@@ -36,15 +36,15 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
     });
   }
 
-  RunningTrackerController _getController(BuildContext context, {bool listen = false}) {
+  RunningTrackerController _getController(BuildContext context,
+      {bool listen = false}) {
     try {
       return listen
           ? context.watch<RunningTrackerController>()
           : context.read<RunningTrackerController>();
     } catch (_) {
-      final appState = listen
-          ? context.watch<AppState?>()
-          : context.read<AppState?>();
+      final appState =
+          listen ? context.watch<AppState?>() : context.read<AppState?>();
       if (appState != null) return appState.runningTrackerController;
       rethrow;
     }
@@ -63,11 +63,13 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
 
     final hasPoints = controller.routePoints.isNotEmpty;
     final currentLatLng = hasPoints
-        ? LatLng(controller.routePoints.last.latitude, controller.routePoints.last.longitude)
+        ? LatLng(controller.routePoints.last.latitude,
+            controller.routePoints.last.longitude)
         : const LatLng(52.5200, 13.4050);
 
     final startLatLng = hasPoints
-        ? LatLng(controller.routePoints.first.latitude, controller.routePoints.first.longitude)
+        ? LatLng(controller.routePoints.first.latitude,
+            controller.routePoints.first.longitude)
         : null;
 
     final polylinePoints = controller.routePoints
@@ -92,10 +94,13 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
               controller.autoPauseEnabled
                   ? Icons.pause_circle_filled
                   : Icons.pause_circle_outline,
-              color: controller.autoPauseEnabled ? Colors.deepOrangeAccent : null,
+              color:
+                  controller.autoPauseEnabled ? Colors.deepOrangeAccent : null,
             ),
-            tooltip: 'Auto-Pause: ${controller.autoPauseEnabled ? "Aktiv" : "Aus"}',
-            onPressed: () => controller.toggleAutoPause(!controller.autoPauseEnabled),
+            tooltip:
+                'Auto-Pause: ${controller.autoPauseEnabled ? "Aktiv" : "Aus"}',
+            onPressed: () =>
+                controller.toggleAutoPause(!controller.autoPauseEnabled),
           ),
           if (controller.splits.isNotEmpty)
             IconButton(
@@ -154,7 +159,8 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.example.macro_mate',
                     ),
                     if (polylinePoints.length >= 2)
@@ -179,7 +185,8 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                                 color: Colors.green,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.play_arrow, color: Colors.white, size: 16),
+                              child: const Icon(Icons.play_arrow,
+                                  color: Colors.white, size: 16),
                             ),
                           ),
                         Marker(
@@ -198,7 +205,8 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                                 decoration: BoxDecoration(
                                   color: Colors.blueAccent,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2),
+                                  border:
+                                      Border.all(color: Colors.white, width: 2),
                                 ),
                               ),
                             ),
@@ -228,25 +236,32 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                     left: 16,
                     right: 16,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
                         color: Colors.black87,
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)],
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black26, blurRadius: 6)
+                        ],
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.emoji_events, color: Colors.amber, size: 20),
+                          const Icon(Icons.emoji_events,
+                              color: Colors.amber, size: 20),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               controller.lastSplitNotification!,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold),
                             ),
                           ),
                           GestureDetector(
                             onTap: controller.clearSplitNotification,
-                            child: const Icon(Icons.close, color: Colors.white70, size: 18),
+                            child: const Icon(Icons.close,
+                                color: Colors.white70, size: 18),
                           ),
                         ],
                       ),
@@ -264,7 +279,10 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
               decoration: BoxDecoration(
                 color: theme.scaffoldBackgroundColor,
                 boxShadow: const [
-                  BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2)),
+                  BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 10,
+                      offset: Offset(0, -2)),
                 ],
               ),
               child: Column(
@@ -289,7 +307,8 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                       const SizedBox(width: 6),
                       Text(
                         controller.sport.primaryMetricUnit,
-                        style: theme.textTheme.titleMedium?.copyWith(color: theme.hintColor),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(color: theme.hintColor),
                       ),
                     ],
                   ),
@@ -305,11 +324,13 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                       ),
                       _MetricTile(
                         label: 'Zeit',
-                        value: RunningTrackerController.formatDuration(controller.elapsedSeconds),
+                        value: RunningTrackerController.formatDuration(
+                            controller.elapsedSeconds),
                       ),
                       _MetricTile(
                         label: 'Kalorien',
-                        value: '${controller.activeCaloriesBurned.round()} kcal',
+                        value:
+                            '${controller.activeCaloriesBurned.round()} kcal',
                       ),
                       _MetricTile(
                         label: isCycling ? 'Schnitt' : 'Ø Pace',
@@ -332,17 +353,20 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green.shade600,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
                         ),
                         icon: const Icon(Icons.play_arrow, size: 28),
                         label: Text('START (${controller.sport.displayName})',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
                         onPressed: () async {
                           final started = await controller.startWorkout();
                           if (!started && context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Standortberechtigung ist erforderlich zum Tracken.'),
+                                content: Text(
+                                    'Standortberechtigung ist erforderlich zum Tracken.'),
                               ),
                             );
                           }
@@ -382,7 +406,9 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                               }
                             },
                             child: Icon(
-                              controller.isRunning ? Icons.pause : Icons.play_arrow,
+                              controller.isRunning
+                                  ? Icons.pause
+                                  : Icons.play_arrow,
                               size: 38,
                             ),
                           ),
@@ -397,7 +423,8 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                             foregroundColor: Colors.white,
                           ),
                           icon: const Icon(Icons.stop),
-                          onPressed: () => _confirmFinish(context, controller, database),
+                          onPressed: () =>
+                              _confirmFinish(context, controller, database),
                         ),
                       ],
                     ),
@@ -410,7 +437,8 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
     );
   }
 
-  void _showSplitsModal(BuildContext context, RunningTrackerController controller) {
+  void _showSplitsModal(
+      BuildContext context, RunningTrackerController controller) {
     showModalBottomSheet(
       context: context,
       builder: (ctx) => Padding(
@@ -419,7 +447,8 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Kilometer-Splits', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const Text('Kilometer-Splits',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 12),
             Expanded(
               child: ListView.builder(
@@ -434,7 +463,8 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                       child: Text('${split.km}'),
                     ),
                     title: Text(split.formattedPace),
-                    subtitle: Text('Dauer: ${(split.durationSeconds / 60).floor()}:${(split.durationSeconds.round() % 60).toString().padLeft(2, '0')} min'),
+                    subtitle: Text(
+                        'Dauer: ${(split.durationSeconds / 60).floor()}:${(split.durationSeconds.round() % 60).toString().padLeft(2, '0')} min'),
                     trailing: Text(split.formattedSpeed),
                   );
                 },
@@ -466,7 +496,8 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
             child: const Text('Weiter trainieren'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Speichern & Beenden'),
           ),
@@ -495,16 +526,21 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
     }
   }
 
-  Future<void> _confirmDiscard(BuildContext context, RunningTrackerController controller) async {
+  Future<void> _confirmDiscard(
+      BuildContext context, RunningTrackerController controller) async {
     final discard = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Workout verwerfen?'),
-        content: const Text('Möchtest du die bisherige Aufzeichnung unwiderruflich löschen?'),
+        content: const Text(
+            'Möchtest du die bisherige Aufzeichnung unwiderruflich löschen?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Verwerfen'),
           ),
@@ -547,9 +583,12 @@ class _MetricTile extends StatelessWidget {
     final theme = Theme.of(context);
     return Column(
       children: [
-        Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+        Text(value,
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 2),
-        Text(label, style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+        Text(label,
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
       ],
     );
   }

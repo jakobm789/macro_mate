@@ -52,11 +52,14 @@ class AiCoachEngine {
   const AiCoachEngine();
 
   /// Builds a structured prompt for local Gemma / LiteRT
-  String buildIntakePrompt(GymIntakeProfile profile, List<GymExercise> availableExercises) {
-    final equipmentNames = profile.equipment.map((e) => e.displayName).join(', ');
+  String buildIntakePrompt(
+      GymIntakeProfile profile, List<GymExercise> availableExercises) {
+    final equipmentNames =
+        profile.equipment.map((e) => e.displayName).join(', ');
     final exerciseListSnippet = availableExercises
         .take(30)
-        .map((e) => '${e.id}: ${e.name} (${e.primaryMuscle.displayName}, ${e.equipment.displayName})')
+        .map((e) =>
+            '${e.id}: ${e.name} (${e.primaryMuscle.displayName}, ${e.equipment.displayName})')
         .join('\n');
 
     return '''
@@ -103,7 +106,8 @@ Antworte ausschließlich im folgenden validen JSON-Format:
       final clean = _extractJson(jsonString);
       return jsonDecode(clean) as Map<String, dynamic>;
     } catch (_) {
-      throw const FormatException('Konnte Trainingsplan-JSON vom Modell nicht parsen.');
+      throw const FormatException(
+          'Konnte Trainingsplan-JSON vom Modell nicht parsen.');
     }
   }
 
@@ -114,7 +118,8 @@ Antworte ausschließlich im folgenden validen JSON-Format:
       // 2-Day Full Body
       return {
         'name': 'Ganzkörper 2er-Split',
-        'description': 'Ausgewogener Ganzkörperplan für 2 Trainingstage pro Woche.',
+        'description':
+            'Ausgewogener Ganzkörperplan für 2 Trainingstage pro Woche.',
         'daysPerWeek': 2,
         'routines': [
           {
@@ -122,11 +127,40 @@ Antworte ausschließlich im folgenden validen JSON-Format:
             'dayOfWeek': 1, // Montag
             'progressionType': profile.preferredProgression.name,
             'exercises': [
-              {'exerciseId': 'ex_squat', 'targetSets': 3, 'targetRepsMin': 5, 'targetRepsMax': 5, 'restSeconds': 150},
-              {'exerciseId': 'ex_bench_press', 'targetSets': 3, 'targetRepsMin': 5, 'targetRepsMax': 5, 'restSeconds': 120},
-              {'exerciseId': 'ex_barbell_row', 'targetSets': 3, 'targetRepsMin': 6, 'targetRepsMax': 8, 'restSeconds': 90},
-              {'exerciseId': 'ex_bicep_curl_db', 'targetSets': 2, 'targetRepsMin': 10, 'targetRepsMax': 12, 'restSeconds': 60},
-              {'exerciseId': 'ex_plank', 'targetSets': 3, 'targetHoldSeconds': 45, 'restSeconds': 60},
+              {
+                'exerciseId': 'ex_squat',
+                'targetSets': 3,
+                'targetRepsMin': 5,
+                'targetRepsMax': 5,
+                'restSeconds': 150
+              },
+              {
+                'exerciseId': 'ex_bench_press',
+                'targetSets': 3,
+                'targetRepsMin': 5,
+                'targetRepsMax': 5,
+                'restSeconds': 120
+              },
+              {
+                'exerciseId': 'ex_barbell_row',
+                'targetSets': 3,
+                'targetRepsMin': 6,
+                'targetRepsMax': 8,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_bicep_curl_db',
+                'targetSets': 2,
+                'targetRepsMin': 10,
+                'targetRepsMax': 12,
+                'restSeconds': 60
+              },
+              {
+                'exerciseId': 'ex_plank',
+                'targetSets': 3,
+                'targetHoldSeconds': 45,
+                'restSeconds': 60
+              },
             ],
           },
           {
@@ -134,11 +168,41 @@ Antworte ausschließlich im folgenden validen JSON-Format:
             'dayOfWeek': 4, // Donnerstag
             'progressionType': profile.preferredProgression.name,
             'exercises': [
-              {'exerciseId': 'ex_deadlift', 'targetSets': 3, 'targetRepsMin': 5, 'targetRepsMax': 5, 'restSeconds': 180},
-              {'exerciseId': 'ex_overhead_press', 'targetSets': 3, 'targetRepsMin': 5, 'targetRepsMax': 5, 'restSeconds': 120},
-              {'exerciseId': 'ex_lat_pulldown', 'targetSets': 3, 'targetRepsMin': 8, 'targetRepsMax': 10, 'restSeconds': 90},
-              {'exerciseId': 'ex_tricep_pushdown', 'targetSets': 2, 'targetRepsMin': 10, 'targetRepsMax': 12, 'restSeconds': 60},
-              {'exerciseId': 'ex_hanging_leg_raise', 'targetSets': 3, 'targetRepsMin': 8, 'targetRepsMax': 12, 'restSeconds': 60},
+              {
+                'exerciseId': 'ex_deadlift',
+                'targetSets': 3,
+                'targetRepsMin': 5,
+                'targetRepsMax': 5,
+                'restSeconds': 180
+              },
+              {
+                'exerciseId': 'ex_overhead_press',
+                'targetSets': 3,
+                'targetRepsMin': 5,
+                'targetRepsMax': 5,
+                'restSeconds': 120
+              },
+              {
+                'exerciseId': 'ex_lat_pulldown',
+                'targetSets': 3,
+                'targetRepsMin': 8,
+                'targetRepsMax': 10,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_tricep_pushdown',
+                'targetSets': 2,
+                'targetRepsMin': 10,
+                'targetRepsMax': 12,
+                'restSeconds': 60
+              },
+              {
+                'exerciseId': 'ex_hanging_leg_raise',
+                'targetSets': 3,
+                'targetRepsMin': 8,
+                'targetRepsMax': 12,
+                'restSeconds': 60
+              },
             ],
           },
         ],
@@ -147,7 +211,8 @@ Antworte ausschließlich im folgenden validen JSON-Format:
       // 3-Day Push / Pull / Legs
       return {
         'name': 'Push Pull Legs 3-Day',
-        'description': 'Klassischer 3-Tage-Split für optimale Hypertrophie und Erholung.',
+        'description':
+            'Klassischer 3-Tage-Split für optimale Hypertrophie und Erholung.',
         'daysPerWeek': 3,
         'routines': [
           {
@@ -155,11 +220,41 @@ Antworte ausschließlich im folgenden validen JSON-Format:
             'dayOfWeek': 1,
             'progressionType': profile.preferredProgression.name,
             'exercises': [
-              {'exerciseId': 'ex_bench_press', 'targetSets': 3, 'targetRepsMin': 5, 'targetRepsMax': 5, 'restSeconds': 120},
-              {'exerciseId': 'ex_incline_db_press', 'targetSets': 3, 'targetRepsMin': 8, 'targetRepsMax': 10, 'restSeconds': 90},
-              {'exerciseId': 'ex_overhead_press', 'targetSets': 3, 'targetRepsMin': 6, 'targetRepsMax': 8, 'restSeconds': 90},
-              {'exerciseId': 'ex_lateral_raise', 'targetSets': 3, 'targetRepsMin': 12, 'targetRepsMax': 15, 'restSeconds': 60},
-              {'exerciseId': 'ex_tricep_pushdown', 'targetSets': 3, 'targetRepsMin': 10, 'targetRepsMax': 12, 'restSeconds': 60},
+              {
+                'exerciseId': 'ex_bench_press',
+                'targetSets': 3,
+                'targetRepsMin': 5,
+                'targetRepsMax': 5,
+                'restSeconds': 120
+              },
+              {
+                'exerciseId': 'ex_incline_db_press',
+                'targetSets': 3,
+                'targetRepsMin': 8,
+                'targetRepsMax': 10,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_overhead_press',
+                'targetSets': 3,
+                'targetRepsMin': 6,
+                'targetRepsMax': 8,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_lateral_raise',
+                'targetSets': 3,
+                'targetRepsMin': 12,
+                'targetRepsMax': 15,
+                'restSeconds': 60
+              },
+              {
+                'exerciseId': 'ex_tricep_pushdown',
+                'targetSets': 3,
+                'targetRepsMin': 10,
+                'targetRepsMax': 12,
+                'restSeconds': 60
+              },
             ],
           },
           {
@@ -167,10 +262,34 @@ Antworte ausschließlich im folgenden validen JSON-Format:
             'dayOfWeek': 3,
             'progressionType': profile.preferredProgression.name,
             'exercises': [
-              {'exerciseId': 'ex_deadlift', 'targetSets': 3, 'targetRepsMin': 5, 'targetRepsMax': 5, 'restSeconds': 180},
-              {'exerciseId': 'ex_lat_pulldown', 'targetSets': 3, 'targetRepsMin': 8, 'targetRepsMax': 10, 'restSeconds': 90},
-              {'exerciseId': 'ex_barbell_row', 'targetSets': 3, 'targetRepsMin': 6, 'targetRepsMax': 8, 'restSeconds': 90},
-              {'exerciseId': 'ex_bicep_curl_db', 'targetSets': 3, 'targetRepsMin': 10, 'targetRepsMax': 12, 'restSeconds': 60},
+              {
+                'exerciseId': 'ex_deadlift',
+                'targetSets': 3,
+                'targetRepsMin': 5,
+                'targetRepsMax': 5,
+                'restSeconds': 180
+              },
+              {
+                'exerciseId': 'ex_lat_pulldown',
+                'targetSets': 3,
+                'targetRepsMin': 8,
+                'targetRepsMax': 10,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_barbell_row',
+                'targetSets': 3,
+                'targetRepsMin': 6,
+                'targetRepsMax': 8,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_bicep_curl_db',
+                'targetSets': 3,
+                'targetRepsMin': 10,
+                'targetRepsMax': 12,
+                'restSeconds': 60
+              },
             ],
           },
           {
@@ -178,11 +297,40 @@ Antworte ausschließlich im folgenden validen JSON-Format:
             'dayOfWeek': 5,
             'progressionType': profile.preferredProgression.name,
             'exercises': [
-              {'exerciseId': 'ex_squat', 'targetSets': 3, 'targetRepsMin': 5, 'targetRepsMax': 5, 'restSeconds': 150},
-              {'exerciseId': 'ex_romanian_deadlift', 'targetSets': 3, 'targetRepsMin': 8, 'targetRepsMax': 10, 'restSeconds': 90},
-              {'exerciseId': 'ex_leg_press', 'targetSets': 3, 'targetRepsMin': 10, 'targetRepsMax': 12, 'restSeconds': 90},
-              {'exerciseId': 'ex_calf_raise', 'targetSets': 3, 'targetRepsMin': 12, 'targetRepsMax': 15, 'restSeconds': 60},
-              {'exerciseId': 'ex_plank', 'targetSets': 3, 'targetHoldSeconds': 60, 'restSeconds': 60},
+              {
+                'exerciseId': 'ex_squat',
+                'targetSets': 3,
+                'targetRepsMin': 5,
+                'targetRepsMax': 5,
+                'restSeconds': 150
+              },
+              {
+                'exerciseId': 'ex_romanian_deadlift',
+                'targetSets': 3,
+                'targetRepsMin': 8,
+                'targetRepsMax': 10,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_leg_press',
+                'targetSets': 3,
+                'targetRepsMin': 10,
+                'targetRepsMax': 12,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_calf_raise',
+                'targetSets': 3,
+                'targetRepsMin': 12,
+                'targetRepsMax': 15,
+                'restSeconds': 60
+              },
+              {
+                'exerciseId': 'ex_plank',
+                'targetSets': 3,
+                'targetHoldSeconds': 60,
+                'restSeconds': 60
+              },
             ],
           },
         ],
@@ -191,7 +339,8 @@ Antworte ausschließlich im folgenden validen JSON-Format:
       // 4-Day Upper / Lower Split
       return {
         'name': 'Oberkörper / Unterkörper 4-Day',
-        'description': 'Hohe Frequenz mit 4 Trainingseinheiten pro Woche für fortgeschrittenen Muskelaufbau.',
+        'description':
+            'Hohe Frequenz mit 4 Trainingseinheiten pro Woche für fortgeschrittenen Muskelaufbau.',
         'daysPerWeek': 4,
         'routines': [
           {
@@ -199,10 +348,34 @@ Antworte ausschließlich im folgenden validen JSON-Format:
             'dayOfWeek': 1,
             'progressionType': profile.preferredProgression.name,
             'exercises': [
-              {'exerciseId': 'ex_bench_press', 'targetSets': 3, 'targetRepsMin': 5, 'targetRepsMax': 5, 'restSeconds': 120},
-              {'exerciseId': 'ex_barbell_row', 'targetSets': 3, 'targetRepsMin': 6, 'targetRepsMax': 8, 'restSeconds': 90},
-              {'exerciseId': 'ex_overhead_press', 'targetSets': 3, 'targetRepsMin': 8, 'targetRepsMax': 10, 'restSeconds': 90},
-              {'exerciseId': 'ex_bicep_curl_db', 'targetSets': 3, 'targetRepsMin': 10, 'targetRepsMax': 12, 'restSeconds': 60},
+              {
+                'exerciseId': 'ex_bench_press',
+                'targetSets': 3,
+                'targetRepsMin': 5,
+                'targetRepsMax': 5,
+                'restSeconds': 120
+              },
+              {
+                'exerciseId': 'ex_barbell_row',
+                'targetSets': 3,
+                'targetRepsMin': 6,
+                'targetRepsMax': 8,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_overhead_press',
+                'targetSets': 3,
+                'targetRepsMin': 8,
+                'targetRepsMax': 10,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_bicep_curl_db',
+                'targetSets': 3,
+                'targetRepsMin': 10,
+                'targetRepsMax': 12,
+                'restSeconds': 60
+              },
             ],
           },
           {
@@ -210,10 +383,33 @@ Antworte ausschließlich im folgenden validen JSON-Format:
             'dayOfWeek': 2,
             'progressionType': profile.preferredProgression.name,
             'exercises': [
-              {'exerciseId': 'ex_squat', 'targetSets': 3, 'targetRepsMin': 5, 'targetRepsMax': 5, 'restSeconds': 150},
-              {'exerciseId': 'ex_romanian_deadlift', 'targetSets': 3, 'targetRepsMin': 8, 'targetRepsMax': 10, 'restSeconds': 90},
-              {'exerciseId': 'ex_calf_raise', 'targetSets': 3, 'targetRepsMin': 12, 'targetRepsMax': 15, 'restSeconds': 60},
-              {'exerciseId': 'ex_plank', 'targetSets': 3, 'targetHoldSeconds': 60, 'restSeconds': 60},
+              {
+                'exerciseId': 'ex_squat',
+                'targetSets': 3,
+                'targetRepsMin': 5,
+                'targetRepsMax': 5,
+                'restSeconds': 150
+              },
+              {
+                'exerciseId': 'ex_romanian_deadlift',
+                'targetSets': 3,
+                'targetRepsMin': 8,
+                'targetRepsMax': 10,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_calf_raise',
+                'targetSets': 3,
+                'targetRepsMin': 12,
+                'targetRepsMax': 15,
+                'restSeconds': 60
+              },
+              {
+                'exerciseId': 'ex_plank',
+                'targetSets': 3,
+                'targetHoldSeconds': 60,
+                'restSeconds': 60
+              },
             ],
           },
           {
@@ -221,10 +417,34 @@ Antworte ausschließlich im folgenden validen JSON-Format:
             'dayOfWeek': 4,
             'progressionType': profile.preferredProgression.name,
             'exercises': [
-              {'exerciseId': 'ex_incline_db_press', 'targetSets': 3, 'targetRepsMin': 8, 'targetRepsMax': 10, 'restSeconds': 90},
-              {'exerciseId': 'ex_lat_pulldown', 'targetSets': 3, 'targetRepsMin': 8, 'targetRepsMax': 10, 'restSeconds': 90},
-              {'exerciseId': 'ex_lateral_raise', 'targetSets': 3, 'targetRepsMin': 12, 'targetRepsMax': 15, 'restSeconds': 60},
-              {'exerciseId': 'ex_tricep_pushdown', 'targetSets': 3, 'targetRepsMin': 10, 'targetRepsMax': 12, 'restSeconds': 60},
+              {
+                'exerciseId': 'ex_incline_db_press',
+                'targetSets': 3,
+                'targetRepsMin': 8,
+                'targetRepsMax': 10,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_lat_pulldown',
+                'targetSets': 3,
+                'targetRepsMin': 8,
+                'targetRepsMax': 10,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_lateral_raise',
+                'targetSets': 3,
+                'targetRepsMin': 12,
+                'targetRepsMax': 15,
+                'restSeconds': 60
+              },
+              {
+                'exerciseId': 'ex_tricep_pushdown',
+                'targetSets': 3,
+                'targetRepsMin': 10,
+                'targetRepsMax': 12,
+                'restSeconds': 60
+              },
             ],
           },
           {
@@ -232,9 +452,27 @@ Antworte ausschließlich im folgenden validen JSON-Format:
             'dayOfWeek': 5,
             'progressionType': profile.preferredProgression.name,
             'exercises': [
-              {'exerciseId': 'ex_deadlift', 'targetSets': 3, 'targetRepsMin': 5, 'targetRepsMax': 5, 'restSeconds': 180},
-              {'exerciseId': 'ex_leg_press', 'targetSets': 3, 'targetRepsMin': 10, 'targetRepsMax': 12, 'restSeconds': 90},
-              {'exerciseId': 'ex_hanging_leg_raise', 'targetSets': 3, 'targetRepsMin': 10, 'targetRepsMax': 12, 'restSeconds': 60},
+              {
+                'exerciseId': 'ex_deadlift',
+                'targetSets': 3,
+                'targetRepsMin': 5,
+                'targetRepsMax': 5,
+                'restSeconds': 180
+              },
+              {
+                'exerciseId': 'ex_leg_press',
+                'targetSets': 3,
+                'targetRepsMin': 10,
+                'targetRepsMax': 12,
+                'restSeconds': 90
+              },
+              {
+                'exerciseId': 'ex_hanging_leg_raise',
+                'targetSets': 3,
+                'targetRepsMin': 10,
+                'targetRepsMax': 12,
+                'restSeconds': 60
+              },
             ],
           },
         ],

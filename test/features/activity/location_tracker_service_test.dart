@@ -5,7 +5,8 @@ import 'package:macro_mate/features/activity/domain/location_tracker_service.dar
 
 void main() {
   group('LocationTrackerService Tests', () {
-    test('calculateDistanceMeters calculates accurate distance using Haversine', () {
+    test('calculateDistanceMeters calculates accurate distance using Haversine',
+        () {
       // Distance between Berlin Brandenburger Tor (52.5163, 13.3777) and Alexanderplatz (52.5219, 13.4132) ~ 2.48 km
       final dist = LocationTrackerService.calculateDistanceMeters(
         52.5163,
@@ -18,7 +19,8 @@ void main() {
       expect(dist, lessThan(2550));
     });
 
-    test('estimateCalories calculates MET calories based on sport and duration', () {
+    test('estimateCalories calculates MET calories based on sport and duration',
+        () {
       // 1 hour (3600s) of Running for 75kg person with 9.8 MET = 9.8 * 75 * 1.0 = 735 kcal
       final runCalories = LocationTrackerService.estimateCalories(
         sport: SportType.running,
@@ -36,9 +38,11 @@ void main() {
       expect(cycleCalories, closeTo(600.0, 0.1));
     });
 
-    test('startTracking filters out inaccurate GPS positions (> 25m accuracy)', () async {
+    test('startTracking filters out inaccurate GPS positions (> 25m accuracy)',
+        () async {
       final controller = StreamController<Position>();
-      final service = LocationTrackerService(positionStreamOverride: controller.stream);
+      final service =
+          LocationTrackerService(positionStreamOverride: controller.stream);
 
       final stream = service.startTracking();
       final received = <LiveGpsPoint>[];

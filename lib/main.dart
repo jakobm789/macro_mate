@@ -333,8 +333,7 @@ class _MyAppState extends State<MyApp> {
           '/cycle': (context) => const AppDiagnosticsBanner(child: CyclePage()),
           '/backup': (context) =>
               const AppDiagnosticsBanner(child: BackupPage()),
-          '/gym': (context) =>
-              const AppDiagnosticsBanner(child: GymPage()),
+          '/gym': (context) => const AppDiagnosticsBanner(child: GymPage()),
           '/tracker': (context) =>
               const AppDiagnosticsBanner(child: LiveRunningTrackerPage()),
         },

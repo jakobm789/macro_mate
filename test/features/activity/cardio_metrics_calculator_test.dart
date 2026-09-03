@@ -27,12 +27,16 @@ void main() {
       expect(calc.getZoneForBpm(180, 190), 5);
     });
 
-    test('Sport metric: cycling displays speed in km/h, running displays pace in min/km', () {
+    test(
+        'Sport metric: cycling displays speed in km/h, running displays pace in min/km',
+        () {
       // 10 km in 30 minutes (1800s) = 20 km/h or 3:00 min/km
-      final bikingMetric = CardioMetricsCalculator.formatSportMetric('Biking', 10000, 1800);
+      final bikingMetric =
+          CardioMetricsCalculator.formatSportMetric('Biking', 10000, 1800);
       expect(bikingMetric, '20.0 km/h');
 
-      final runningMetric = CardioMetricsCalculator.formatSportMetric('Running', 10000, 1800);
+      final runningMetric =
+          CardioMetricsCalculator.formatSportMetric('Running', 10000, 1800);
       expect(runningMetric, '3:00 min/km');
     });
 
@@ -61,9 +65,16 @@ void main() {
       // Construct points ~1 km apart
       // 1 deg lat is approx 111 km, so 0.009 deg is approx 1000m
       final points = [
-        WorkoutRoutePointModel(latitude: 52.5200, longitude: 13.4050, timestampUtc: t0),
-        WorkoutRoutePointModel(latitude: 52.5290, longitude: 13.4050, timestampUtc: t0.add(const Duration(minutes: 5))), // ~1km in 5 min
-        WorkoutRoutePointModel(latitude: 52.5380, longitude: 13.4050, timestampUtc: t0.add(const Duration(minutes: 11))), // ~2km in 6 min
+        WorkoutRoutePointModel(
+            latitude: 52.5200, longitude: 13.4050, timestampUtc: t0),
+        WorkoutRoutePointModel(
+            latitude: 52.5290,
+            longitude: 13.4050,
+            timestampUtc: t0.add(const Duration(minutes: 5))), // ~1km in 5 min
+        WorkoutRoutePointModel(
+            latitude: 52.5380,
+            longitude: 13.4050,
+            timestampUtc: t0.add(const Duration(minutes: 11))), // ~2km in 6 min
       ];
 
       final workout = WorkoutDetail(
@@ -88,8 +99,12 @@ void main() {
     test('generateGpxString creates valid XML GPX 1.1 document', () {
       final t0 = DateTime.utc(2026, 9, 3, 10, 0, 0);
       final points = [
-        WorkoutRoutePointModel(latitude: 52.5200, longitude: 13.4050, timestampUtc: t0),
-        WorkoutRoutePointModel(latitude: 52.5290, longitude: 13.4050, timestampUtc: t0.add(const Duration(minutes: 5))),
+        WorkoutRoutePointModel(
+            latitude: 52.5200, longitude: 13.4050, timestampUtc: t0),
+        WorkoutRoutePointModel(
+            latitude: 52.5290,
+            longitude: 13.4050,
+            timestampUtc: t0.add(const Duration(minutes: 5))),
       ];
 
       final gpx = CardioMetricsCalculator.generateGpxString(

@@ -184,7 +184,8 @@ class _ActivityPageState extends State<ActivityPage> {
                   child: Card(
                     color: Colors.green.shade100.withValues(alpha: 0.3),
                     child: ListTile(
-                      leading: const Icon(Icons.directions_run, color: Colors.green),
+                      leading:
+                          const Icon(Icons.directions_run, color: Colors.green),
                       title: Text(
                         'Laufendes Tracking: ${tracker.sport.displayName}',
                         style: const TextStyle(fontWeight: FontWeight.bold),
@@ -234,8 +235,10 @@ class _ActivityPageState extends State<ActivityPage> {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.directions_run, color: Colors.green),
-                title: const Text('Outdoor-Aktivität starten (GPS)', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Laufen, Radfahren, Wandern mit Live-Route & Splits'),
+                title: const Text('Outdoor-Aktivität starten (GPS)',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text(
+                    'Laufen, Radfahren, Wandern mit Live-Route & Splits'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () => _openTrackerModal(context),
               ),
@@ -245,9 +248,12 @@ class _ActivityPageState extends State<ActivityPage> {
             Card(
               color: Theme.of(context).colorScheme.primaryContainer,
               child: ListTile(
-                leading: const Icon(Icons.fitness_center, color: Colors.deepOrangeAccent),
-                title: const Text('Kraftsport & Gym (OpenGym)', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Geführte Workouts, Progression & Muscle Map'),
+                leading: const Icon(Icons.fitness_center,
+                    color: Colors.deepOrangeAccent),
+                title: const Text('Kraftsport & Gym (OpenGym)',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle:
+                    const Text('Geführte Workouts, Progression & Muscle Map'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () => Navigator.pushNamed(context, '/gym'),
               ),
@@ -385,7 +391,9 @@ class _SportSelectTile extends StatelessWidget {
               child: Icon(icon, color: color, size: 28),
             ),
             const SizedBox(height: 8),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(label,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
           ],
         ),
       ),
@@ -401,16 +409,26 @@ class _WorkoutTile extends StatelessWidget {
 
   IconData _iconForType(String type) {
     final lower = type.toLowerCase();
-    if (lower.contains('bike') || lower.contains('biking') || lower.contains('cycl') || lower.contains('rad')) {
+    if (lower.contains('bike') ||
+        lower.contains('biking') ||
+        lower.contains('cycl') ||
+        lower.contains('rad')) {
       return Icons.directions_bike;
     }
-    if (lower.contains('hike') || lower.contains('hiking') || lower.contains('wander')) {
+    if (lower.contains('hike') ||
+        lower.contains('hiking') ||
+        lower.contains('wander')) {
       return Icons.hiking;
     }
-    if (lower.contains('gym') || lower.contains('strength') || lower.contains('kraft') || lower.contains('weight')) {
+    if (lower.contains('gym') ||
+        lower.contains('strength') ||
+        lower.contains('kraft') ||
+        lower.contains('weight')) {
       return Icons.fitness_center;
     }
-    if (lower.contains('walk') || lower.contains('gehen') || lower.contains('spazier')) {
+    if (lower.contains('walk') ||
+        lower.contains('gehen') ||
+        lower.contains('spazier')) {
       return Icons.directions_walk;
     }
     return Icons.directions_run;
@@ -419,9 +437,11 @@ class _WorkoutTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final distance = workout.distanceM;
-    final metricText = (distance != null && distance > 0 && workout.durationSeconds > 0)
-        ? CardioMetricsCalculator.formatSportMetric(workout.type, distance, workout.durationSeconds)
-        : null;
+    final metricText =
+        (distance != null && distance > 0 && workout.durationSeconds > 0)
+            ? CardioMetricsCalculator.formatSportMetric(
+                workout.type, distance, workout.durationSeconds)
+            : null;
 
     final isCycling = workout.type.toLowerCase().contains('bike') ||
         workout.type.toLowerCase().contains('biking') ||
@@ -533,7 +553,8 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
           if (points.isEmpty) {
             return const EmptyState(
               title: 'Keine Route verfügbar',
-              message: 'Die Quelle hat für dieses Workout keine GPS-Punkte bereitgestellt.',
+              message:
+                  'Die Quelle hat für dieses Workout keine GPS-Punkte bereitgestellt.',
             );
           }
 
@@ -546,7 +567,8 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
               .map((p) => WorkoutRoutePointModel(
                     latitude: p.latitude,
                     longitude: p.longitude,
-                    timestampUtc: DateTime.tryParse(p.timestampUtc) ?? DateTime.now(),
+                    timestampUtc:
+                        DateTime.tryParse(p.timestampUtc) ?? DateTime.now(),
                   ))
               .toList();
 
@@ -583,12 +605,16 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
                   options: MapOptions(initialCenter: center, initialZoom: 13),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.example.macro_mate',
                     ),
                     PolylineLayer(
                       polylines: [
-                        Polyline(points: locations, strokeWidth: 4, color: Colors.blueAccent),
+                        Polyline(
+                            points: locations,
+                            strokeWidth: 4,
+                            color: Colors.blueAccent),
                       ],
                     ),
                   ],
@@ -623,7 +649,8 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
                           child: _KpiTile(
                             title: isCycling ? 'Geschwindigkeit' : 'Pace',
                             value: metricFormatted,
-                            icon: isCycling ? Icons.speed : Icons.directions_run,
+                            icon:
+                                isCycling ? Icons.speed : Icons.directions_run,
                           ),
                         ),
                       ],
@@ -634,7 +661,8 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
                     if (splits.isNotEmpty) ...[
                       Text(
                         'Kilometer-Splits',
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       Card(
@@ -643,26 +671,38 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
                           child: Column(
                             children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
                                 child: Row(
                                   children: [
-                                    const SizedBox(width: 40, child: Text('Km', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    const Expanded(child: Text('Dauer', style: TextStyle(fontWeight: FontWeight.bold))),
-                                    Text(isCycling ? 'Schnitt' : 'Pace', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    const SizedBox(
+                                        width: 40,
+                                        child: Text('Km',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold))),
+                                    const Expanded(
+                                        child: Text('Dauer',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold))),
+                                    Text(isCycling ? 'Schnitt' : 'Pace',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold)),
                                   ],
                                 ),
                               ),
                               const Divider(),
                               for (final split in splits)
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 6),
                                   child: Row(
                                     children: [
                                       SizedBox(
                                         width: 40,
                                         child: Text(
                                           '${split.km}',
-                                          style: const TextStyle(fontWeight: FontWeight.bold),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold),
                                         ),
                                       ),
                                       Expanded(
@@ -671,8 +711,11 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
                                         ),
                                       ),
                                       Text(
-                                        isCycling ? split.formattedSpeed : split.formattedPace,
-                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                        isCycling
+                                            ? split.formattedSpeed
+                                            : split.formattedPace,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600),
                                       ),
                                     ],
                                   ),
@@ -687,7 +730,8 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
                     // Heart Rate Zones
                     Text(
                       'Herzfrequenz-Zonen (Referenz)',
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Card(
@@ -697,7 +741,8 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
                           children: [
                             for (final z in hrZones) ...[
                               Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 4),
                                 child: Row(
                                   children: [
                                     Container(
@@ -710,23 +755,35 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
                                       ),
                                       child: Text(
                                         'Z${z.zone}',
-                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11),
                                       ),
                                     ),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Text(z.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                                          Text(z.name,
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13)),
                                           if (z.description != null)
-                                            Text(z.description!, style: TextStyle(color: theme.hintColor, fontSize: 11)),
+                                            Text(z.description!,
+                                                style: TextStyle(
+                                                    color: theme.hintColor,
+                                                    fontSize: 11)),
                                         ],
                                       ),
                                     ),
                                     Text(
                                       '${z.minBpm} - ${z.maxBpm} bpm',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12),
                                     ),
                                   ],
                                 ),
@@ -758,7 +815,8 @@ class _WorkoutRoutePageState extends State<WorkoutRoutePage> {
 }
 
 class _KpiTile extends StatelessWidget {
-  const _KpiTile({required this.title, required this.value, required this.icon});
+  const _KpiTile(
+      {required this.title, required this.value, required this.icon});
   final String title;
   final String value;
   final IconData icon;
@@ -773,8 +831,13 @@ class _KpiTile extends StatelessWidget {
           children: [
             Icon(icon, size: 20, color: theme.colorScheme.primary),
             const SizedBox(height: 4),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), textAlign: TextAlign.center),
-            Text(title, style: TextStyle(color: theme.hintColor, fontSize: 11), textAlign: TextAlign.center),
+            Text(value,
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                textAlign: TextAlign.center),
+            Text(title,
+                style: TextStyle(color: theme.hintColor, fontSize: 11),
+                textAlign: TextAlign.center),
           ],
         ),
       ),

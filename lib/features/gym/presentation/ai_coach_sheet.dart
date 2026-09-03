@@ -59,7 +59,8 @@ class _AiCoachSheetState extends State<AiCoachSheet> {
               if (controller.aiProposals.isNotEmpty) ...[
                 Text(
                   'Empfehlungen & Plan-Reviews',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 for (final p in controller.aiProposals)
@@ -77,7 +78,8 @@ class _AiCoachSheetState extends State<AiCoachSheet> {
                               Expanded(
                                 child: Text(
                                   p.title,
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ],
@@ -91,7 +93,9 @@ class _AiCoachSheetState extends State<AiCoachSheet> {
                               TextButton(
                                 onPressed: () {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Empfehlung zur Kenntnis genommen.')),
+                                    const SnackBar(
+                                        content: Text(
+                                            'Empfehlung zur Kenntnis genommen.')),
                                   );
                                 },
                                 child: const Text('Später'),
@@ -101,7 +105,9 @@ class _AiCoachSheetState extends State<AiCoachSheet> {
                                   await controller.applyProposal(p);
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Vorschlag "${p.title}" wurde auf deinen Plan angewendet!')),
+                                      SnackBar(
+                                          content: Text(
+                                              'Vorschlag "${p.title}" wurde auf deinen Plan angewendet!')),
                                     );
                                   }
                                 },
@@ -121,12 +127,14 @@ class _AiCoachSheetState extends State<AiCoachSheet> {
               // Intake generator
               Text(
                 'Neuen Trainingsplan generieren (Intake)',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
               Text(
                 'Lass dir einen maßgeschneiderten Plan mit evidenzbasierter Progression erstellen.',
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                style:
+                    theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
               ),
               const SizedBox(height: 16),
 
@@ -135,9 +143,11 @@ class _AiCoachSheetState extends State<AiCoachSheet> {
               const SizedBox(height: 6),
               SegmentedButton<String>(
                 segments: const [
-                  ButtonSegment(value: 'hypertrophy', label: Text('Muskelaufbau')),
+                  ButtonSegment(
+                      value: 'hypertrophy', label: Text('Muskelaufbau')),
                   ButtonSegment(value: 'strength', label: Text('Kraft')),
-                  ButtonSegment(value: 'general_fitness', label: Text('Fitness')),
+                  ButtonSegment(
+                      value: 'general_fitness', label: Text('Fitness')),
                 ],
                 selected: {_goal},
                 onSelectionChanged: (val) => setState(() => _goal = val.first),
@@ -145,7 +155,8 @@ class _AiCoachSheetState extends State<AiCoachSheet> {
               const SizedBox(height: 16),
 
               // Days per week
-              Text('Trainingstage pro Woche: $_daysPerWeek Tage', style: theme.textTheme.labelLarge),
+              Text('Trainingstage pro Woche: $_daysPerWeek Tage',
+                  style: theme.textTheme.labelLarge),
               Slider(
                 value: _daysPerWeek.toDouble(),
                 min: 2,
@@ -204,7 +215,9 @@ class _AiCoachSheetState extends State<AiCoachSheet> {
                   if (context.mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Plan "${controller.activePlan?.name}" erfolgreich erstellt!')),
+                      SnackBar(
+                          content: Text(
+                              'Plan "${controller.activePlan?.name}" erfolgreich erstellt!')),
                     );
                   }
                 },

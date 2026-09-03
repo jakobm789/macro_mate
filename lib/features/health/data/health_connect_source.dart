@@ -43,7 +43,6 @@ class HealthConnectSource implements HealthDataSource {
     }).toList();
   }
 
-
   static const _menstruationTypes = <HealthDataType>[
     HealthDataType.MENSTRUATION_FLOW,
   ];
@@ -133,7 +132,8 @@ class HealthConnectSource implements HealthDataSource {
       );
       points.addAll(batchPoints);
     } catch (e) {
-      _logger.warning('HealthConnect read batch failed: $e, falling back to individual types');
+      _logger.warning(
+          'HealthConnect read batch failed: $e, falling back to individual types');
       for (final type in types) {
         try {
           final singlePoints = await _client.getHealthDataFromTypes(
@@ -167,7 +167,6 @@ class HealthConnectSource implements HealthDataSource {
             ),
     ];
   }
-
 
   @override
   Future<List<HealthMenstruationRecord>> readMenstruation(
@@ -239,7 +238,6 @@ class HealthConnectSource implements HealthDataSource {
         _ => null,
       };
 
-
   double? _valueFor(HealthDataPoint point) {
     final value = point.value;
     if (value is NumericHealthValue) return value.numericValue.toDouble();
@@ -269,4 +267,3 @@ class HealthConnectSource implements HealthDataSource {
     }
   }
 }
-

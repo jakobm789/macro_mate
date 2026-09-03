@@ -68,7 +68,8 @@ class DriftGymRepository {
   }
 
   Future<GymExercise?> getExerciseById(String id) async {
-    final row = await (_db.select(_db.gymExercises)..where((t) => t.id.equals(id)))
+    final row = await (_db.select(_db.gymExercises)
+          ..where((t) => t.id.equals(id)))
         .getSingleOrNull();
     return row == null ? null : _mapExerciseRowToDomain(row);
   }
@@ -105,7 +106,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.chest,
         secondaryMuscles: [GymMuscleGroup.triceps, GymMuscleGroup.shoulders],
         equipment: GymEquipment.barbell,
-        instructions: 'Flach auf die Bank legen, Schulterblätter zusammenziehen, Stange schulterbreit greifen und kontrolliert zur Mitte der Brust führen, dann kraftvoll hochdrücken.',
+        instructions:
+            'Flach auf die Bank legen, Schulterblätter zusammenziehen, Stange schulterbreit greifen und kontrolliert zur Mitte der Brust führen, dann kraftvoll hochdrücken.',
       ),
       const GymExercise(
         id: 'ex_incline_db_press',
@@ -113,7 +115,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.chest,
         secondaryMuscles: [GymMuscleGroup.shoulders, GymMuscleGroup.triceps],
         equipment: GymEquipment.dumbbell,
-        instructions: 'Bank auf 30° einstellen. Hanteln auf Brusthöhe absenken, Dehnung der oberen Brust spüren und explosiv nach oben führen.',
+        instructions:
+            'Bank auf 30° einstellen. Hanteln auf Brusthöhe absenken, Dehnung der oberen Brust spüren und explosiv nach oben führen.',
       ),
       const GymExercise(
         id: 'ex_incline_barbell_press',
@@ -121,7 +124,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.chest,
         secondaryMuscles: [GymMuscleGroup.shoulders, GymMuscleGroup.triceps],
         equipment: GymEquipment.barbell,
-        instructions: 'Auf die 30°-Schrägbank legen. Stange knapp unterhalb des Schlüsselbeins kontrolliert absenken.',
+        instructions:
+            'Auf die 30°-Schrägbank legen. Stange knapp unterhalb des Schlüsselbeins kontrolliert absenken.',
       ),
       const GymExercise(
         id: 'ex_chest_dips',
@@ -129,7 +133,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.chest,
         secondaryMuscles: [GymMuscleGroup.triceps, GymMuscleGroup.shoulders],
         equipment: GymEquipment.bodyweight,
-        instructions: 'Oberkörper leicht nach vorne beugen, Ellbogen leicht nach außen zeigen lassen und kontrolliert absenken bis 90 Grad im Ellbogengelenk.',
+        instructions:
+            'Oberkörper leicht nach vorne beugen, Ellbogen leicht nach außen zeigen lassen und kontrolliert absenken bis 90 Grad im Ellbogengelenk.',
       ),
       const GymExercise(
         id: 'ex_cable_flys',
@@ -137,7 +142,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.chest,
         secondaryMuscles: [GymMuscleGroup.shoulders],
         equipment: GymEquipment.cable,
-        instructions: 'Aufrecht stehen, Kabel von oben nach unten oder mittig vor dem Körper zusammenführen und maximale Kontraktion halten.',
+        instructions:
+            'Aufrecht stehen, Kabel von oben nach unten oder mittig vor dem Körper zusammenführen und maximale Kontraktion halten.',
       ),
       const GymExercise(
         id: 'ex_db_flys',
@@ -145,7 +151,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.chest,
         secondaryMuscles: [GymMuscleGroup.shoulders],
         equipment: GymEquipment.dumbbell,
-        instructions: 'Mit leicht gebeugten Armen die Kurzhanteln bogenförmig zur Seite senken, Brustdehnung spüren und wie bei einer Umarmung schließen.',
+        instructions:
+            'Mit leicht gebeugten Armen die Kurzhanteln bogenförmig zur Seite senken, Brustdehnung spüren und wie bei einer Umarmung schließen.',
       ),
       const GymExercise(
         id: 'ex_pushups',
@@ -153,7 +160,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.chest,
         secondaryMuscles: [GymMuscleGroup.triceps, GymMuscleGroup.abs],
         equipment: GymEquipment.bodyweight,
-        instructions: 'Körper in einer stabilen Plank halten, Hände schulterbreit, Brust bis kurz vor den Boden senken.',
+        instructions:
+            'Körper in einer stabilen Plank halten, Hände schulterbreit, Brust bis kurz vor den Boden senken.',
       ),
 
       // --- RÜCKEN / BACK & LATS ---
@@ -161,9 +169,14 @@ class DriftGymRepository {
         id: 'ex_deadlift',
         name: 'Kreuzheben (Klassisch)',
         primaryMuscle: GymMuscleGroup.back,
-        secondaryMuscles: [GymMuscleGroup.hamstrings, GymMuscleGroup.glutes, GymMuscleGroup.forearms],
+        secondaryMuscles: [
+          GymMuscleGroup.hamstrings,
+          GymMuscleGroup.glutes,
+          GymMuscleGroup.forearms
+        ],
         equipment: GymEquipment.barbell,
-        instructions: 'Füße hüftbreit unter der Hantelstange. Mit geradem Rücken, angespannter Bauch- und Latmuskulatur aus Beinen und Hüfte heben.',
+        instructions:
+            'Füße hüftbreit unter der Hantelstange. Mit geradem Rücken, angespannter Bauch- und Latmuskulatur aus Beinen und Hüfte heben.',
       ),
       const GymExercise(
         id: 'ex_barbell_row',
@@ -171,7 +184,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.back,
         secondaryMuscles: [GymMuscleGroup.biceps, GymMuscleGroup.forearms],
         equipment: GymEquipment.barbell,
-        instructions: 'Oberkörper ca. 45° nach vorne neigen, Rücken gerade, Hantelstange zur unteren Bauchregion ziehen.',
+        instructions:
+            'Oberkörper ca. 45° nach vorne neigen, Rücken gerade, Hantelstange zur unteren Bauchregion ziehen.',
       ),
       const GymExercise(
         id: 'ex_pullup',
@@ -179,7 +193,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.back,
         secondaryMuscles: [GymMuscleGroup.biceps, GymMuscleGroup.abs],
         equipment: GymEquipment.bodyweight,
-        instructions: 'Etwas mehr als schulterbreit greifen. Den Körper kontrolliert nach oben ziehen, bis das Kinn über die Stange reicht.',
+        instructions:
+            'Etwas mehr als schulterbreit greifen. Den Körper kontrolliert nach oben ziehen, bis das Kinn über die Stange reicht.',
       ),
       const GymExercise(
         id: 'ex_chinup',
@@ -187,7 +202,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.back,
         secondaryMuscles: [GymMuscleGroup.biceps],
         equipment: GymEquipment.bodyweight,
-        instructions: 'Hände im Untergriff schulterbreit. Starke Beanspruchung des Latissimus und Bizeps.',
+        instructions:
+            'Hände im Untergriff schulterbreit. Starke Beanspruchung des Latissimus und Bizeps.',
       ),
       const GymExercise(
         id: 'ex_lat_pulldown',
@@ -195,7 +211,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.back,
         secondaryMuscles: [GymMuscleGroup.biceps],
         equipment: GymEquipment.cable,
-        instructions: 'Breite Stange greifen, mit aufrechter Brust zur Schlüsselbeinlinie ziehen und Schulterblätter aktiv nach unten führen.',
+        instructions:
+            'Breite Stange greifen, mit aufrechter Brust zur Schlüsselbeinlinie ziehen und Schulterblätter aktiv nach unten führen.',
       ),
       const GymExercise(
         id: 'ex_seated_cable_row',
@@ -203,7 +220,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.back,
         secondaryMuscles: [GymMuscleGroup.biceps],
         equipment: GymEquipment.cable,
-        instructions: 'Aufrecht sitzen, V-Griff zum Bauchnabel ziehen, Brust rausdrücken und Schulterblätter am Endpunkt zusammenpressen.',
+        instructions:
+            'Aufrecht sitzen, V-Griff zum Bauchnabel ziehen, Brust rausdrücken und Schulterblätter am Endpunkt zusammenpressen.',
       ),
       const GymExercise(
         id: 'ex_one_arm_db_row',
@@ -211,7 +229,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.back,
         secondaryMuscles: [GymMuscleGroup.biceps, GymMuscleGroup.forearms],
         equipment: GymEquipment.dumbbell,
-        instructions: 'Ein Knie auf die Bank stützen, Hantel eng an den Rippen nach oben ziehen.',
+        instructions:
+            'Ein Knie auf die Bank stützen, Hantel eng an den Rippen nach oben ziehen.',
       ),
       const GymExercise(
         id: 'ex_face_pulls',
@@ -219,7 +238,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.shoulders,
         secondaryMuscles: [GymMuscleGroup.trapezius, GymMuscleGroup.back],
         equipment: GymEquipment.cable,
-        instructions: 'Seilgriff auf Augenhöhe ziehen, Ellbogen hoch und nach außen rotieren zur Stärkung der Rotatorenmanschette und hinteren Schulter.',
+        instructions:
+            'Seilgriff auf Augenhöhe ziehen, Ellbogen hoch und nach außen rotieren zur Stärkung der Rotatorenmanschette und hinteren Schulter.',
       ),
 
       // --- BEINE: QUADRIZEPS, HAMSTRINGS, GLUTES ---
@@ -227,9 +247,14 @@ class DriftGymRepository {
         id: 'ex_squat',
         name: 'Kniebeugen (Back Squat)',
         primaryMuscle: GymMuscleGroup.quadriceps,
-        secondaryMuscles: [GymMuscleGroup.glutes, GymMuscleGroup.hamstrings, GymMuscleGroup.abs],
+        secondaryMuscles: [
+          GymMuscleGroup.glutes,
+          GymMuscleGroup.hamstrings,
+          GymMuscleGroup.abs
+        ],
         equipment: GymEquipment.barbell,
-        instructions: 'Stange auf Nacken/oberen Rücken legen. Hüfte nach hinten-unten führen bis Oberschenkel mindestens parallel zum Boden sind.',
+        instructions:
+            'Stange auf Nacken/oberen Rücken legen. Hüfte nach hinten-unten führen bis Oberschenkel mindestens parallel zum Boden sind.',
       ),
       const GymExercise(
         id: 'ex_front_squat',
@@ -237,7 +262,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.quadriceps,
         secondaryMuscles: [GymMuscleGroup.abs, GymMuscleGroup.glutes],
         equipment: GymEquipment.barbell,
-        instructions: 'Hantel auf den vorderen Schultern ablegen. Sehr aufrechter Oberkörper für maximalen Quadrizeps-Fokus.',
+        instructions:
+            'Hantel auf den vorderen Schultern ablegen. Sehr aufrechter Oberkörper für maximalen Quadrizeps-Fokus.',
       ),
       const GymExercise(
         id: 'ex_leg_press',
@@ -245,7 +271,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.quadriceps,
         secondaryMuscles: [GymMuscleGroup.glutes],
         equipment: GymEquipment.machine,
-        instructions: 'Füße hüftbreit auf der Plattform platzieren. Schlitten tief absenken, kontrolliert drücken ohne Knie durchzustrecken.',
+        instructions:
+            'Füße hüftbreit auf der Plattform platzieren. Schlitten tief absenken, kontrolliert drücken ohne Knie durchzustrecken.',
       ),
       const GymExercise(
         id: 'ex_bulgarian_split_squat',
@@ -253,7 +280,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.quadriceps,
         secondaryMuscles: [GymMuscleGroup.glutes, GymMuscleGroup.hamstrings],
         equipment: GymEquipment.dumbbell,
-        instructions: 'Einen Fuß hinten auf eine Bank legen. Mit dem vorderen Bein tief einsinken und aus der Ferse hochdrücken.',
+        instructions:
+            'Einen Fuß hinten auf eine Bank legen. Mit dem vorderen Bein tief einsinken und aus der Ferse hochdrücken.',
       ),
       const GymExercise(
         id: 'ex_walking_lunges',
@@ -261,14 +289,16 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.quadriceps,
         secondaryMuscles: [GymMuscleGroup.glutes],
         equipment: GymEquipment.dumbbell,
-        instructions: 'Große Schritte nach vorne machen, hinteres Knie kurz über den Boden absenken.',
+        instructions:
+            'Große Schritte nach vorne machen, hinteres Knie kurz über den Boden absenken.',
       ),
       const GymExercise(
         id: 'ex_leg_extension',
         name: 'Beinstrecker-Maschine',
         primaryMuscle: GymMuscleGroup.quadriceps,
         equipment: GymEquipment.machine,
-        instructions: 'Im Sitzen die Beine kontrolliert strecken und oben den Quadrizeps eine Sekunde voll anspannen.',
+        instructions:
+            'Im Sitzen die Beine kontrolliert strecken und oben den Quadrizeps eine Sekunde voll anspannen.',
       ),
       const GymExercise(
         id: 'ex_romanian_deadlift',
@@ -276,21 +306,24 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.hamstrings,
         secondaryMuscles: [GymMuscleGroup.glutes, GymMuscleGroup.back],
         equipment: GymEquipment.barbell,
-        instructions: 'Knie nur leicht gebeugt halten. Hüfte weit nach hinten schieben, Dehnung der hinteren Oberschenkel spüren und aus Glutes aufrichten.',
+        instructions:
+            'Knie nur leicht gebeugt halten. Hüfte weit nach hinten schieben, Dehnung der hinteren Oberschenkel spüren und aus Glutes aufrichten.',
       ),
       const GymExercise(
         id: 'ex_leg_curl_lying',
         name: 'Beinbeuger liegend (Leg Curls)',
         primaryMuscle: GymMuscleGroup.hamstrings,
         equipment: GymEquipment.machine,
-        instructions: 'Auf dem Bauch liegen, Fersen zum Gesäß heranziehen und Dehnungsphase kontrollieren.',
+        instructions:
+            'Auf dem Bauch liegen, Fersen zum Gesäß heranziehen und Dehnungsphase kontrollieren.',
       ),
       const GymExercise(
         id: 'ex_leg_curl_seated',
         name: 'Beinbeuger sitzend',
         primaryMuscle: GymMuscleGroup.hamstrings,
         equipment: GymEquipment.machine,
-        instructions: 'Im Sitzen die Unterschenkel nach unten-hinten beugen für optimale Dehnung des Beinbeugers.',
+        instructions:
+            'Im Sitzen die Unterschenkel nach unten-hinten beugen für optimale Dehnung des Beinbeugers.',
       ),
       const GymExercise(
         id: 'ex_hip_thrust',
@@ -298,21 +331,24 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.glutes,
         secondaryMuscles: [GymMuscleGroup.hamstrings],
         equipment: GymEquipment.barbell,
-        instructions: 'Oberen Rücken an Bank anlehnen, Hantel auf Hüfte platzieren und Becken maximal zur Decke strecken.',
+        instructions:
+            'Oberen Rücken an Bank anlehnen, Hantel auf Hüfte platzieren und Becken maximal zur Decke strecken.',
       ),
       const GymExercise(
         id: 'ex_calf_raise',
         name: 'Wadenheben stehend',
         primaryMuscle: GymMuscleGroup.calves,
         equipment: GymEquipment.machine,
-        instructions: 'Volle Dehnung nach unten und maximale Spitzenkontraktion auf den Zehenspitzen.',
+        instructions:
+            'Volle Dehnung nach unten und maximale Spitzenkontraktion auf den Zehenspitzen.',
       ),
       const GymExercise(
         id: 'ex_seated_calf_raise',
         name: 'Wadenheben sitzend',
         primaryMuscle: GymMuscleGroup.calves,
         equipment: GymEquipment.machine,
-        instructions: 'Fokussiert den Musculus soleus (Schollenmuskel) durch 90-Grad Kniewinkel.',
+        instructions:
+            'Fokussiert den Musculus soleus (Schollenmuskel) durch 90-Grad Kniewinkel.',
       ),
 
       // --- SCHULTERN / SHOULDERS & NACKEN ---
@@ -322,7 +358,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.shoulders,
         secondaryMuscles: [GymMuscleGroup.triceps, GymMuscleGroup.abs],
         equipment: GymEquipment.barbell,
-        instructions: 'Im aufrechten Stand Langhantel vom Schlüsselbein über den Kopf nach oben drücken.',
+        instructions:
+            'Im aufrechten Stand Langhantel vom Schlüsselbein über den Kopf nach oben drücken.',
       ),
       const GymExercise(
         id: 'ex_db_shoulder_press',
@@ -330,21 +367,24 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.shoulders,
         secondaryMuscles: [GymMuscleGroup.triceps],
         equipment: GymEquipment.dumbbell,
-        instructions: 'Aufrecht auf Bank sitzen, Kurzhanteln auf Schulterhöhe starten und kontrolliert nach oben drücken.',
+        instructions:
+            'Aufrecht auf Bank sitzen, Kurzhanteln auf Schulterhöhe starten und kontrolliert nach oben drücken.',
       ),
       const GymExercise(
         id: 'ex_lateral_raise',
         name: 'Seitheben mit Kurzhanteln',
         primaryMuscle: GymMuscleGroup.shoulders,
         equipment: GymEquipment.dumbbell,
-        instructions: 'Arme seitlich bis zur Schulterhöhe heben, kleine Finger leicht anheben für seitliche Deltamuskeln.',
+        instructions:
+            'Arme seitlich bis zur Schulterhöhe heben, kleine Finger leicht anheben für seitliche Deltamuskeln.',
       ),
       const GymExercise(
         id: 'ex_cable_lateral_raise',
         name: 'Kabel-Seitheben hinter dem Körper',
         primaryMuscle: GymMuscleGroup.shoulders,
         equipment: GymEquipment.cable,
-        instructions: 'Kabel von unten hinter dem Rücken greifen für konstante Spannung im gesamten Bewegungsradius.',
+        instructions:
+            'Kabel von unten hinter dem Rücken greifen für konstante Spannung im gesamten Bewegungsradius.',
       ),
       const GymExercise(
         id: 'ex_reverse_flys',
@@ -352,14 +392,16 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.shoulders,
         secondaryMuscles: [GymMuscleGroup.trapezius],
         equipment: GymEquipment.machine,
-        instructions: 'Brust an das Polster drücken und Griffe weit nach außen-hinten führen.',
+        instructions:
+            'Brust an das Polster drücken und Griffe weit nach außen-hinten führen.',
       ),
       const GymExercise(
         id: 'ex_shrugs',
         name: 'Shrugs (Langhantel/Kurzhantel)',
         primaryMuscle: GymMuscleGroup.trapezius,
         equipment: GymEquipment.barbell,
-        instructions: 'Schultern ohne Drehung geradlinig zu den Ohren ziehen und Spitzenkontraktion 1 Sekunde halten.',
+        instructions:
+            'Schultern ohne Drehung geradlinig zu den Ohren ziehen und Spitzenkontraktion 1 Sekunde halten.',
       ),
 
       // --- ARME: BIZEPS, TRIZEPS, UNTERARME ---
@@ -369,7 +411,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.biceps,
         secondaryMuscles: [GymMuscleGroup.forearms],
         equipment: GymEquipment.dumbbell,
-        instructions: 'Ellbogen an den Rippen fixieren, Hanteln kontrolliert nach oben drehen (Supination).',
+        instructions:
+            'Ellbogen an den Rippen fixieren, Hanteln kontrolliert nach oben drehen (Supination).',
       ),
       const GymExercise(
         id: 'ex_barbell_curl',
@@ -377,7 +420,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.biceps,
         secondaryMuscles: [GymMuscleGroup.forearms],
         equipment: GymEquipment.barbell,
-        instructions: 'Schulterbreiter Griff, Schwung vermeiden und reinen Bizepszug nutzen.',
+        instructions:
+            'Schulterbreiter Griff, Schwung vermeiden und reinen Bizepszug nutzen.',
       ),
       const GymExercise(
         id: 'ex_hammer_curls',
@@ -385,21 +429,24 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.biceps,
         secondaryMuscles: [GymMuscleGroup.forearms],
         equipment: GymEquipment.dumbbell,
-        instructions: 'Handflächen zueinander gerichtet halten. Trainiert Brachialis und Unterarme für dickere Oberarme.',
+        instructions:
+            'Handflächen zueinander gerichtet halten. Trainiert Brachialis und Unterarme für dickere Oberarme.',
       ),
       const GymExercise(
         id: 'ex_incline_db_curl',
         name: 'Schrägbank-Bizepscurls (Incline Curls)',
         primaryMuscle: GymMuscleGroup.biceps,
         equipment: GymEquipment.dumbbell,
-        instructions: 'Auf 45°-Schrägbank sitzen für maximale Dehnung des langen Bizepskopfs.',
+        instructions:
+            'Auf 45°-Schrägbank sitzen für maximale Dehnung des langen Bizepskopfs.',
       ),
       const GymExercise(
         id: 'ex_tricep_pushdown',
         name: 'Trizepsdrücken am Kabelzug (Seil)',
         primaryMuscle: GymMuscleGroup.triceps,
         equipment: GymEquipment.cable,
-        instructions: 'Ellbogen am Körper fixieren, Seil am tiefsten Punkt nach außen spreizen.',
+        instructions:
+            'Ellbogen am Körper fixieren, Seil am tiefsten Punkt nach außen spreizen.',
       ),
       const GymExercise(
         id: 'ex_close_grip_bench_press',
@@ -407,21 +454,24 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.triceps,
         secondaryMuscles: [GymMuscleGroup.chest, GymMuscleGroup.shoulders],
         equipment: GymEquipment.barbell,
-        instructions: 'Schulterbreit greifen, Ellbogen nah am Oberkörper führen für maximale Trizepskraft.',
+        instructions:
+            'Schulterbreit greifen, Ellbogen nah am Oberkörper führen für maximale Trizepskraft.',
       ),
       const GymExercise(
         id: 'ex_skull_crushers',
         name: 'Skull Crushers (French Press)',
         primaryMuscle: GymMuscleGroup.triceps,
         equipment: GymEquipment.barbell,
-        instructions: 'Auf Flachbank liegen, SZ-Stange zur Stirn absenken und nur die Unterarme beugen.',
+        instructions:
+            'Auf Flachbank liegen, SZ-Stange zur Stirn absenken und nur die Unterarme beugen.',
       ),
       const GymExercise(
         id: 'ex_overhead_tricep_extension',
         name: 'Überkopf-Trizepsstrecken am Kabel',
         primaryMuscle: GymMuscleGroup.triceps,
         equipment: GymEquipment.cable,
-        instructions: 'Seil über den Kopf nach vorne-oben strecken für den langen Trizepskopf.',
+        instructions:
+            'Seil über den Kopf nach vorne-oben strecken für den langen Trizepskopf.',
       ),
 
       // --- BAUCH & CORE ---
@@ -431,7 +481,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.abs,
         secondaryMuscles: [GymMuscleGroup.shoulders, GymMuscleGroup.glutes],
         equipment: GymEquipment.bodyweight,
-        instructions: 'Körper in einer geraden Linie stabilisieren. Bauch, Gesäß und Beine fest anspannen.',
+        instructions:
+            'Körper in einer geraden Linie stabilisieren. Bauch, Gesäß und Beine fest anspannen.',
         isTimed: true,
       ),
       const GymExercise(
@@ -439,14 +490,16 @@ class DriftGymRepository {
         name: 'Beinheben hängend',
         primaryMuscle: GymMuscleGroup.abs,
         equipment: GymEquipment.bodyweight,
-        instructions: 'An Stange hängen und gestreckte Beine oder Knie kontrolliert zur Brust ziehen ohne zu schwingen.',
+        instructions:
+            'An Stange hängen und gestreckte Beine oder Knie kontrolliert zur Brust ziehen ohne zu schwingen.',
       ),
       const GymExercise(
         id: 'ex_cable_crunches',
         name: 'Kabel-Crunches kniend',
         primaryMuscle: GymMuscleGroup.abs,
         equipment: GymEquipment.cable,
-        instructions: 'Vor dem Seilzug knien, Seil an die Schläfen halten und den Rumpf einrollen.',
+        instructions:
+            'Vor dem Seilzug knien, Seil an die Schläfen halten und den Rumpf einrollen.',
       ),
       const GymExercise(
         id: 'ex_ab_wheel_rollout',
@@ -454,7 +507,8 @@ class DriftGymRepository {
         primaryMuscle: GymMuscleGroup.abs,
         secondaryMuscles: [GymMuscleGroup.back, GymMuscleGroup.shoulders],
         equipment: GymEquipment.other,
-        instructions: 'Auf den Knien mit dem Rollrad so weit wie möglich nach vorne rollen und aus dem Bauch zurückziehen.',
+        instructions:
+            'Auf den Knien mit dem Rollrad so weit wie möglich nach vorne rollen und aus dem Bauch zurückziehen.',
       ),
     ];
 
@@ -485,7 +539,8 @@ class DriftGymRepository {
         .get();
   }
 
-  Future<List<GymPlanRoutineExerciseRow>> getExercisesForRoutine(String routineId) async {
+  Future<List<GymPlanRoutineExerciseRow>> getExercisesForRoutine(
+      String routineId) async {
     return (_db.select(_db.gymPlanRoutineExercises)
           ..where((t) => t.routineId.equals(routineId))
           ..orderBy([(t) => OrderingTerm.asc(t.orderIndex)]))
@@ -518,7 +573,9 @@ class DriftGymRepository {
             ),
           );
 
-      await (_db.delete(_db.gymPlanRoutines)..where((t) => t.planId.equals(planId))).go();
+      await (_db.delete(_db.gymPlanRoutines)
+            ..where((t) => t.planId.equals(planId)))
+          .go();
 
       for (final r in routinesWithExercises) {
         final routineId = r['id'] as String? ?? _uuid.v4();
@@ -528,7 +585,8 @@ class DriftGymRepository {
                 planId: planId,
                 dayOfWeek: r['dayOfWeek'] as int? ?? 1,
                 name: r['name'] as String,
-                progressionType: Value(r['progressionType'] as String? ?? 'linear'),
+                progressionType:
+                    Value(r['progressionType'] as String? ?? 'linear'),
               ),
             );
 
@@ -573,7 +631,10 @@ class DriftGymRepository {
     await _db.transaction(() async {
       double totalTonnage = 0.0;
       for (final s in sets) {
-        if (s.completed && s.setType != GymSetType.warmup && s.reps != null && s.reps! > 0) {
+        if (s.completed &&
+            s.setType != GymSetType.warmup &&
+            s.reps != null &&
+            s.reps! > 0) {
           totalTonnage += s.weightKg * s.reps!;
         }
       }
@@ -592,7 +653,9 @@ class DriftGymRepository {
             ),
           );
 
-      await (_db.delete(_db.gymSetLogs)..where((t) => t.sessionId.equals(sessionId))).go();
+      await (_db.delete(_db.gymSetLogs)
+            ..where((t) => t.sessionId.equals(sessionId)))
+          .go();
 
       final nowIso = DateTime.now().toUtc().toIso8601String();
       for (final s in sets) {
@@ -627,7 +690,8 @@ class DriftGymRepository {
                 ..limit(1))
               .getSingleOrNull();
 
-          if (previousBest == null || bestToday.estimated1Rm > previousBest.calculated1Rm) {
+          if (previousBest == null ||
+              bestToday.estimated1Rm > previousBest.calculated1Rm) {
             newPrs.add(bestToday);
             await _db.into(_db.gym1RmHistories).insert(
                   Gym1RmHistoriesCompanion.insert(
@@ -711,10 +775,12 @@ class DriftGymRepository {
   // --- MUSCLE MAP & TONNAGE ANALYTICS ---
 
   Future<Map<GymMuscleGroup, double>> getMuscleTonnage({int days = 7}) async {
-    final cutoff = DateTime.now().toUtc().subtract(Duration(days: days)).toIso8601String();
+    final cutoff =
+        DateTime.now().toUtc().subtract(Duration(days: days)).toIso8601String();
 
     final query = _db.select(_db.gymSetLogs).join([
-      innerJoin(_db.gymExercises, _db.gymExercises.id.equalsExp(_db.gymSetLogs.exerciseId)),
+      innerJoin(_db.gymExercises,
+          _db.gymExercises.id.equalsExp(_db.gymSetLogs.exerciseId)),
     ])
       ..where(_db.gymSetLogs.completed.equals(true))
       ..where(_db.gymSetLogs.loggedAtUtc.isBiggerOrEqualValue(cutoff));
@@ -727,13 +793,15 @@ class DriftGymRepository {
       final exRow = r.readTable(_db.gymExercises);
 
       final reps = setRow.reps ?? 1;
-      final setTonnage = setRow.weightKg > 0 ? (setRow.weightKg * reps) : 10.0 * reps;
+      final setTonnage =
+          setRow.weightKg > 0 ? (setRow.weightKg * reps) : 10.0 * reps;
 
       final primary = GymMuscleGroup.values.byName(exRow.primaryMuscle);
       tonnageMap[primary] = (tonnageMap[primary] ?? 0.0) + setTonnage;
 
       try {
-        final secondaryNames = jsonDecode(exRow.secondaryMusclesJson) as List<dynamic>;
+        final secondaryNames =
+            jsonDecode(exRow.secondaryMusclesJson) as List<dynamic>;
         for (final secName in secondaryNames) {
           final sec = GymMuscleGroup.values.byName(secName as String);
           tonnageMap[sec] = (tonnageMap[sec] ?? 0.0) + (setTonnage * 0.4);
@@ -746,7 +814,8 @@ class DriftGymRepository {
 
   Future<List<GymMuscleGroup>> getNeglectedMuscles({int days = 14}) async {
     final tonnage = await getMuscleTonnage(days: days);
-    final allMuscles = GymMuscleGroup.values.where((m) => m != GymMuscleGroup.fullBody);
+    final allMuscles =
+        GymMuscleGroup.values.where((m) => m != GymMuscleGroup.fullBody);
     return allMuscles.where((m) => (tonnage[m] ?? 0.0) <= 0.0).toList();
   }
 
@@ -754,7 +823,8 @@ class DriftGymRepository {
     List<GymMuscleGroup> secondaries = const [];
     try {
       final list = jsonDecode(row.secondaryMusclesJson) as List<dynamic>;
-      secondaries = list.map((e) => GymMuscleGroup.values.byName(e as String)).toList();
+      secondaries =
+          list.map((e) => GymMuscleGroup.values.byName(e as String)).toList();
     } catch (_) {}
 
     return GymExercise(

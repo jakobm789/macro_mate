@@ -43,13 +43,16 @@ class GymController extends ChangeNotifier {
   List<GymExercise> get exercises => List.unmodifiable(_exercises);
 
   Map<GymMuscleGroup, double> _muscleTonnage = {};
-  Map<GymMuscleGroup, double> get muscleTonnage => Map.unmodifiable(_muscleTonnage);
+  Map<GymMuscleGroup, double> get muscleTonnage =>
+      Map.unmodifiable(_muscleTonnage);
 
   List<GymMuscleGroup> _neglectedMuscles = [];
-  List<GymMuscleGroup> get neglectedMuscles => List.unmodifiable(_neglectedMuscles);
+  List<GymMuscleGroup> get neglectedMuscles =>
+      List.unmodifiable(_neglectedMuscles);
 
   List<GymWorkoutSessionRow> _recentSessions = [];
-  List<GymWorkoutSessionRow> get recentSessions => List.unmodifiable(_recentSessions);
+  List<GymWorkoutSessionRow> get recentSessions =>
+      List.unmodifiable(_recentSessions);
 
   List<PlanProposalAction> _aiProposals = [];
   List<PlanProposalAction> get aiProposals => List.unmodifiable(_aiProposals);
@@ -92,7 +95,8 @@ class GymController extends ChangeNotifier {
         _routines = await _repository.getRoutinesForPlan(_activePlan!.id);
         _routineExercises = {};
         for (final r in _routines) {
-          _routineExercises[r.id] = await _repository.getExercisesForRoutine(r.id);
+          _routineExercises[r.id] =
+              await _repository.getExercisesForRoutine(r.id);
         }
       } else {
         _routines = [];
@@ -136,16 +140,18 @@ class GymController extends ChangeNotifier {
     // Pre-fill sets based on planned targets and previous workout weights
     var globalSetIndex = 0;
     for (final plannedEx in exercises) {
-      final prevSets = await _repository.getPreviousSetsForExercise(plannedEx.exerciseId);
-      final defaultWeight = prevSets.isNotEmpty ? prevSets.first.weightKg : 20.0;
+      final prevSets =
+          await _repository.getPreviousSetsForExercise(plannedEx.exerciseId);
+      final defaultWeight =
+          prevSets.isNotEmpty ? prevSets.first.weightKg : 20.0;
 
       for (var i = 1; i <= plannedEx.targetSets; i++) {
-        final prevWeightForSet = (i <= prevSets.length)
-            ? prevSets[i - 1].weightKg
-            : defaultWeight;
-        final prevRepsForSet = (i <= prevSets.length && prevSets[i - 1].reps != null)
-            ? prevSets[i - 1].reps!
-            : plannedEx.targetRepsMin;
+        final prevWeightForSet =
+            (i <= prevSets.length) ? prevSets[i - 1].weightKg : defaultWeight;
+        final prevRepsForSet =
+            (i <= prevSets.length && prevSets[i - 1].reps != null)
+                ? prevSets[i - 1].reps!
+                : plannedEx.targetRepsMin;
 
         _activeSets.add(
           GymSetLog(
@@ -197,7 +203,8 @@ class GymController extends ChangeNotifier {
   }
 
   void addSetToExercise(String exerciseId) {
-    final existing = _activeSets.where((s) => s.exerciseId == exerciseId).toList();
+    final existing =
+        _activeSets.where((s) => s.exerciseId == exerciseId).toList();
     final lastWeight = existing.isNotEmpty ? existing.last.weightKg : 20.0;
     final lastReps = existing.isNotEmpty ? existing.last.reps : 8;
 
@@ -246,7 +253,8 @@ class GymController extends ChangeNotifier {
 
     final completedSets = _activeSets.where((s) => s.completed).toList();
     final rpes = completedSets.map((s) => s.rpe).whereType<double>().toList();
-    final avgRpe = rpes.isEmpty ? null : rpes.reduce((a, b) => a + b) / rpes.length;
+    final avgRpe =
+        rpes.isEmpty ? null : rpes.reduce((a, b) => a + b) / rpes.length;
 
     final result = await _repository.saveWorkoutSession(
       sessionId: _activeSessionId!,
@@ -307,7 +315,8 @@ class GymController extends ChangeNotifier {
           if (e.exerciseId == proposal.exerciseId &&
               proposal.type == ProposalActionType.adjustVolume &&
               proposal.adjustmentValue != null) {
-            targetSets = (targetSets + proposal.adjustmentValue!.toInt()).clamp(1, 10);
+            targetSets =
+                (targetSets + proposal.adjustmentValue!.toInt()).clamp(1, 10);
           }
 
           exercisesData.add({
@@ -358,8 +367,8 @@ class GymController extends ChangeNotifier {
       final planData = _aiCoach.generateDeterministicPlan(profile);
       final planId = _uuid.v4();
 
-      final routinesList = (planData['routines'] as List<dynamic>)
-          .cast<Map<String, dynamic>>();
+      final routinesList =
+          (planData['routines'] as List<dynamic>).cast<Map<String, dynamic>>();
 
       await _repository.saveWorkoutPlan(
         planId: planId,

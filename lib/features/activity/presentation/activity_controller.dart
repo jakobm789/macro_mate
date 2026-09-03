@@ -96,7 +96,8 @@ class ActivityController extends ChangeNotifier {
     notifyListeners();
   }
 
-  final CardioMetricsCalculator _cardioCalculator = const CardioMetricsCalculator();
+  final CardioMetricsCalculator _cardioCalculator =
+      const CardioMetricsCalculator();
 
   /// Calculates typed KmSplit objects using GPS points or uniform average
   List<KmSplit> calculateKmSplits(WorkoutDetail workout) =>

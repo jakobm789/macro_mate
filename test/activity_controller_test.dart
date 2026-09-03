@@ -148,7 +148,6 @@ class _FakeHealthRepository implements HealthRepository {
       null;
 }
 
-
 void main() {
   late ActivityController controller;
   late _FakeHealthRepository repo;

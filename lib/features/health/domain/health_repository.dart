@@ -59,4 +59,3 @@ abstract interface class HealthRepository {
     DateTime endTime,
   );
 }
-

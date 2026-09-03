@@ -40,7 +40,9 @@ class _GymPageState extends State<GymPage> {
 
     final activePlan = controller.activePlan;
     final todayWeekday = DateTime.now().weekday; // 1 (Mon) .. 7 (Sun)
-    final todayRoutine = controller.routines.where((r) => r.dayOfWeek == todayWeekday).firstOrNull ??
+    final todayRoutine = controller.routines
+            .where((r) => r.dayOfWeek == todayWeekday)
+            .firstOrNull ??
         controller.routines.firstOrNull;
 
     return Scaffold(
@@ -101,16 +103,19 @@ class _GymPageState extends State<GymPage> {
               Card(
                 color: Colors.deepOrangeAccent.shade100.withValues(alpha: 0.3),
                 child: ListTile(
-                  leading: const Icon(Icons.play_circle_fill, color: Colors.deepOrangeAccent),
+                  leading: const Icon(Icons.play_circle_fill,
+                      color: Colors.deepOrangeAccent),
                   title: Text(
                     'Laufendes Training: ${controller.activeRoutine?.name}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: const Text('Tippe hier, um zur aktiven Einheit zurückzukehren.'),
+                  subtitle: const Text(
+                      'Tippe hier, um zur aktiven Einheit zurückzukehren.'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const WorkoutRunnerPage()),
+                    MaterialPageRoute(
+                        builder: (_) => const WorkoutRunnerPage()),
                   ),
                 ),
               ),
@@ -132,7 +137,8 @@ class _GymPageState extends State<GymPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                activePlan?.name ?? 'Kein aktiver Trainingsplan',
+                                activePlan?.name ??
+                                    'Kein aktiver Trainingsplan',
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -164,7 +170,8 @@ class _GymPageState extends State<GymPage> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.fitness_center, color: Colors.deepOrangeAccent),
+                            const Icon(Icons.fitness_center,
+                                color: Colors.deepOrangeAccent),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -172,7 +179,8 @@ class _GymPageState extends State<GymPage> {
                                 children: [
                                   Text(
                                     'Heutige Einheit: ${todayRoutine.name}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold),
                                   ),
                                   Text(
                                     '${controller.routineExercises[todayRoutine.id]?.length ?? 0} Übungen geplant',
@@ -187,8 +195,9 @@ class _GymPageState extends State<GymPage> {
                                 foregroundColor: Colors.white,
                               ),
                               onPressed: () async {
-                                final exercises =
-                                    controller.routineExercises[todayRoutine.id] ?? [];
+                                final exercises = controller
+                                        .routineExercises[todayRoutine.id] ??
+                                    [];
                                 await controller.startWorkout(
                                   routine: todayRoutine,
                                   exercises: exercises,
@@ -226,11 +235,13 @@ class _GymPageState extends State<GymPage> {
               child: ListTile(
                 leading: const Icon(Icons.menu_book_outlined),
                 title: const Text('Übungskatalog & 1RM-Rechner'),
-                subtitle: Text('${controller.exercises.length} Übungen mit Muskelgruppen & Equipment'),
+                subtitle: Text(
+                    '${controller.exercises.length} Übungen mit Muskelgruppen & Equipment'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ExerciseLibraryPage()),
+                  MaterialPageRoute(
+                      builder: (_) => const ExerciseLibraryPage()),
                 ),
               ),
             ),
@@ -249,7 +260,8 @@ class _GymPageState extends State<GymPage> {
             if (controller.recentSessions.isEmpty)
               const EmptyState(
                 title: 'Noch keine Gym-Einheiten',
-                message: 'Starte dein erstes Workout oben, um deine Sätze und Gewichte zu tracken.',
+                message:
+                    'Starte dein erstes Workout oben, um deine Sätze und Gewichte zu tracken.',
               )
             else
               for (final session in controller.recentSessions) ...[
@@ -283,11 +295,14 @@ class _GymPageState extends State<GymPage> {
     );
   }
 
-  Future<void> _exportActivePlan(BuildContext context, GymController controller) async {
+  Future<void> _exportActivePlan(
+      BuildContext context, GymController controller) async {
     final activePlan = controller.activePlan;
     if (activePlan == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kein aktiver Trainingsplan zum Exportieren vorhanden.')),
+        const SnackBar(
+            content:
+                Text('Kein aktiver Trainingsplan zum Exportieren vorhanden.')),
       );
       return;
     }
@@ -298,7 +313,8 @@ class _GymPageState extends State<GymPage> {
       final jsonService = OpenGymJsonService(repository: repo);
       final jsonString = await jsonService.exportPlanToJson(activePlan.id);
 
-      await Share.share(jsonString, subject: 'OpenGym Trainingsplan: ${activePlan.name}');
+      await Share.share(jsonString,
+          subject: 'OpenGym Trainingsplan: ${activePlan.name}');
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -318,7 +334,8 @@ class _GymPageState extends State<GymPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Füge den Inhalt einer OpenGym-kompatiblen JSON-Datei ein:'),
+            const Text(
+                'Füge den Inhalt einer OpenGym-kompatiblen JSON-Datei ein:'),
             const SizedBox(height: 12),
             TextField(
               controller: jsonCtrl,
@@ -331,7 +348,9 @@ class _GymPageState extends State<GymPage> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Abbrechen')),
           ElevatedButton(
             onPressed: () async {
               final text = jsonCtrl.text.trim();
@@ -346,7 +365,9 @@ class _GymPageState extends State<GymPage> {
                 if (context.mounted) {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Plan erfolgreich importiert und aktiviert!')),
+                    const SnackBar(
+                        content:
+                            Text('Plan erfolgreich importiert und aktiviert!')),
                   );
                 }
               } catch (e) {

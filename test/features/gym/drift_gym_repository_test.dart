@@ -75,13 +75,16 @@ void main() {
       expect(routines.length, 1);
       expect(routines.first.name, 'Push Tag');
 
-      final exercises = await repository.getExercisesForRoutine(routines.first.id);
+      final exercises =
+          await repository.getExercisesForRoutine(routines.first.id);
       expect(exercises.length, 2);
       expect(exercises.first.exerciseId, 'ex_bench_press');
       expect(exercises.first.restSeconds, 120);
     });
 
-    test('Logs workout session and calculates muscle tonnage & neglected muscles', () async {
+    test(
+        'Logs workout session and calculates muscle tonnage & neglected muscles',
+        () async {
       await repository.ensureSeeded();
 
       final now = DateTime.now().toUtc();
@@ -121,14 +124,16 @@ void main() {
       expect(sets.length, 2);
 
       // Verify pre-fill for next workout
-      final previous = await repository.getPreviousSetsForExercise('ex_bench_press');
+      final previous =
+          await repository.getPreviousSetsForExercise('ex_bench_press');
       expect(previous.length, 2);
       expect(previous.first.weightKg, 80.0);
 
       // Verify muscle map tonnage
       final tonnage = await repository.getMuscleTonnage(days: 7);
       expect(tonnage[GymMuscleGroup.chest], greaterThanOrEqualTo(800.0));
-      expect(tonnage[GymMuscleGroup.triceps], greaterThan(0.0)); // Secondary muscle gets credit
+      expect(tonnage[GymMuscleGroup.triceps],
+          greaterThan(0.0)); // Secondary muscle gets credit
 
       // Neglected muscles should include legs, back, etc.
       final neglected = await repository.getNeglectedMuscles(days: 7);

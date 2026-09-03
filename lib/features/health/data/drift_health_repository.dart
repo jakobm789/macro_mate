@@ -563,7 +563,6 @@ class DriftHealthRepository implements HealthRepository {
     return 0;
   }
 
-
   static String _keyForMetric(HealthMetric metric) =>
       '$_syncPrefix${metric.name}';
 
@@ -753,7 +752,6 @@ class DriftHealthRepository implements HealthRepository {
     return maxRecordSteps;
   }
 }
-
 
 class _RoutePoint {
   const _RoutePoint({

@@ -48,7 +48,8 @@ void main() {
       expect(controller.sport, SportType.cycling);
     });
 
-    test('onNewLocationPoint updates metrics, elevation, and logs route points', () {
+    test('onNewLocationPoint updates metrics, elevation, and logs route points',
+        () {
       final t0 = DateTime.utc(2026, 9, 3, 10, 0, 0);
 
       // Force state to running
@@ -68,7 +69,8 @@ void main() {
       // We can manually trigger points once status is running
     });
 
-    test('Calculates kilometer split and creates database records on finish', () async {
+    test('Calculates kilometer split and creates database records on finish',
+        () async {
       final t0 = DateTime.utc(2026, 9, 3, 10, 0, 0);
 
       // Start workout

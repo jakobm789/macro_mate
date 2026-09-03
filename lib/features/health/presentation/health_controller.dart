@@ -96,7 +96,6 @@ class HealthController extends ChangeNotifier {
     }
   }
 
-
   Future<void> requestPermissions({
     bool includeHistory = false,
     bool includeBackground = false,
@@ -157,7 +156,6 @@ class HealthController extends ChangeNotifier {
     }
     await _loadDiagnostics();
   }
-
 
   Future<void> revokePermissions() async {
     await _run(() async {

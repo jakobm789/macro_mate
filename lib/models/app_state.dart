@@ -134,8 +134,7 @@ class AppState extends ChangeNotifier {
         cycleRepository ?? DriftCycleRepository(database: _database);
     _notificationRepository = notificationRepository ??
         DriftNotificationRepository(database: _database);
-    _gymRepository =
-        gymRepository ?? DriftGymRepository(database: _database);
+    _gymRepository = gymRepository ?? DriftGymRepository(database: _database);
 
     nutritionController =
         nutritionCtrl ?? NutritionController(repository: _nutritionRepository);
@@ -145,8 +144,7 @@ class AppState extends ChangeNotifier {
         healthCtrl ?? HealthController(repository: _healthRepository);
     activityController =
         activityCtrl ?? ActivityController(repository: _healthRepository);
-    gymController =
-        gymCtrl ?? GymController(repository: _gymRepository);
+    gymController = gymCtrl ?? GymController(repository: _gymRepository);
     cycleController = cycleCtrl ??
         CycleController(
           repository: _cycleRepository,

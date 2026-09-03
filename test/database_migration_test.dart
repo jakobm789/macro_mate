@@ -51,7 +51,12 @@ void main() {
         .get();
     expect(
       gymTables.map((row) => row.read<String>('name')),
-      containsAll(['gym_exercises', 'gym_workout_plans', 'gym_workout_sessions', 'gym_set_logs']),
+      containsAll([
+        'gym_exercises',
+        'gym_workout_plans',
+        'gym_workout_sessions',
+        'gym_set_logs'
+      ]),
     );
 
     final indexes = await database
