@@ -197,6 +197,67 @@ void main() {
     );
 
     test(
+      'switching an exercise keeps completed sets and changes open sets',
+      () async {
+        await controller.saveManualPlan(
+          name: 'Austausch-Test',
+          daysPerWeek: 1,
+          routinesWithExercises: [
+            {
+              'name': 'Push',
+              'dayOfWeek': 1,
+              'exercises': [
+                {
+                  'exerciseId': 'ex_bench_press',
+                  'targetSets': 3,
+                  'targetRepsMin': 8,
+                  'targetRepsMax': 10,
+                  'restSeconds': 120,
+                },
+              ],
+            },
+          ],
+        );
+        final routine = controller.routines.single;
+        await controller.startWorkout(
+          routine: routine,
+          exercises: controller.routineExercises[routine.id]!,
+        );
+
+        controller.toggleSetCompleted(0, true, restSeconds: 0);
+        final changed = controller.switchExerciseInActiveWorkout(
+          'ex_bench_press',
+          'ex_squat',
+        );
+
+        expect(changed, isTrue);
+        expect(
+          controller.activeSets
+              .where((set) => set.exerciseId == 'ex_bench_press'),
+          hasLength(1),
+        );
+        expect(controller.activeSets.first.completed, isTrue);
+        expect(
+          controller.activeSets.where((set) => set.exerciseId == 'ex_squat'),
+          hasLength(2),
+        );
+        expect(
+          controller.activeSets
+              .where((set) => set.exerciseId == 'ex_squat')
+              .every((set) => !set.completed),
+          isTrue,
+        );
+        expect(
+          controller.switchExerciseInActiveWorkout(
+            'ex_bench_press',
+            'ex_squat',
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test(
       'cancelWorkout discards active workout and clears sets without saving',
       () async {
         await controller.startWorkout(
