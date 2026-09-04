@@ -430,6 +430,13 @@ class _ExerciseSectionCard extends StatelessWidget {
                   ),
                 ),
                 IconButton(
+                  icon: const Icon(Icons.swap_horiz),
+                  tooltip: 'Übung wechseln',
+                  onPressed: controller.hasIncompleteSetsForExercise(exerciseId)
+                      ? () => _showExerciseSwitchSheet(context, exercise)
+                      : null,
+                ),
+                IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   tooltip: 'Satz hinzufügen',
                   onPressed: () => controller.addSetToExercise(exerciseId),
@@ -479,6 +486,83 @@ class _ExerciseSectionCard extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showExerciseSwitchSheet(
+    BuildContext context,
+    GymExercise currentExercise,
+  ) {
+    final candidates = controller.exercises
+        .where((exercise) => exercise.id != currentExercise.id)
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * 0.7,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Text(
+                'Übung wechseln',
+                style: Theme.of(sheetContext).textTheme.titleLarge,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                child: Text(
+                  'Offene Sätze von ${currentExercise.name} werden ersetzt. '
+                  'Bereits abgeschlossene Sätze bleiben erhalten.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(sheetContext).textTheme.bodySmall,
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: candidates.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final candidate = candidates[index];
+                    return ListTile(
+                      leading: Icon(
+                        candidate.primaryMuscle == currentExercise.primaryMuscle
+                            ? Icons.recommend
+                            : Icons.fitness_center,
+                      ),
+                      title: Text(candidate.name),
+                      subtitle: Text(
+                        '${candidate.primaryMuscle.displayName} · '
+                        '${candidate.equipment.displayName}',
+                      ),
+                      onTap: () {
+                        final changed = controller.switchExerciseInActiveWorkout(
+                          exerciseId,
+                          candidate.id,
+                        );
+                        Navigator.pop(sheetContext);
+                        if (changed) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '${currentExercise.name} wurde für die offenen '
+                                'Sätze durch ${candidate.name} ersetzt.',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

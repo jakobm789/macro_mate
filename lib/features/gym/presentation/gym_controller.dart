@@ -71,6 +71,10 @@ class GymController extends ChangeNotifier {
   List<GymSetLog> _activeSets = [];
   List<GymSetLog> get activeSets => List.unmodifiable(_activeSets);
 
+  // Keeps the planned rest duration when an exercise is swapped only for the
+  // current session. The saved plan is never changed.
+  final Map<String, int> _activeRestSecondsByExercise = {};
+
   // Rest timer
   int _defaultRestSeconds = 180; // 3 Minuten Standard
   int get defaultRestSeconds => _defaultRestSeconds;
@@ -150,10 +154,15 @@ class GymController extends ChangeNotifier {
     _activeRoutineExercises = exercises;
     _workoutStartTime = DateTime.now().toUtc();
     _activeSets = [];
+    _activeRestSecondsByExercise.clear();
 
     // Pre-fill sets based on planned targets and previous workout weights
     var globalSetIndex = 0;
     for (final plannedEx in exercises) {
+      _activeRestSecondsByExercise.putIfAbsent(
+        plannedEx.exerciseId,
+        () => plannedEx.restSeconds,
+      );
       final prevSets =
           await _repository.getPreviousSetsForExercise(plannedEx.exerciseId);
       final defaultWeight =
@@ -220,6 +229,10 @@ class GymController extends ChangeNotifier {
   int _getRestSecondsForSet(int setIndex) {
     if (setIndex >= 0 && setIndex < _activeSets.length) {
       final set = _activeSets[setIndex];
+      final replacementRest = _activeRestSecondsByExercise[set.exerciseId];
+      if (replacementRest != null && replacementRest > 0) {
+        return replacementRest;
+      }
       final planned = _activeRoutineExercises
           .where((e) => e.exerciseId == set.exerciseId)
           .firstOrNull;
@@ -248,6 +261,66 @@ class GymController extends ChangeNotifier {
       ),
     );
     notifyListeners();
+  }
+
+  bool hasIncompleteSetsForExercise(String exerciseId) =>
+      _activeSets.any(
+        (set) => set.exerciseId == exerciseId && !set.completed,
+      );
+
+  /// Replaces only unfinished sets in the active session. Completed sets stay
+  /// attributed to the exercise that was actually performed.
+  bool switchExerciseInActiveWorkout(
+    String exerciseId,
+    String replacementExerciseId,
+  ) {
+    if (!isWorkoutActive ||
+        exerciseId == replacementExerciseId ||
+        !hasIncompleteSetsForExercise(exerciseId)) {
+      return false;
+    }
+
+    final replacement = _exercises
+        .where((exercise) => exercise.id == replacementExerciseId)
+        .firstOrNull;
+    if (replacement == null) return false;
+
+    final plannedRest = _activeRoutineExercises
+        .where((exercise) => exercise.exerciseId == exerciseId)
+        .map((exercise) => exercise.restSeconds)
+        .firstOrNull;
+    final restSeconds =
+        _activeRestSecondsByExercise[exerciseId] ??
+        plannedRest ??
+        _defaultRestSeconds;
+
+    var changed = false;
+    for (var index = 0; index < _activeSets.length; index++) {
+      final set = _activeSets[index];
+      if (set.exerciseId != exerciseId || set.completed) continue;
+
+      _activeSets[index] = GymSetLog(
+        id: set.id,
+        exerciseId: replacementExerciseId,
+        setIndex: set.setIndex,
+        setType: set.setType,
+        weightKg: set.weightKg,
+        reps: replacement.isTimed ? null : (set.reps ?? 8),
+        holdSeconds: replacement.isTimed ? (set.holdSeconds ?? 60) : null,
+        rpe: set.rpe,
+        rir: set.rir,
+        completed: false,
+      );
+      changed = true;
+    }
+
+    if (!changed) return false;
+    _activeRestSecondsByExercise.putIfAbsent(
+      replacementExerciseId,
+      () => restSeconds,
+    );
+    notifyListeners();
+    return true;
   }
 
   void startRestTimer(int seconds) {
@@ -300,6 +373,7 @@ class GymController extends ChangeNotifier {
     _activeRoutine = null;
     _workoutStartTime = null;
     _activeSets = [];
+    _activeRestSecondsByExercise.clear();
     stopRestTimer();
 
     await loadData();
@@ -311,6 +385,7 @@ class GymController extends ChangeNotifier {
     _activeRoutine = null;
     _workoutStartTime = null;
     _activeSets = [];
+    _activeRestSecondsByExercise.clear();
     stopRestTimer();
     notifyListeners();
   }
