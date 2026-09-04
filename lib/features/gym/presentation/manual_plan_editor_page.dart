@@ -40,8 +40,7 @@ class _DraftRoutine {
   int dayOfWeek;
   final List<_DraftExercise> exercises;
 
-  int get totalSets =>
-      exercises.fold<int>(0, (sum, ex) => sum + ex.targetSets);
+  int get totalSets => exercises.fold<int>(0, (sum, ex) => sum + ex.targetSets);
 
   Map<String, dynamic> toMap() => {
         'name': name,
@@ -89,7 +88,8 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
     if (_routines.length <= 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Ein Plan muss mindestens eine Einheit enthalten.')),
+          content: Text('Ein Plan muss mindestens eine Einheit enthalten.'),
+        ),
       );
       return;
     }
@@ -99,7 +99,10 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
   }
 
   Future<void> _pickExerciseForRoutine(
-      BuildContext context, _DraftRoutine routine, GymController controller) async {
+    BuildContext context,
+    _DraftRoutine routine,
+    GymController controller,
+  ) async {
     final selected = await showModalBottomSheet<GymExercise>(
       context: context,
       isScrollControlled: true,
@@ -132,7 +135,8 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'Die Routine "${emptyRoutine.name}" hat noch keine Übungen.'),
+            'Die Routine "${emptyRoutine.name}" hat noch keine Übungen.',
+          ),
         ),
       );
       return;
@@ -155,7 +159,8 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'Plan "${_nameController.text.trim()}" erfolgreich erstellt und aktiviert!'),
+            'Plan "${_nameController.text.trim()}" erfolgreich erstellt und aktiviert!',
+          ),
         ),
       );
     }
@@ -174,8 +179,10 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
             icon: const Icon(Icons.check, color: Colors.green),
             label: const Text(
               'Speichern',
-              style:
-                  TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.green,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             onPressed: () => _savePlan(controller),
           ),
@@ -193,9 +200,12 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Plan-Details',
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    Text(
+                      'Plan-Details',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _nameController,
@@ -222,15 +232,19 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Tage pro Woche: $_daysPerWeek',
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text(
+                          'Tage pro Woche: $_daysPerWeek',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                         DropdownButton<int>(
                           value: _daysPerWeek,
                           items: [1, 2, 3, 4, 5, 6, 7]
-                              .map((d) => DropdownMenuItem(
-                                    value: d,
-                                    child: Text('$d Tage'),
-                                  ))
+                              .map(
+                                (d) => DropdownMenuItem(
+                                  value: d,
+                                  child: Text('$d Tage'),
+                                ),
+                              )
                               .toList(),
                           onChanged: (val) {
                             if (val != null) {
@@ -252,8 +266,9 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
               children: [
                 Text(
                   'Einheiten / Tage (${_routines.length})',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 TextButton.icon(
                   icon: const Icon(Icons.add),
@@ -318,7 +333,10 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.redAccent,
+                  ),
                   tooltip: 'Einheit entfernen',
                   onPressed: () => _removeRoutine(index),
                 ),
@@ -348,7 +366,8 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
             if (routine.exercises.isNotEmpty) const Divider(),
             for (var eIdx = 0; eIdx < routine.exercises.length; eIdx++) ...[
               _buildExerciseRow(routine, eIdx, routine.exercises[eIdx]),
-              if (eIdx < routine.exercises.length - 1) const Divider(height: 12),
+              if (eIdx < routine.exercises.length - 1)
+                const Divider(height: 12),
             ],
           ],
         ),
@@ -362,7 +381,8 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
     _DraftExercise draftEx,
   ) {
     final theme = Theme.of(context);
-    final restMinutes = (draftEx.restSeconds / 60).toStringAsFixed(1).replaceAll('.0', '');
+    final restMinutes =
+        (draftEx.restSeconds / 60).toStringAsFixed(1).replaceAll('.0', '');
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -381,7 +401,9 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
                     ),
                     Text(
                       '${draftEx.exercise.primaryMuscle.displayName} · ${draftEx.exercise.equipment.displayName}',
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.hintColor,
+                      ),
                     ),
                   ],
                 ),
@@ -410,7 +432,10 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
               ),
               Text(
                 '${draftEx.targetSets}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.add_circle_outline, size: 20),
@@ -422,8 +447,10 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
                 initialValue: draftEx.restSeconds,
                 tooltip: 'Pausenzeit einstellen',
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(16),
@@ -431,11 +458,18 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.timer_outlined, size: 14, color: Colors.deepOrange),
+                      const Icon(
+                        Icons.timer_outlined,
+                        size: 14,
+                        color: Colors.deepOrange,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         'Pause: $restMinutes min',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const Icon(Icons.arrow_drop_down, size: 16),
                     ],
@@ -449,7 +483,10 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
                   PopupMenuItem(value: 90, child: Text('1:30 min (90s)')),
                   PopupMenuItem(value: 120, child: Text('2:00 min (120s)')),
                   PopupMenuItem(value: 150, child: Text('2:30 min (150s)')),
-                  PopupMenuItem(value: 180, child: Text('3:00 min (180s - Standard)')),
+                  PopupMenuItem(
+                    value: 180,
+                    child: Text('3:00 min (180s - Standard)'),
+                  ),
                   PopupMenuItem(value: 240, child: Text('4:00 min (240s)')),
                   PopupMenuItem(value: 300, child: Text('5:00 min (300s)')),
                 ],
@@ -505,9 +542,12 @@ class _ExercisePickerSheetState extends State<_ExercisePickerSheet> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Übung auswählen',
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    Text(
+                      'Übung auswählen',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () => Navigator.pop(context),
@@ -541,7 +581,8 @@ class _ExercisePickerSheetState extends State<_ExercisePickerSheet> {
                           label: Text(group.displayName),
                           selected: _selectedGroup == group,
                           onSelected: (sel) => setState(
-                              () => _selectedGroup = sel ? group : null),
+                            () => _selectedGroup = sel ? group : null,
+                          ),
                         ),
                         const SizedBox(width: 6),
                       ],
@@ -568,7 +609,8 @@ class _ExercisePickerSheetState extends State<_ExercisePickerSheet> {
                         ),
                         title: Text(ex.name),
                         subtitle: Text(
-                            '${ex.primaryMuscle.displayName} · ${ex.equipment.displayName}'),
+                          '${ex.primaryMuscle.displayName} · ${ex.equipment.displayName}',
+                        ),
                         trailing: const Icon(Icons.add),
                         onTap: () => Navigator.pop(context, ex),
                       );

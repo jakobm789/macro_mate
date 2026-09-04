@@ -104,7 +104,8 @@ void main() {
       expect(summaries, isNotEmpty);
 
       final summary = summaries.firstWhere(
-          (s) => s.day.year == 2026 && s.day.month == 8 && s.day.day == 25);
+        (s) => s.day.year == 2026 && s.day.month == 8 && s.day.day == 25,
+      );
       expect(summary.steps, 8000); // 4500 + 3500
       expect(summary.activeCalories, 320.0);
       expect(summary.sleepMinutes, 480.0);
@@ -152,8 +153,10 @@ void main() {
 
       await healthController.syncLast30Days();
       expect(healthController.syncStatus, HealthSyncStatus.failed);
-      expect(healthController.errorMessage,
-          contains('Health-Connect-Synchronisierung fehlgeschlagen'));
+      expect(
+        healthController.errorMessage,
+        contains('Health-Connect-Synchronisierung fehlgeschlagen'),
+      );
 
       // Error clears on successful retry
       fakeSource.shouldThrowOnRead = false;
@@ -192,152 +195,163 @@ void main() {
       expect(workouts.first.energyKcal, 45.0);
     });
 
-    test('full end-to-end Health Connect menstruation import pipeline',
-        () async {
-      final cycleRepo = DriftCycleRepository(database: db);
-      final cycleController = CycleController(
-        repository: cycleRepo,
-        healthRepository: healthRepo,
-      );
+    test(
+      'full end-to-end Health Connect menstruation import pipeline',
+      () async {
+        final cycleRepo = DriftCycleRepository(database: db);
+        final cycleController = CycleController(
+          repository: cycleRepo,
+          healthRepository: healthRepo,
+        );
 
-      // 1. Initial local period: 2026-07-01 to 2026-07-05
-      await cycleRepo.addPeriod(
-        startDay: DateTime.utc(2026, 7, 1),
-        endDay: DateTime.utc(2026, 7, 5),
-        flow: BleedingLevel.medium,
-        source: 'local',
-      );
-
-      // 2. Health Connect fake source has 2 menstruation records:
-      // Record A: 2026-07-03 to 2026-07-07 (Overlaps with local period)
-      // Record B: 2026-08-01 to 2026-08-05 (New, non-conflicting)
-      fakeSource.addMenstruationRecord(
-        HealthMenstruationRecord(
-          id: 'hc_menstruation_overlap',
-          startDay: DateTime.utc(2026, 7, 3),
-          endDay: DateTime.utc(2026, 7, 7),
-          flow: BleedingLevel.heavy,
-          sourceName: 'Garmin Connect',
-        ),
-      );
-      fakeSource.addMenstruationRecord(
-        HealthMenstruationRecord(
-          id: 'hc_menstruation_new',
-          startDay: DateTime.utc(2026, 8, 1),
-          endDay: DateTime.utc(2026, 8, 5),
+        // 1. Initial local period: 2026-07-01 to 2026-07-05
+        await cycleRepo.addPeriod(
+          startDay: DateTime.utc(2026, 7, 1),
+          endDay: DateTime.utc(2026, 7, 5),
           flow: BleedingLevel.medium,
-          sourceName: 'Garmin Connect',
-        ),
-      );
+          source: 'local',
+        );
 
-      // 3. Trigger preview import via CycleController
-      final result = await cycleController.previewHealthConnectImport(
-        startUtc: DateTime.utc(2026, 6, 1),
-        endUtc: DateTime.utc(2026, 8, 31),
-      );
+        // 2. Health Connect fake source has 2 menstruation records:
+        // Record A: 2026-07-03 to 2026-07-07 (Overlaps with local period)
+        // Record B: 2026-08-01 to 2026-08-05 (New, non-conflicting)
+        fakeSource.addMenstruationRecord(
+          HealthMenstruationRecord(
+            id: 'hc_menstruation_overlap',
+            startDay: DateTime.utc(2026, 7, 3),
+            endDay: DateTime.utc(2026, 7, 7),
+            flow: BleedingLevel.heavy,
+            sourceName: 'Garmin Connect',
+          ),
+        );
+        fakeSource.addMenstruationRecord(
+          HealthMenstruationRecord(
+            id: 'hc_menstruation_new',
+            startDay: DateTime.utc(2026, 8, 1),
+            endDay: DateTime.utc(2026, 8, 5),
+            flow: BleedingLevel.medium,
+            sourceName: 'Garmin Connect',
+          ),
+        );
 
-      expect(result, isA<MenstruationImportSuccess>());
-      final staged = (result as MenstruationImportSuccess).conflicts;
-      expect(staged.length, 2);
+        // 3. Trigger preview import via CycleController
+        final result = await cycleController.previewHealthConnectImport(
+          startUtc: DateTime.utc(2026, 6, 1),
+          endUtc: DateTime.utc(2026, 8, 31),
+        );
 
-      // Verify conflict detected for overlapping record
-      final conflictItem = staged.firstWhere(
-        (i) => i.importedRecord.id == 'hc_menstruation_overlap',
-      );
-      expect(conflictItem.conflictType, MenstruationConflictType.overlap);
-      expect(conflictItem.conflictingLocalPeriod, isNotNull);
+        expect(result, isA<MenstruationImportSuccess>());
+        final staged = (result as MenstruationImportSuccess).conflicts;
+        expect(staged.length, 2);
 
-      // Verify non-conflicting record
-      final newItem = staged.firstWhere(
-        (i) => i.importedRecord.id == 'hc_menstruation_new',
-      );
-      expect(newItem.conflictType, MenstruationConflictType.none);
+        // Verify conflict detected for overlapping record
+        final conflictItem = staged.firstWhere(
+          (i) => i.importedRecord.id == 'hc_menstruation_overlap',
+        );
+        expect(conflictItem.conflictType, MenstruationConflictType.overlap);
+        expect(conflictItem.conflictingLocalPeriod, isNotNull);
 
-      // 4. Resolve conflict with 'merge' strategy
-      final overlapIndex = staged.indexOf(conflictItem);
-      cycleController.updateConflictResolution(
-        overlapIndex,
-        MenstruationConflictResolution.merge,
-      );
+        // Verify non-conflicting record
+        final newItem = staged.firstWhere(
+          (i) => i.importedRecord.id == 'hc_menstruation_new',
+        );
+        expect(newItem.conflictType, MenstruationConflictType.none);
 
-      // 5. Apply import atomically
-      final importedCount = await cycleController.applyStagedImport();
-      expect(importedCount, 2);
+        // 4. Resolve conflict with 'merge' strategy
+        final overlapIndex = staged.indexOf(conflictItem);
+        cycleController.updateConflictResolution(
+          overlapIndex,
+          MenstruationConflictResolution.merge,
+        );
 
-      // 6. Verify persisted database state in DriftCycleRepository
-      final allPeriods = await cycleRepo.periods();
-      expect(allPeriods.length, 2);
+        // 5. Apply import atomically
+        final importedCount = await cycleController.applyStagedImport();
+        expect(importedCount, 2);
 
-      // Merged period should span from 2026-07-01 to 2026-07-07
-      final mergedPeriod = allPeriods.firstWhere((p) => p.startDay.month == 7);
-      expect(mergedPeriod.startDay.day, 1);
-      expect(mergedPeriod.endDay?.day, 7);
-      expect(mergedPeriod.source, contains('merged'));
+        // 6. Verify persisted database state in DriftCycleRepository
+        final allPeriods = await cycleRepo.periods();
+        expect(allPeriods.length, 2);
 
-      // New period should be persisted cleanly
-      final newPeriod = allPeriods.firstWhere((p) => p.startDay.month == 8);
-      expect(newPeriod.startDay.day, 1);
-      expect(newPeriod.endDay?.day, 5);
-      expect(newPeriod.source, 'Garmin Connect');
-    });
+        // Merged period should span from 2026-07-01 to 2026-07-07
+        final mergedPeriod = allPeriods.firstWhere(
+          (p) => p.startDay.month == 7,
+        );
+        expect(mergedPeriod.startDay.day, 1);
+        expect(mergedPeriod.endDay?.day, 7);
+        expect(mergedPeriod.source, contains('merged'));
 
-    test('foreground sync runs periodically and respects lifecycle changes',
-        () async {
-      await healthController.requestPermissions();
-      expect(healthController.permissionState?.readGranted, isTrue);
+        // New period should be persisted cleanly
+        final newPeriod = allPeriods.firstWhere((p) => p.startDay.month == 8);
+        expect(newPeriod.startDay.day, 1);
+        expect(newPeriod.endDay?.day, 5);
+        expect(newPeriod.source, 'Garmin Connect');
+      },
+    );
 
-      // Start periodic foreground sync
-      healthController.startPeriodicForegroundSync(
-        interval: const Duration(seconds: 30),
-      );
-      expect(healthController.isForegroundSyncActive, isTrue);
+    test(
+      'foreground sync runs periodically and respects lifecycle changes',
+      () async {
+        await healthController.requestPermissions();
+        expect(healthController.permissionState?.readGranted, isTrue);
 
-      final nowUtc = DateTime.now().toUtc();
-      final todayStr = nowUtc.toIso8601String().substring(0, 10);
+        // Start periodic foreground sync
+        healthController.startPeriodicForegroundSync(
+          interval: const Duration(seconds: 30),
+        );
+        expect(healthController.isForegroundSyncActive, isTrue);
 
-      // Add a record to fake source
-      fakeSource.addRecord(
-        HealthRecord(
-          id: 'step_fg_1',
-          metric: HealthMetric.steps,
-          sourceId: 'com.google.android.apps.fitness',
-          sourceName: 'Google Fit',
-          startUtc: nowUtc.subtract(const Duration(minutes: 10)),
-          endUtc: nowUtc.subtract(const Duration(minutes: 5)),
-          localDay: todayStr,
-          value: 750,
-          unit: 'count',
-        ),
-      );
+        final nowUtc = DateTime.now().toUtc();
+        final todayStr = nowUtc.toIso8601String().substring(0, 10);
 
-      // Trigger foreground periodic sync
-      await healthController.triggerForegroundPeriodicSync();
-      expect(healthController.summariesState.any((s) => s.steps == 750), isTrue);
+        // Add a record to fake source
+        fakeSource.addRecord(
+          HealthRecord(
+            id: 'step_fg_1',
+            metric: HealthMetric.steps,
+            sourceId: 'com.google.android.apps.fitness',
+            sourceName: 'Google Fit',
+            startUtc: nowUtc.subtract(const Duration(minutes: 10)),
+            endUtc: nowUtc.subtract(const Duration(minutes: 5)),
+            localDay: todayStr,
+            value: 750,
+            unit: 'count',
+          ),
+        );
 
-      // Pause lifecycle -> pauses active timer
-      healthController.handleLifecycleChange(AppLifecycleState.paused);
+        // Trigger foreground periodic sync
+        await healthController.triggerForegroundPeriodicSync();
+        expect(
+          healthController.summariesState.any((s) => s.steps == 750),
+          isTrue,
+        );
 
-      // Resume lifecycle -> resumes and triggers sync
-      fakeSource.addRecord(
-        HealthRecord(
-          id: 'step_fg_2',
-          metric: HealthMetric.steps,
-          sourceId: 'com.google.android.apps.fitness',
-          sourceName: 'Google Fit',
-          startUtc: nowUtc.subtract(const Duration(minutes: 4)),
-          endUtc: nowUtc.subtract(const Duration(minutes: 1)),
-          localDay: todayStr,
-          value: 250,
-          unit: 'count',
-        ),
-      );
-      await healthController.handleLifecycleChange(AppLifecycleState.resumed);
-      expect(
-          healthController.summariesState.any((s) => s.steps == 1000), isTrue);
+        // Pause lifecycle -> pauses active timer
+        healthController.handleLifecycleChange(AppLifecycleState.paused);
 
-      // Cleanup
-      healthController.stopPeriodicForegroundSync();
-      expect(healthController.isForegroundSyncActive, isFalse);
-    });
+        // Resume lifecycle -> resumes and triggers sync
+        fakeSource.addRecord(
+          HealthRecord(
+            id: 'step_fg_2',
+            metric: HealthMetric.steps,
+            sourceId: 'com.google.android.apps.fitness',
+            sourceName: 'Google Fit',
+            startUtc: nowUtc.subtract(const Duration(minutes: 4)),
+            endUtc: nowUtc.subtract(const Duration(minutes: 1)),
+            localDay: todayStr,
+            value: 250,
+            unit: 'count',
+          ),
+        );
+        await healthController.handleLifecycleChange(AppLifecycleState.resumed);
+        expect(
+          healthController.summariesState.any((s) => s.steps == 1000),
+          isTrue,
+        );
+
+        // Cleanup
+        healthController.stopPeriodicForegroundSync();
+        expect(healthController.isForegroundSyncActive, isFalse);
+      },
+    );
   });
 }

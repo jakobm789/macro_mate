@@ -41,8 +41,10 @@ void main() {
     final weightRepo = DriftWeightRepository(database: db);
     final settingsRepo = DriftSettingsRepository(database: db);
     final cycleRepo = DriftCycleRepository(database: db);
-    final healthRepo =
-        DriftHealthRepository(database: db, source: HealthConnectSource());
+    final healthRepo = DriftHealthRepository(
+      database: db,
+      source: HealthConnectSource(),
+    );
 
     nutritionController = NutritionController(repository: nutritionRepo);
     weightController = WeightController(repository: weightRepo);
@@ -86,20 +88,22 @@ void main() {
       providers: [
         ChangeNotifierProvider<AppState>.value(value: appState),
         ChangeNotifierProvider<DashboardController>.value(
-            value: dashboardController),
+          value: dashboardController,
+        ),
         ChangeNotifierProvider<NutritionController>.value(
-            value: nutritionController),
+          value: nutritionController,
+        ),
         ChangeNotifierProvider<WeightController>.value(value: weightController),
         ChangeNotifierProvider<HealthController>.value(value: healthController),
         ChangeNotifierProvider<ActivityController>.value(
-            value: activityController),
+          value: activityController,
+        ),
         ChangeNotifierProvider<CycleController>.value(value: cycleController),
         ChangeNotifierProvider<SettingsController>.value(
-            value: settingsController),
+          value: settingsController,
+        ),
       ],
-      child: const MaterialApp(
-        home: TodayPage(),
-      ),
+      child: const MaterialApp(home: TodayPage()),
     );
   }
 
@@ -138,8 +142,9 @@ void main() {
       expect(find.text('Kalorien & Makros'), findsNothing);
     });
 
-    testWidgets('resetToDefaults restores all original card visibility',
-        (tester) async {
+    testWidgets('resetToDefaults restores all original card visibility', (
+      tester,
+    ) async {
       await dashboardController.toggleCardVisibility('calories', false);
       expect(dashboardController.isCardVisible('calories'), isFalse);
 
@@ -207,7 +212,9 @@ void main() {
       // 7. Test resetToDefaults persists reset state
       await newDashCtrl.resetToDefaults();
       expect(
-          newDashCtrl.cardOrder, equals(DashboardController.defaultCardOrder));
+        newDashCtrl.cardOrder,
+        equals(DashboardController.defaultCardOrder),
+      );
       expect(newDashCtrl.isCardVisible('weight'), isTrue);
 
       // Verify reset persisted by recreating again
@@ -224,8 +231,10 @@ void main() {
         settingsController: thirdSettingsCtrl,
       );
       await thirdDashCtrl.initialize();
-      expect(thirdDashCtrl.cardOrder,
-          equals(DashboardController.defaultCardOrder));
+      expect(
+        thirdDashCtrl.cardOrder,
+        equals(DashboardController.defaultCardOrder),
+      );
       expect(thirdDashCtrl.isCardVisible('weight'), isTrue);
 
       thirdDashCtrl.dispose();
@@ -259,12 +268,16 @@ void main() {
 
     test('health_sync is directly under cycle in defaultCardOrder', () {
       final cycleIdx = DashboardController.defaultCardOrder.indexOf('cycle');
-      final syncIdx = DashboardController.defaultCardOrder.indexOf('health_sync');
+      final syncIdx = DashboardController.defaultCardOrder.indexOf(
+        'health_sync',
+      );
       expect(cycleIdx, isNonNegative);
       expect(syncIdx, equals(cycleIdx + 1));
     });
 
-    testWidgets('tapping Aktivenergie opens ActiveCaloriesBreakdownSheet', (tester) async {
+    testWidgets('tapping Aktivenergie opens ActiveCaloriesBreakdownSheet', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -288,7 +301,10 @@ void main() {
       await dashboardController.initialize();
 
       // Initially no weight entry -> Körpergewicht is missing
-      expect(dashboardController.missingBmrParameters, contains('Körpergewicht'));
+      expect(
+        dashboardController.missingBmrParameters,
+        contains('Körpergewicht'),
+      );
       expect(dashboardController.isBmrCalculationComplete, isFalse);
       expect(dashboardController.bmr, equals(1750.0));
       expect(
@@ -311,30 +327,33 @@ void main() {
     });
 
     testWidgets(
-        'TodayPage and breakdown sheet display missing BMR parameters when weight is missing',
-        (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
+      'TodayPage and breakdown sheet display missing BMR parameters when weight is missing',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
 
-      await tester.pumpWidget(createTestWidget());
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(createTestWidget());
+        await tester.pumpAndSettle();
 
-      // TodayPage shows missing parameter in subtitle
-      expect(
-        find.textContaining('Fehlend für Grundumsatz: Körpergewicht'),
-        findsOneWidget,
-      );
+        // TodayPage shows missing parameter in subtitle
+        expect(
+          find.textContaining('Fehlend für Grundumsatz: Körpergewicht'),
+          findsOneWidget,
+        );
 
-      // Open breakdown sheet
-      await tester.tap(find.text('Aktivenergie'));
-      await tester.pumpAndSettle();
+        // Open breakdown sheet
+        await tester.tap(find.text('Aktivenergie'));
+        await tester.pumpAndSettle();
 
-      // Breakdown sheet informs user about missing parameter
-      expect(
-        find.textContaining('Für die genaue Grundumsatz-Berechnung fehlen: Körpergewicht'),
-        findsOneWidget,
-      );
-    });
+        // Breakdown sheet informs user about missing parameter
+        expect(
+          find.textContaining(
+            'Für die genaue Grundumsatz-Berechnung fehlen: Körpergewicht',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }

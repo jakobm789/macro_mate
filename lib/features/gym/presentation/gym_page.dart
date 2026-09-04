@@ -113,14 +113,17 @@ class _GymPageState extends State<GymPage> {
               Card(
                 color: Colors.deepOrangeAccent.shade100.withValues(alpha: 0.3),
                 child: ListTile(
-                  leading: const Icon(Icons.play_circle_fill,
-                      color: Colors.deepOrangeAccent),
+                  leading: const Icon(
+                    Icons.play_circle_fill,
+                    color: Colors.deepOrangeAccent,
+                  ),
                   title: Text(
                     'Laufendes Training: ${controller.activeRoutine?.name}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: const Text(
-                      'Tippe hier, um zur aktiven Einheit zurückzukehren.'),
+                    'Tippe hier, um zur aktiven Einheit zurückzukehren.',
+                  ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -136,7 +139,8 @@ class _GymPageState extends State<GymPage> {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => const WorkoutRunnerPage()),
+                      builder: (_) => const WorkoutRunnerPage(),
+                    ),
                   ),
                 ),
               ),
@@ -197,13 +201,18 @@ class _GymPageState extends State<GymPage> {
                       const SizedBox(height: 16),
                       Text(
                         'Einheiten des Plans (${controller.routines.length})',
-                        style: theme.textTheme.labelLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       for (final routine in controller.routines) ...[
                         _buildRoutineCard(
-                            context, routine, controller, todayWeekday),
+                          context,
+                          routine,
+                          controller,
+                          todayWeekday,
+                        ),
                         const SizedBox(height: 8),
                       ],
                     ] else if (activePlan == null) ...[
@@ -251,12 +260,14 @@ class _GymPageState extends State<GymPage> {
                 leading: const Icon(Icons.menu_book_outlined),
                 title: const Text('Übungskatalog & 1RM-Rechner'),
                 subtitle: Text(
-                    '${controller.exercises.length} Übungen mit Muskelgruppen & Equipment'),
+                  '${controller.exercises.length} Übungen mit Muskelgruppen & Equipment',
+                ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const ExerciseLibraryPage()),
+                    builder: (_) => const ExerciseLibraryPage(),
+                  ),
                 ),
               ),
             ),
@@ -290,10 +301,16 @@ class _GymPageState extends State<GymPage> {
                       '${session.rpeAverage != null ? ' · RPE ${session.rpeAverage!.toStringAsFixed(1)}' : ''}',
                     ),
                     trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Colors.grey,
+                      ),
                       tooltip: 'Workout löschen',
                       onPressed: () => _confirmDeleteWorkoutSession(
-                          context, controller, session),
+                        context,
+                        controller,
+                        session,
+                      ),
                     ),
                   ),
                 ),
@@ -305,13 +322,16 @@ class _GymPageState extends State<GymPage> {
   }
 
   Future<void> _confirmCancelActiveWorkout(
-      BuildContext context, GymController controller) async {
+    BuildContext context,
+    GymController controller,
+  ) async {
     final discard = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Training abbrechen?'),
         content: const Text(
-            'Möchtest du das laufende Training wirklich ohne Speichern abbrechen? Alle nicht gespeicherten Sätze werden verworfen.'),
+          'Möchtest du das laufende Training wirklich ohne Speichern abbrechen? Alle nicht gespeicherten Sätze werden verworfen.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -350,7 +370,8 @@ class _GymPageState extends State<GymPage> {
       builder: (ctx) => AlertDialog(
         title: const Text('Workout löschen?'),
         content: Text(
-            'Möchtest du dieses Workout ("${session.routineName}" vom $dateStr) wirklich unwiderruflich löschen?'),
+          'Möchtest du dieses Workout ("${session.routineName}" vom $dateStr) wirklich unwiderruflich löschen?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -434,7 +455,9 @@ class _GymPageState extends State<GymPage> {
                     if (isToday)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.deepOrangeAccent,
                           borderRadius: BorderRadius.circular(4),
@@ -472,9 +495,7 @@ class _GymPageState extends State<GymPage> {
               if (context.mounted) {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const WorkoutRunnerPage(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const WorkoutRunnerPage()),
                 );
               }
             },
@@ -508,13 +529,17 @@ class _GymPageState extends State<GymPage> {
   }
 
   Future<void> _exportActivePlan(
-      BuildContext context, GymController controller) async {
+    BuildContext context,
+    GymController controller,
+  ) async {
     final activePlan = controller.activePlan;
     if (activePlan == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content:
-                Text('Kein aktiver Trainingsplan zum Exportieren vorhanden.')),
+          content: Text(
+            'Kein aktiver Trainingsplan zum Exportieren vorhanden.',
+          ),
+        ),
       );
       return;
     }
@@ -525,13 +550,14 @@ class _GymPageState extends State<GymPage> {
       final jsonService = OpenGymJsonService(repository: repo);
       final jsonString = await jsonService.exportPlanToJson(activePlan.id);
 
-      await Share.share(jsonString,
-          subject: 'OpenGym Trainingsplan: ${activePlan.name}');
+      await Share.share(
+        jsonString,
+        subject: 'OpenGym Trainingsplan: ${activePlan.name}',
+      );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export fehlgeschlagen: $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Export fehlgeschlagen: $e')));
       }
     }
   }
@@ -547,7 +573,8 @@ class _GymPageState extends State<GymPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-                'Füge den Inhalt einer OpenGym-kompatiblen JSON-Datei ein:'),
+              'Füge den Inhalt einer OpenGym-kompatiblen JSON-Datei ein:',
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: jsonCtrl,
@@ -561,8 +588,9 @@ class _GymPageState extends State<GymPage> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Abbrechen')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Abbrechen'),
+          ),
           ElevatedButton(
             onPressed: () async {
               final text = jsonCtrl.text.trim();
@@ -578,8 +606,10 @@ class _GymPageState extends State<GymPage> {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                        content:
-                            Text('Plan erfolgreich importiert und aktiviert!')),
+                      content: Text(
+                        'Plan erfolgreich importiert und aktiviert!',
+                      ),
+                    ),
                   );
                 }
               } catch (e) {

@@ -192,7 +192,9 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
 
     final effectiveBmr = bmr ??
         (effectiveMissing.isEmpty && weightCtrl?.currentWeight != null
-            ? (settingsCtrl?.calculateBmr(weightKg: weightCtrl!.currentWeight!) ??
+            ? (settingsCtrl?.calculateBmr(
+                  weightKg: weightCtrl!.currentWeight!,
+                ) ??
                 1750.0)
             : (totalCalories != null && totalCalories! > activeCalories
                 ? (totalCalories! - activeCalories)
@@ -218,7 +220,9 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
                 height: 5,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.6,
+                  ),
                   borderRadius: BorderRadius.circular(2.5),
                 ),
               ),
@@ -304,7 +308,9 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
                         const Spacer(),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
                           decoration: BoxDecoration(
                             color: theme.colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(10),
@@ -322,7 +328,9 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
                       const SizedBox(height: 10),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.amber.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
@@ -332,8 +340,11 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.warning_amber_rounded,
-                                size: 16, color: Colors.amber),
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              size: 16,
+                              color: Colors.amber,
+                            ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
@@ -435,9 +446,7 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
               elevation: 1,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: Colors.teal.withValues(alpha: 0.2),
-                ),
+                side: BorderSide(color: Colors.teal.withValues(alpha: 0.2)),
               ),
               child: ListTile(
                 leading: CircleAvatar(
@@ -476,10 +485,13 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
                   ),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor:
-                          Colors.deepOrange.withValues(alpha: 0.15),
-                      child: Icon(_iconForWorkoutType(w.type),
-                          color: Colors.deepOrange),
+                      backgroundColor: Colors.deepOrange.withValues(
+                        alpha: 0.15,
+                      ),
+                      child: Icon(
+                        _iconForWorkoutType(w.type),
+                        color: Colors.deepOrange,
+                      ),
                     ),
                     title: Text(
                       w.type,
@@ -531,10 +543,13 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
                   ),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor:
-                          Colors.amber.shade700.withValues(alpha: 0.15),
-                      child: Icon(Icons.fitness_center,
-                          color: Colors.amber.shade800),
+                      backgroundColor: Colors.amber.shade700.withValues(
+                        alpha: 0.15,
+                      ),
+                      child: Icon(
+                        Icons.fitness_center,
+                        color: Colors.amber.shade800,
+                      ),
                     ),
                     title: Text(
                       s.routineName,
@@ -649,7 +664,9 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               'Bitte trage ${effectiveMissing.contains("Körpergewicht") ? "dein Gewicht (im Gewicht-Tab) " : ""}${effectiveMissing.any((e) => e != "Körpergewicht") ? "und deine Profilangaben in den Einstellungen " : ""}ein, um deinen persönlichen Grundumsatz genau zu berechnen.',
-                              style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontSize: 11,
+                              ),
                             ),
                           ],
                         ),
@@ -667,7 +684,9 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
                 color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.4,
+                  ),
                 ),
               ),
               child: Row(
@@ -716,10 +735,7 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
         Container(
           width: 9,
           height: 9,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 5),
         Text(

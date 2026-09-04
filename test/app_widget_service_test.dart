@@ -30,13 +30,12 @@ void main() {
     setUp(() {
       channelCalls = [];
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        const MethodChannel('macro_mate/widget'),
-        (MethodCall call) async {
-          channelCalls.add(call);
-          return null;
-        },
-      );
+          .setMockMethodCallHandler(const MethodChannel('macro_mate/widget'), (
+        MethodCall call,
+      ) async {
+        channelCalls.add(call);
+        return null;
+      });
     });
 
     tearDown(() {
@@ -88,114 +87,124 @@ void main() {
       }
     });
 
-    test('updateFromDashboard serializes dashboard metrics into widget channel',
-        () async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.android;
-      try {
-        SharedPreferences.setMockInitialValues({});
-        final db = AppDatabase.forTesting(NativeDatabase.memory());
-        addTearDown(db.close);
+    test(
+      'updateFromDashboard serializes dashboard metrics into widget channel',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.android;
+        try {
+          SharedPreferences.setMockInitialValues({});
+          final db = AppDatabase.forTesting(NativeDatabase.memory());
+          addTearDown(db.close);
 
-        final nutritionRepo = DriftNutritionRepository(database: db);
-        final weightRepo = DriftWeightRepository(database: db);
-        final settingsRepo = DriftSettingsRepository(database: db);
-        final cycleRepo = DriftCycleRepository(database: db);
-        final healthRepo =
-            DriftHealthRepository(database: db, source: HealthConnectSource());
+          final nutritionRepo = DriftNutritionRepository(database: db);
+          final weightRepo = DriftWeightRepository(database: db);
+          final settingsRepo = DriftSettingsRepository(database: db);
+          final cycleRepo = DriftCycleRepository(database: db);
+          final healthRepo = DriftHealthRepository(
+            database: db,
+            source: HealthConnectSource(),
+          );
 
-        final nutritionCtrl = NutritionController(repository: nutritionRepo);
-        final weightCtrl = WeightController(repository: weightRepo);
-        final healthCtrl = HealthController(repository: healthRepo);
-        final activityCtrl = ActivityController(repository: healthRepo);
-        final cycleCtrl = CycleController(
-            repository: cycleRepo, healthRepository: healthRepo);
-        final settingsCtrl = SettingsController(repository: settingsRepo);
+          final nutritionCtrl = NutritionController(repository: nutritionRepo);
+          final weightCtrl = WeightController(repository: weightRepo);
+          final healthCtrl = HealthController(repository: healthRepo);
+          final activityCtrl = ActivityController(repository: healthRepo);
+          final cycleCtrl = CycleController(
+            repository: cycleRepo,
+            healthRepository: healthRepo,
+          );
+          final settingsCtrl = SettingsController(repository: settingsRepo);
 
-        final dashboardCtrl = DashboardController(
-          nutritionController: nutritionCtrl,
-          weightController: weightCtrl,
-          healthController: healthCtrl,
-          activityController: activityCtrl,
-          cycleController: cycleCtrl,
-          settingsController: settingsCtrl,
-        );
+          final dashboardCtrl = DashboardController(
+            nutritionController: nutritionCtrl,
+            weightController: weightCtrl,
+            healthController: healthCtrl,
+            activityController: activityCtrl,
+            cycleController: cycleCtrl,
+            settingsController: settingsCtrl,
+          );
 
-        await dashboardCtrl.initialize();
-        await weightCtrl.addWeight(DateTime.now(), 82.0);
-        await dashboardCtrl.refresh();
+          await dashboardCtrl.initialize();
+          await weightCtrl.addWeight(DateTime.now(), 82.0);
+          await dashboardCtrl.refresh();
 
-        // Channel call should have been dispatched during refresh
-        expect(channelCalls, isNotEmpty);
-        final lastCall = channelCalls.last;
-        expect(lastCall.method, equals('updateAllWidgets'));
-        expect(lastCall.arguments['currentWeight'], equals(82.0));
-        expect(lastCall.arguments['dailyCalorieGoal'],
-            equals(settingsCtrl.goals.dailyCalories));
-      } finally {
-        debugDefaultTargetPlatformOverride = null;
-      }
-    });
+          // Channel call should have been dispatched during refresh
+          expect(channelCalls, isNotEmpty);
+          final lastCall = channelCalls.last;
+          expect(lastCall.method, equals('updateAllWidgets'));
+          expect(lastCall.arguments['currentWeight'], equals(82.0));
+          expect(
+            lastCall.arguments['dailyCalorieGoal'],
+            equals(settingsCtrl.goals.dailyCalories),
+          );
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+        }
+      },
+    );
 
-    testWidgets('OverviewSummaryCard renders all metrics and handles navigation',
-        (tester) async {
-      int? navigatedTab;
+    testWidgets(
+      'OverviewSummaryCard renders all metrics and handles navigation',
+      (tester) async {
+        int? navigatedTab;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: OverviewSummaryCard(
-                consumedCal: 1650,
-                targetCal: 2200,
-                consumedCarbs: 180,
-                targetCarbs: 250,
-                consumedProt: 130,
-                targetProt: 160,
-                consumedFat: 52,
-                targetFat: 70,
-                steps: 8420,
-                stepGoal: 10000,
-                distanceKm: 5.8,
-                activeKcal: 480,
-                totalKcal: 2230,
-                weight: 78.4,
-                weightTrend: -0.3,
-                cycleDay: 14,
-                cyclePhase: 'Follikelphase',
-                onNavigateToTab: (index) => navigatedTab = index,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: OverviewSummaryCard(
+                  consumedCal: 1650,
+                  targetCal: 2200,
+                  consumedCarbs: 180,
+                  targetCarbs: 250,
+                  consumedProt: 130,
+                  targetProt: 160,
+                  consumedFat: 52,
+                  targetFat: 70,
+                  steps: 8420,
+                  stepGoal: 10000,
+                  distanceKm: 5.8,
+                  activeKcal: 480,
+                  totalKcal: 2230,
+                  weight: 78.4,
+                  weightTrend: -0.3,
+                  cycleDay: 14,
+                  cyclePhase: 'Follikelphase',
+                  onNavigateToTab: (index) => navigatedTab = index,
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      // Verify header and titles
-      expect(find.text('Große Tagesübersicht'), findsOneWidget);
-      expect(find.text('Ernährung & Kalorien'), findsOneWidget);
-      expect(find.text('Aktivität & Energie'), findsOneWidget);
-      expect(find.text('Gewicht'), findsOneWidget);
-      expect(find.text('Zyklus'), findsOneWidget);
+        // Verify header and titles
+        expect(find.text('Große Tagesübersicht'), findsOneWidget);
+        expect(find.text('Ernährung & Kalorien'), findsOneWidget);
+        expect(find.text('Aktivität & Energie'), findsOneWidget);
+        expect(find.text('Gewicht'), findsOneWidget);
+        expect(find.text('Zyklus'), findsOneWidget);
 
-      // Verify values
-      expect(find.text('1650'), findsOneWidget);
-      expect(find.text(' / 2200 kcal'), findsOneWidget);
-      expect(find.text('8420'), findsOneWidget);
-      expect(find.text(' / 10000 Schritte'), findsOneWidget);
-      expect(find.text('78.4 kg'), findsOneWidget);
-      expect(find.text('Tag 14'), findsOneWidget);
-      expect(find.textContaining('Follikelphase'), findsOneWidget);
+        // Verify values
+        expect(find.text('1650'), findsOneWidget);
+        expect(find.text(' / 2200 kcal'), findsOneWidget);
+        expect(find.text('8420'), findsOneWidget);
+        expect(find.text(' / 10000 Schritte'), findsOneWidget);
+        expect(find.text('78.4 kg'), findsOneWidget);
+        expect(find.text('Tag 14'), findsOneWidget);
+        expect(find.textContaining('Follikelphase'), findsOneWidget);
 
-      // Verify tap on Nutrition navigates to tab 1
-      await tester.tap(find.text('Ernährung & Kalorien'));
-      expect(navigatedTab, equals(1));
+        // Verify tap on Nutrition navigates to tab 1
+        await tester.tap(find.text('Ernährung & Kalorien'));
+        expect(navigatedTab, equals(1));
 
-      // Verify tap on Activity navigates to tab 2
-      await tester.tap(find.text('Aktivität & Energie'));
-      expect(navigatedTab, equals(2));
+        // Verify tap on Activity navigates to tab 2
+        await tester.tap(find.text('Aktivität & Energie'));
+        expect(navigatedTab, equals(2));
 
-      // Verify tap on Cycle navigates to tab 3
-      await tester.tap(find.text('Zyklus'));
-      expect(navigatedTab, equals(3));
-    });
+        // Verify tap on Cycle navigates to tab 3
+        await tester.tap(find.text('Zyklus'));
+        expect(navigatedTab, equals(3));
+      },
+    );
   });
 }

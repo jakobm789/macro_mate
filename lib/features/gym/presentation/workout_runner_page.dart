@@ -43,15 +43,25 @@ class WorkoutRunnerPage extends StatelessWidget {
             PopupMenuButton<int>(
               tooltip: 'Standard-Pause anpassen',
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.timer_outlined, size: 18, color: Colors.deepOrangeAccent),
+                    const Icon(
+                      Icons.timer_outlined,
+                      size: 18,
+                      color: Colors.deepOrangeAccent,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       '${(controller.defaultRestSeconds / 60).toStringAsFixed(1).replaceAll('.0', '')} min',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
@@ -62,7 +72,8 @@ class WorkoutRunnerPage extends StatelessWidget {
                   SnackBar(
                     duration: const Duration(seconds: 2),
                     content: Text(
-                        'Standard-Pausenzeit auf ${(sec / 60).toStringAsFixed(1).replaceAll('.0', '')} Minuten gesetzt.'),
+                      'Standard-Pausenzeit auf ${(sec / 60).toStringAsFixed(1).replaceAll('.0', '')} Minuten gesetzt.',
+                    ),
                   ),
                 );
               },
@@ -71,95 +82,114 @@ class WorkoutRunnerPage extends StatelessWidget {
                 PopupMenuItem(value: 90, child: Text('1:30 min (90s)')),
                 PopupMenuItem(value: 120, child: Text('2:00 min (120s)')),
                 PopupMenuItem(value: 150, child: Text('2:30 min (150s)')),
-                PopupMenuItem(value: 180, child: Text('3:00 min (180s - Standard)')),
+                PopupMenuItem(
+                  value: 180,
+                  child: Text('3:00 min (180s - Standard)'),
+                ),
                 PopupMenuItem(value: 240, child: Text('4:00 min (240s)')),
                 PopupMenuItem(value: 300, child: Text('5:00 min (300s)')),
               ],
             ),
             TextButton.icon(
               icon: const Icon(Icons.close, color: Colors.redAccent, size: 18),
-              label: const Text('Abbrechen',
-                  style: TextStyle(
-                      color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              label: const Text(
+                'Abbrechen',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               onPressed: () => _confirmCancel(context, controller),
             ),
             TextButton.icon(
               icon: const Icon(Icons.check_circle_outline, color: Colors.green),
-              label: const Text('Abschließen',
-                  style: TextStyle(
-                      color: Colors.green, fontWeight: FontWeight.bold)),
+              label: const Text(
+                'Abschließen',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               onPressed: () => _confirmFinish(context, controller),
             ),
           ],
         ),
-      body: Column(
-        children: [
-          // Rest Timer Banner
-          if (controller.isRestTimerRunning)
-            Container(
-              color: theme.colorScheme.primaryContainer,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  const Icon(Icons.timer_outlined, color: Colors.deepOrange),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Pause: ${(controller.restTimerSecondsRemaining ~/ 60)}:${(controller.restTimerSecondsRemaining % 60).toString().padLeft(2, '0')} min',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onPrimaryContainer,
+        body: Column(
+          children: [
+            // Rest Timer Banner
+            if (controller.isRestTimerRunning)
+              Container(
+                color: theme.colorScheme.primaryContainer,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.timer_outlined, color: Colors.deepOrange),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Pause: ${(controller.restTimerSecondsRemaining ~/ 60)}:${(controller.restTimerSecondsRemaining % 60).toString().padLeft(2, '0')} min',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  if (controller.restTimerSecondsRemaining > 30)
+                    const Spacer(),
+                    if (controller.restTimerSecondsRemaining > 30)
+                      TextButton(
+                        onPressed: () => controller.startRestTimer(
+                          controller.restTimerSecondsRemaining - 30,
+                        ),
+                        child: const Text('-30s'),
+                      ),
                     TextButton(
                       onPressed: () => controller.startRestTimer(
-                          controller.restTimerSecondsRemaining - 30),
-                      child: const Text('-30s'),
+                        controller.restTimerSecondsRemaining + 30,
+                      ),
+                      child: const Text('+30s'),
                     ),
-                  TextButton(
-                    onPressed: () => controller.startRestTimer(
-                        controller.restTimerSecondsRemaining + 30),
-                    child: const Text('+30s'),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    tooltip: 'Pause überspringen',
-                    onPressed: controller.stopRestTimer,
-                  ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Pause überspringen',
+                      onPressed: controller.stopRestTimer,
+                    ),
+                  ],
+                ),
+              ),
+            // Sets list
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  for (final entry in setsByExercise.entries) ...[
+                    _ExerciseSectionCard(
+                      exerciseId: entry.key,
+                      setEntries: entry.value,
+                      controller: controller,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ],
               ),
             ),
-          // Sets list
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                for (final entry in setsByExercise.entries) ...[
-                  _ExerciseSectionCard(
-                    exerciseId: entry.key,
-                    setEntries: entry.value,
-                    controller: controller,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Future<void> _confirmCancel(
-      BuildContext context, GymController controller) async {
+    BuildContext context,
+    GymController controller,
+  ) async {
     final discard = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Training abbrechen?'),
         content: const Text(
-            'Möchtest du dieses Training wirklich ohne Speichern abbrechen? Alle nicht gespeicherten Sätze werden verworfen.'),
+          'Möchtest du dieses Training wirklich ohne Speichern abbrechen? Alle nicht gespeicherten Sätze werden verworfen.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -191,7 +221,8 @@ class WorkoutRunnerPage extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Workout abschließen?'),
         content: const Text(
-            'Möchtest du dieses Workout speichern und deine Trainingsstatistiken aktualisieren?'),
+          'Möchtest du dieses Workout speichern und deine Trainingsstatistiken aktualisieren?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -233,14 +264,16 @@ class WorkoutRunnerPage extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'Klasse Leistung!',
-                style: theme.textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Dein Workout wurde erfolgreich protokolliert.',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.hintColor),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.hintColor,
+                ),
               ),
               const SizedBox(height: 20),
               Row(
@@ -274,14 +307,18 @@ class WorkoutRunnerPage extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
-                          Icon(Icons.local_fire_department,
-                              color: Colors.deepOrange, size: 20),
+                          Icon(
+                            Icons.local_fire_department,
+                            color: Colors.deepOrange,
+                            size: 20,
+                          ),
                           SizedBox(width: 6),
                           Text(
                             'Neuer persönlicher Rekord (PR)!',
                             style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.deepOrange),
+                              fontWeight: FontWeight.bold,
+                              color: Colors.deepOrange,
+                            ),
                           ),
                         ],
                       ),
@@ -312,8 +349,11 @@ class WorkoutRunnerPage extends StatelessWidget {
 }
 
 class _SummaryStat extends StatelessWidget {
-  const _SummaryStat(
-      {required this.title, required this.value, required this.icon});
+  const _SummaryStat({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
   final String title;
   final String value;
   final IconData icon;
@@ -324,10 +364,14 @@ class _SummaryStat extends StatelessWidget {
       children: [
         Icon(icon, size: 28, color: Colors.deepOrangeAccent),
         const SizedBox(height: 4),
-        Text(value,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        Text(title,
-            style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12)),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        Text(
+          title,
+          style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12),
+        ),
       ],
     );
   }
@@ -396,23 +440,31 @@ class _ExerciseSectionCard extends StatelessWidget {
             Row(
               children: const [
                 SizedBox(
-                    width: 42,
-                    child: Text('Typ',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 11))),
+                  width: 42,
+                  child: Text(
+                    'Typ',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                ),
                 Expanded(
-                    child: Text('Gewicht (kg)',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 11))),
+                  child: Text(
+                    'Gewicht (kg)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                ),
                 Expanded(
-                    child: Text('Wdh / Zeit',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 11))),
+                  child: Text(
+                    'Wdh / Zeit',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                ),
                 SizedBox(
-                    width: 48,
-                    child: Text('RPE',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 11))),
+                  width: 48,
+                  child: Text(
+                    'RPE',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                ),
                 SizedBox(width: 40, child: Icon(Icons.check, size: 16)),
               ],
             ),
@@ -509,12 +561,15 @@ class _SetRowItem extends StatelessWidget {
           Expanded(
             child: TextFormField(
               initialValue: setLog.weightKg > 0 ? '${setLog.weightKg}' : '0',
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(
                 isDense: true,
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 8,
+                ),
                 border: OutlineInputBorder(),
               ),
               onChanged: (val) {
@@ -534,8 +589,10 @@ class _SetRowItem extends StatelessWidget {
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                 isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 8,
+                ),
                 border: const OutlineInputBorder(),
                 suffixText: isTimed ? 's' : null,
               ),
@@ -556,13 +613,16 @@ class _SetRowItem extends StatelessWidget {
             width: 48,
             child: TextFormField(
               initialValue: setLog.rpe != null ? '${setLog.rpe}' : '',
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(
                 isDense: true,
                 hintText: '8',
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 8,
+                ),
                 border: OutlineInputBorder(),
               ),
               onChanged: (val) {
