@@ -250,7 +250,8 @@ class DashboardController extends ChangeNotifier {
   double get dailyFatGoal => _settings.dailyFatGoal;
 
   // Activity getters
-  int get steps => _todayHealthSummary?.steps ?? _activity.todaySummary?.steps ?? 0;
+  int get steps =>
+      _todayHealthSummary?.steps ?? _activity.todaySummary?.steps ?? 0;
   int get stepGoal => 10000;
   double get activeCalories =>
       _todayHealthSummary?.activeCalories ??
@@ -258,9 +259,9 @@ class DashboardController extends ChangeNotifier {
       0.0;
   double get distanceKm =>
       (_todayHealthSummary?.distanceMeters ??
-              _activity.todaySummary?.distanceMeters ??
-              0.0) /
-          1000.0;
+          _activity.todaySummary?.distanceMeters ??
+          0.0) /
+      1000.0;
 
   /// Missing parameters needed for calculating accurate BMR (Grundumsatz).
   List<String> get missingBmrParameters {

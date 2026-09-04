@@ -243,7 +243,8 @@ class PhoneStepSensorService {
     // the hardware counter had already started from a mid-day baseline.
     var currentDelta = (rawCount + rebootOffset) - baseline;
     if (initialPriorSteps != null &&
-        initialPriorSteps > priorSteps + (currentDelta > 0 ? currentDelta : 0)) {
+        initialPriorSteps >
+            priorSteps + (currentDelta > 0 ? currentDelta : 0)) {
       priorSteps = initialPriorSteps;
       baseline = lastRaw + rebootOffset;
       currentDelta = (rawCount + rebootOffset) - baseline;

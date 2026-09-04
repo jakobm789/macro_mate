@@ -601,9 +601,7 @@ class DriftHealthRepository implements HealthRepository {
     }
     final sourceId = selectedSourceId;
     if (sourceId == null) return 0;
-    return selectedTotal
-        .clamp(hardwareSensorTotal, double.infinity)
-        .round();
+    return selectedTotal.clamp(hardwareSensorTotal, double.infinity).round();
   }
 
   static bool _isDirectHardwareSensor(String sourceId, String sourceName) {
