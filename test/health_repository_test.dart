@@ -175,4 +175,34 @@ void main() {
 
     expect(summaries.single.steps, equals(8000));
   });
+
+  test('uses newer calibrated hardware steps without adding sources', () async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final source = _FakeHealthSource([
+      _record(
+        id: 'phone-live',
+        metric: HealthMetric.steps,
+        value: 8050,
+        sourceId: 'phone_step_sensor',
+        sourceName: 'OnePlus Hardware-Sensor',
+      ),
+      _record(
+        id: 'oneplus-snapshot',
+        metric: HealthMetric.steps,
+        value: 8000,
+        sourceId: 'oneplus-health',
+        sourceName: 'OnePlus Health',
+      ),
+    ]);
+    final repository =
+        DriftHealthRepository(database: database, source: source);
+
+    final summaries = await repository.sync(
+      startUtc: DateTime.utc(2026, 8, 1),
+      endUtc: DateTime.utc(2026, 8, 31),
+    );
+
+    expect(summaries.single.steps, equals(8050));
+  });
 }

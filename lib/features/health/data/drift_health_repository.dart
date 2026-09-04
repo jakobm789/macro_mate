@@ -197,7 +197,9 @@ class DriftHealthRepository implements HealthRepository {
 
     // A day can contain overlapping step feeds from the phone, a wearable and
     // Health Connect. Those feeds describe the same physical steps, so adding
-    // them would double-count. Sum intervals within the best source only.
+    // them would double-count. The direct sensor record is already calibrated
+    // to Health Connect and may contain newer live steps, so use it only when
+    // it is ahead of the preferred external source.
     final steps = _preferredStepTotal(records);
     final activeCalories = preferred(HealthMetric.activeCalories)
         .fold<double>(0, (sum, record) => sum + record.value);
@@ -578,6 +580,7 @@ class DriftHealthRepository implements HealthRepository {
     String? selectedSourceId;
     var selectedPriority = -1;
     var selectedTotal = -1.0;
+    var hardwareSensorTotal = 0.0;
     for (final entry in recordsBySource.entries) {
       final sourceRecords = entry.value;
       final sourceName = sourceRecords.first.sourceName.isEmpty
@@ -592,12 +595,22 @@ class DriftHealthRepository implements HealthRepository {
         selectedPriority = priority;
         selectedTotal = total;
       }
+      if (_isDirectHardwareSensor(entry.key, sourceName)) {
+        hardwareSensorTotal = total;
+      }
     }
     final sourceId = selectedSourceId;
     if (sourceId == null) return 0;
-    return recordsBySource[sourceId]!
-        .fold<double>(0, (sum, record) => sum + record.value)
+    return selectedTotal
+        .clamp(hardwareSensorTotal, double.infinity)
         .round();
+  }
+
+  static bool _isDirectHardwareSensor(String sourceId, String sourceName) {
+    final name = sourceName.toLowerCase();
+    return sourceId == 'phone_step_sensor' ||
+        name.contains('interner handy-sensor') ||
+        name.contains('hardware-sensor');
   }
 
   static String _keyForMetric(HealthMetric metric) =>
