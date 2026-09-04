@@ -1,0 +1,27 @@
+name: Codex Exercise Switch Format Capture
+
+on:
+  push:
+    branches:
+      - codex/format-exercise-switch-ci
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format lib/features/gym/presentation/workout_runner_page.dart
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formatted-exercise-switch-ci
+          path: lib/features/gym/presentation/workout_runner_page.dart
+          if-no-files-found: error
