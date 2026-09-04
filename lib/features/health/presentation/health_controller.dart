@@ -33,6 +33,7 @@ class HealthController extends ChangeNotifier {
   final AppLogger _logger = const AppLogger();
 
   Timer? _foregroundSyncTimer;
+  StreamSubscription<int>? _phoneStepSubscription;
   bool _isForegroundSyncActive = false;
   bool get isForegroundSyncActive => _isForegroundSyncActive;
   HealthAvailability? availabilityState;
@@ -77,6 +78,7 @@ class HealthController extends ChangeNotifier {
       isPhoneSensorEnabled = await phoneStepSensorService.isEnabled();
       phoneSensorTodaySteps = phoneStepSensorService.currentTodaySteps;
       if (isPhoneSensorEnabled) {
+        _ensurePhoneStepSubscription();
         await phoneStepSensorService.startListening();
         await phoneStepSensorService.refreshPriorSteps();
         phoneSensorTodaySteps = phoneStepSensorService.currentTodaySteps;
@@ -86,6 +88,7 @@ class HealthController extends ChangeNotifier {
 
   Future<void> togglePhoneSensor(bool enabled) async {
     try {
+      if (enabled) _ensurePhoneStepSubscription();
       await phoneStepSensorService.setEnabled(enabled);
       isPhoneSensorEnabled = enabled;
       if (enabled) {
@@ -95,6 +98,8 @@ class HealthController extends ChangeNotifier {
         await _loadSummaries();
       } else {
         await phoneStepSensorService.stopListening();
+        await _phoneStepSubscription?.cancel();
+        _phoneStepSubscription = null;
       }
       notifyListeners();
     } catch (e) {
@@ -195,6 +200,23 @@ class HealthController extends ChangeNotifier {
     });
   }
 
+  void _ensurePhoneStepSubscription() {
+    _phoneStepSubscription ??= phoneStepSensorService.stepStream.listen(
+      (steps) {
+        unawaited(_handlePhoneStepUpdate(steps));
+      },
+    );
+  }
+
+  Future<void> _handlePhoneStepUpdate(int steps) async {
+    phoneSensorTodaySteps = steps;
+    // The sensor service emits only after it has persisted the new daily
+    // aggregate. Reloading here keeps the Activity page, dashboard and Android
+    // widgets on the same number without waiting for the next 30-second sync.
+    await _loadSummaries();
+    notifyListeners();
+  }
+
   Future<void> _run(Future<void> Function() action) async {
     if (isLoading) return;
     isLoading = true;
@@ -262,6 +284,8 @@ class HealthController extends ChangeNotifier {
   @override
   void dispose() {
     stopPeriodicForegroundSync();
+    _phoneStepSubscription?.cancel();
+    phoneStepSensorService.dispose();
     super.dispose();
   }
 }

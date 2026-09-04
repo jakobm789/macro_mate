@@ -238,14 +238,26 @@ class PhoneStepSensorService {
       }
     }
 
-    // Check if external sources (e.g. Health Connect) have higher recorded steps for today
+    // Reconcile an explicit refresh before processing the next sensor sample.
+    // This is needed when Health Connect finished importing the full day after
+    // the hardware counter had already started from a mid-day baseline.
+    var currentDelta = (rawCount + rebootOffset) - baseline;
+    if (initialPriorSteps != null &&
+        initialPriorSteps > priorSteps + (currentDelta > 0 ? currentDelta : 0)) {
+      priorSteps = initialPriorSteps;
+      baseline = lastRaw + rebootOffset;
+      currentDelta = (rawCount + rebootOffset) - baseline;
+    }
+
+    // Check if external sources (e.g. Health Connect) have higher recorded
+    // steps for today. The repository resolves Health Connect's complete
+    // interval total before falling back to locally persisted samples.
     if (_repository != null) {
       try {
         final knownPrior = await _repository.getPriorStepsToday(
           currentTime,
           excludeSourceId: 'phone_step_sensor',
         );
-        final currentDelta = (rawCount + rebootOffset) - baseline;
         if (knownPrior > (priorSteps + (currentDelta > 0 ? currentDelta : 0))) {
           priorSteps = knownPrior;
           baseline = lastRaw + rebootOffset;
@@ -264,7 +276,6 @@ class PhoneStepSensorService {
     int todaySteps = priorSteps + delta;
 
     _currentTodaySteps = todaySteps;
-    _stepController.add(todaySteps);
 
     // Persist current state
     await prefs.setString(prefDate, todayStr);
@@ -285,6 +296,10 @@ class PhoneStepSensorService {
         );
       } catch (_) {}
     }
+
+    // Notify after persistence so listeners that reload the aggregate always
+    // observe the same number as the hardware-sensor card.
+    _stepController.add(todaySteps);
 
     return todaySteps;
   }

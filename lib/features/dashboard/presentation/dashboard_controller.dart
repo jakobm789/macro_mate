@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
@@ -45,6 +47,7 @@ class DashboardController extends ChangeNotifier {
         _settings = settingsController,
         _logger = logger {
     _initDefaults();
+    _health.addListener(_handleHealthChanged);
   }
 
   final NutritionController _nutrition;
@@ -216,6 +219,26 @@ class DashboardController extends ChangeNotifier {
     }
   }
 
+  void _handleHealthChanged() {
+    // HealthController updates its current-day aggregate after every persisted
+    // hardware sensor event. Propagate that value immediately so the dashboard
+    // and Android widgets do not wait for a manual refresh.
+    notifyListeners();
+    unawaited(AppWidgetService.updateFromDashboard(this));
+  }
+
+  DailyHealthSummary? get _todayHealthSummary {
+    final now = DateTime.now();
+    return _health.summariesState
+        .where(
+          (summary) =>
+              summary.day.year == now.year &&
+              summary.day.month == now.month &&
+              summary.day.day == now.day,
+        )
+        .firstOrNull;
+  }
+
   // Nutrition getters
   double get consumedCalories => _nutrition.consumedCalories;
   int get dailyCalorieGoal => _settings.goals.dailyCalories;
@@ -227,11 +250,17 @@ class DashboardController extends ChangeNotifier {
   double get dailyFatGoal => _settings.dailyFatGoal;
 
   // Activity getters
-  int get steps => _activity.todaySummary?.steps ?? 0;
+  int get steps => _todayHealthSummary?.steps ?? _activity.todaySummary?.steps ?? 0;
   int get stepGoal => 10000;
-  double get activeCalories => _activity.todaySummary?.activeCalories ?? 0.0;
+  double get activeCalories =>
+      _todayHealthSummary?.activeCalories ??
+      _activity.todaySummary?.activeCalories ??
+      0.0;
   double get distanceKm =>
-      (_activity.todaySummary?.distanceMeters ?? 0.0) / 1000.0;
+      (_todayHealthSummary?.distanceMeters ??
+              _activity.todaySummary?.distanceMeters ??
+              0.0) /
+          1000.0;
 
   /// Missing parameters needed for calculating accurate BMR (Grundumsatz).
   List<String> get missingBmrParameters {
@@ -298,6 +327,12 @@ class DashboardController extends ChangeNotifier {
       return 'Nächste Periode erwartet ab ${_formatDate(first.windowStart)}';
     }
     return first.rationale;
+  }
+
+  @override
+  void dispose() {
+    _health.removeListener(_handleHealthChanged);
+    super.dispose();
   }
 
   // Prioritized action impulses

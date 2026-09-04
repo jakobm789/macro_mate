@@ -71,13 +71,15 @@ HealthRecord _record({
   required String id,
   required HealthMetric metric,
   required double value,
+  String sourceId = 'watch-1',
+  String sourceName = 'Test Watch',
 }) {
   final start = DateTime.utc(2026, 8, 30, 8);
   return HealthRecord(
     id: id,
     metric: metric,
-    sourceId: 'watch-1',
-    sourceName: 'Test Watch',
+    sourceId: sourceId,
+    sourceName: sourceName,
     startUtc: start,
     endUtc: start.add(const Duration(minutes: 30)),
     value: value,
@@ -134,5 +136,43 @@ void main() {
       source.reads.last.start,
       DateTime.utc(2026, 8, 30, 2, 30),
     );
+  });
+
+  test('uses the complete preferred step source instead of a partial fallback',
+      () async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final source = _FakeHealthSource([
+      _record(
+        id: 'phone-fallback',
+        metric: HealthMetric.steps,
+        value: 5000,
+        sourceId: 'phone_step_sensor',
+        sourceName: 'OnePlus Hardware-Sensor',
+      ),
+      _record(
+        id: 'oneplus-morning',
+        metric: HealthMetric.steps,
+        value: 3200,
+        sourceId: 'oneplus-health',
+        sourceName: 'OnePlus Health',
+      ),
+      _record(
+        id: 'oneplus-afternoon',
+        metric: HealthMetric.steps,
+        value: 4800,
+        sourceId: 'oneplus-health',
+        sourceName: 'OnePlus Health',
+      ),
+    ]);
+    final repository =
+        DriftHealthRepository(database: database, source: source);
+
+    final summaries = await repository.sync(
+      startUtc: DateTime.utc(2026, 8, 1),
+      endUtc: DateTime.utc(2026, 8, 31),
+    );
+
+    expect(summaries.single.steps, equals(8000));
   });
 }

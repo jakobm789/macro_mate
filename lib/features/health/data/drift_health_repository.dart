@@ -195,9 +195,10 @@ class DriftHealthRepository implements HealthRepository {
           values.length;
     }
 
-    final steps = preferred(HealthMetric.steps)
-        .fold<double>(0, (sum, record) => sum + record.value)
-        .round();
+    // A day can contain overlapping step feeds from the phone, a wearable and
+    // Health Connect. Those feeds describe the same physical steps, so adding
+    // them would double-count. Sum intervals within the best source only.
+    final steps = _preferredStepTotal(records);
     final activeCalories = preferred(HealthMetric.activeCalories)
         .fold<double>(0, (sum, record) => sum + record.value);
     final basalCalories = preferred(HealthMetric.basalCalories)
@@ -544,11 +545,14 @@ class DriftHealthRepository implements HealthRepository {
   static int _sourcePriority(String sourceName) {
     final name = sourceName.toLowerCase();
     if (name.contains('phone_step_sensor') ||
-        name.contains('interner') ||
-        name.contains('oneplus')) {
-      return 40;
+        name.contains('interner handy-sensor') ||
+        name.contains('hardware-sensor')) {
+      // The direct Android counter is a live fallback. Health Connect's
+      // provider total is authoritative for the full day, including steps
+      // taken before MacroMate started listening.
+      return 1;
     }
-    if (name.contains('samsung')) {
+    if (name.contains('samsung') || name.contains('oneplus')) {
       return 30;
     }
     if (name.contains('garmin') || name.contains('fitbit')) {
@@ -561,6 +565,39 @@ class DriftHealthRepository implements HealthRepository {
       return 10;
     }
     return 0;
+  }
+
+  static int _preferredStepTotal(List<HealthRecord> records) {
+    final recordsBySource = <String, List<HealthRecord>>{};
+    for (final record in records) {
+      if (record.metric != HealthMetric.steps) continue;
+      recordsBySource.putIfAbsent(record.sourceId, () => []).add(record);
+    }
+    if (recordsBySource.isEmpty) return 0;
+
+    String? selectedSourceId;
+    var selectedPriority = -1;
+    var selectedTotal = -1.0;
+    for (final entry in recordsBySource.entries) {
+      final sourceRecords = entry.value;
+      final sourceName = sourceRecords.first.sourceName.isEmpty
+          ? entry.key
+          : sourceRecords.first.sourceName;
+      final priority = _sourcePriority(sourceName);
+      final total =
+          sourceRecords.fold<double>(0, (sum, record) => sum + record.value);
+      if (priority > selectedPriority ||
+          (priority == selectedPriority && total > selectedTotal)) {
+        selectedSourceId = entry.key;
+        selectedPriority = priority;
+        selectedTotal = total;
+      }
+    }
+    final sourceId = selectedSourceId;
+    if (sourceId == null) return 0;
+    return recordsBySource[sourceId]!
+        .fold<double>(0, (sum, record) => sum + record.value)
+        .round();
   }
 
   static String _keyForMetric(HealthMetric metric) =>
@@ -633,7 +670,7 @@ class DriftHealthRepository implements HealthRepository {
               sourceName: sourceName,
               sourceDeviceId: const Value.absent(),
               platform: 'phone_sensor',
-              priority: const Value(40),
+              priority: const Value(1),
               enabled: const Value(true),
               discoveredAtUtc: nowUtc.toIso8601String(),
             ),
@@ -710,21 +747,37 @@ class DriftHealthRepository implements HealthRepository {
   }) async {
     final dayStr = _day(date);
 
-    // 1. Check existing healthRecords for today from other sources
+    // Prefer Health Connect's own interval total whenever it is available.
+    // It represents the device/provider's complete day and is not affected by
+    // a local fallback record that may have started listening mid-day.
+    try {
+      final midnight = DateTime(date.year, date.month, date.day);
+      final sourceSteps = await getTotalStepsInInterval(midnight, date);
+      if (sourceSteps != null && sourceSteps > 0) {
+        return sourceSteps;
+      }
+    } catch (_) {}
+
+    // Fall back to records already imported from external sources. Health
+    // Connect often splits a day into intervals, so total each source first
+    // instead of taking only the largest individual interval.
     final rows = await (_database.select(_database.healthRecords)
           ..where((row) =>
               row.localDay.equals(dayStr) &
               row.type.equals(HealthMetric.steps.name)))
         .get();
 
-    int maxRecordSteps = 0;
+    final totalsBySource = <String, int>{};
     for (final row in rows) {
       if (excludeSourceId != null && row.sourceId == excludeSourceId) continue;
-      final val = row.value.round();
-      if (val > maxRecordSteps) {
-        maxRecordSteps = val;
-      }
+      totalsBySource.update(
+        row.sourceId,
+        (total) => total + row.value.round(),
+        ifAbsent: () => row.value.round(),
+      );
     }
+    var maxRecordSteps = totalsBySource.values
+        .fold<int>(0, (max, total) => total > max ? total : max);
     if (maxRecordSteps > 0) return maxRecordSteps;
 
     // 2. Check daily aggregates
@@ -739,15 +792,6 @@ class DriftHealthRepository implements HealthRepository {
     }
 
     if (maxRecordSteps > 0) return maxRecordSteps;
-
-    // 3. Query Health Connect directly for today if available
-    try {
-      final midnight = DateTime(date.year, date.month, date.day);
-      final sourceSteps = await getTotalStepsInInterval(midnight, date);
-      if (sourceSteps != null && sourceSteps > maxRecordSteps) {
-        maxRecordSteps = sourceSteps;
-      }
-    } catch (_) {}
 
     return maxRecordSteps;
   }

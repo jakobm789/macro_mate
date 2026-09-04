@@ -211,6 +211,29 @@ void main() {
       expect(mockRepo.recordedSteps, equals(3050));
     });
 
+    test(
+        'reconciles a freshly synced full-day total without losing new sensor steps',
+        () async {
+      final now = DateTime(2026, 9, 3, 15, 0);
+
+      await service.processRawStepCount(10000, now: now);
+      expect(
+        await service.processRawStepCount(10200, now: now),
+        equals(200),
+      );
+
+      // Health Connect catches up after MacroMate had started listening.
+      final reconciled = await service.processRawStepCount(
+        10250,
+        now: now,
+        initialPriorSteps: 3000,
+      );
+
+      expect(reconciled, equals(3050));
+      expect(service.currentTodaySteps, equals(3050));
+      expect(mockRepo.recordedSteps, equals(3050));
+    });
+
     test('refreshPriorSteps updates current steps when called', () async {
       final now = DateTime(2026, 9, 3, 16, 0);
 
