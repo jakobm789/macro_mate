@@ -1,0 +1,30 @@
+name: Codex Step Format Capture
+
+on:
+  push:
+    branches:
+      - codex/format-step-fix
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format lib/features/dashboard/presentation/dashboard_controller.dart lib/features/health/data/drift_health_repository.dart lib/features/health/data/phone_step_sensor_service.dart
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formatted-step-fix
+          path: |
+            lib/features/dashboard/presentation/dashboard_controller.dart
+            lib/features/health/data/drift_health_repository.dart
+            lib/features/health/data/phone_step_sensor_service.dart
+          if-no-files-found: error
