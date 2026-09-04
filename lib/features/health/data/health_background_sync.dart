@@ -8,6 +8,7 @@ import 'drift_health_repository.dart';
 import 'health_connect_source.dart';
 
 const healthBackgroundTask = 'health-connect-sync';
+const healthBackgroundSyncFrequency = Duration(hours: 1);
 bool _backgroundSyncInitialized = false;
 
 /// Registers a best-effort periodic refresh. Health permissions are never
@@ -20,10 +21,10 @@ Future<void> initializeHealthBackgroundSync() async {
   await Workmanager().registerPeriodicTask(
     healthBackgroundTask,
     healthBackgroundTask,
-    frequency: const Duration(hours: 6),
+    frequency: healthBackgroundSyncFrequency,
     // Health Connect is local; requiring a network would unnecessarily stop
     // imports while the device is offline.
-    existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+    existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
   );
   _backgroundSyncInitialized = true;
 }
