@@ -188,7 +188,7 @@ void main() {
         expect(find.text('1650'), findsOneWidget);
         expect(find.text(' / 2200 kcal'), findsOneWidget);
         expect(find.text('8420'), findsOneWidget);
-        expect(find.text(' / 10000 Schritte'), findsOneWidget);
+        expect(find.text(' / 10.000 Schritte'), findsOneWidget);
         expect(find.text('78.4 kg'), findsOneWidget);
         expect(find.text('Tag 14'), findsOneWidget);
         expect(find.textContaining('Follikelphase'), findsOneWidget);
