@@ -526,7 +526,8 @@ class _ExerciseSectionCard extends StatelessWidget {
               Expanded(
                 child: ListView.separated(
                   itemCount: candidates.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final candidate = candidates[index];
                     return ListTile(
