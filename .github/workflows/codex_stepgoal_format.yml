@@ -1,0 +1,37 @@
+name: Codex Step Goal Format Capture
+
+on:
+  push:
+    branches:
+      - codex/format-stepgoal-ci
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format lib test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formatted-stepgoal-ci
+          path: |
+            lib/features/activity/domain/location_tracker_service.dart
+            lib/features/activity/presentation/live_running_tracker_page.dart
+            lib/features/activity/presentation/running_tracker_controller.dart
+            lib/features/dashboard/presentation/dashboard_controller.dart
+            lib/features/dashboard/presentation/today_page.dart
+            test/dashboard_configuration_test.dart
+            test/fake_health_connect_integration_test.dart
+            test/features/activity/gps_tracking_and_filter_test.dart
+            test/health_connect_source_test.dart
+            test/today_page_auto_refresh_test.dart
+          if-no-files-found: error
