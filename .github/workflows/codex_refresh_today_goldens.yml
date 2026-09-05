@@ -4,6 +4,9 @@ on:
   push:
     branches: [codex/refresh-today-goldens]
 
+permissions:
+  contents: write
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
@@ -16,10 +19,11 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter test --update-goldens test/golden_views_test.dart
-      - uses: actions/upload-artifact@v4
-        with:
-          name: refreshed-today-goldens
-          path: |
-            test/goldens/today_page_light.png
-            test/goldens/today_page_dark.png
-            test/goldens/today_page_small_phone.png
+      - name: Commit refreshed images
+        run: |
+          git add test/goldens/today_page_light.png test/goldens/today_page_dark.png test/goldens/today_page_small_phone.png
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test: refresh today dashboard goldens"
+          git push
