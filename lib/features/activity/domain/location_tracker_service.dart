@@ -156,8 +156,7 @@ class LocationTrackerService {
 
               // Outlier filter (GPS teleports / glitch jumps)
               // Running/Walking/Hiking max ~15 m/s (54 km/h), Cycling max ~35 m/s (126 km/h)
-              final maxAllowedSpeed =
-                  sport == SportType.cycling ? 35.0 : 15.0;
+              final maxAllowedSpeed = sport == SportType.cycling ? 35.0 : 15.0;
               if (impliedSpeed > maxAllowedSpeed) {
                 return;
               }

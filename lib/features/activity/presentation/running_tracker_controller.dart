@@ -202,10 +202,8 @@ class RunningTrackerController extends ChangeNotifier {
         point.latitude,
         point.longitude,
       );
-      final deltaSec = point.timestamp
-              .difference(prev.timestamp)
-              .inMilliseconds /
-          1000.0;
+      final deltaSec =
+          point.timestamp.difference(prev.timestamp).inMilliseconds / 1000.0;
 
       _distanceMeters += deltaDist;
 

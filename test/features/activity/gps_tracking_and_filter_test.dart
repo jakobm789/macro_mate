@@ -101,13 +101,15 @@ void main() {
       expect(received.last.accuracy, 12.0);
     });
 
-    test('Rejects impossible teleports/spikes (> 15 m/s for running)', () async {
+    test('Rejects impossible teleports/spikes (> 15 m/s for running)',
+        () async {
       final controller = StreamController<Position>();
       final service =
           LocationTrackerService(positionStreamOverride: controller.stream);
 
       final received = <LiveGpsPoint>[];
-      final sub = service.startTracking(sport: SportType.running).listen(received.add);
+      final sub =
+          service.startTracking(sport: SportType.running).listen(received.add);
 
       final t0 = DateTime.utc(2026, 9, 3, 10, 0, 0);
 
@@ -241,7 +243,8 @@ void main() {
       await db.close();
     });
 
-    test('Computes speed and pace from deltaDist/deltaSec when sensor speed is 0.0',
+    test(
+        'Computes speed and pace from deltaDist/deltaSec when sensor speed is 0.0',
         () async {
       await controller.startWorkout(SportType.running);
 

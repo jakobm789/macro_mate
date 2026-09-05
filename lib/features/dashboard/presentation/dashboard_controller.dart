@@ -264,6 +264,7 @@ class DashboardController extends ChangeNotifier {
     await _settings.updateGoals(_settings.goals.copyWith(stepGoal: newGoal));
     notifyListeners();
   }
+
   double get activeCalories =>
       _todayHealthSummary?.activeCalories ??
       _activity.todaySummary?.activeCalories ??

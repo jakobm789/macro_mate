@@ -141,8 +141,9 @@ class _TodayPageState extends State<TodayPage>
 
   Future<void> _performReload() async {
     if (!mounted) return;
-    final dashboard = Provider.of<DashboardController?>(context, listen: false) ??
-        Provider.of<AppState?>(context, listen: false)?.dashboardController;
+    final dashboard =
+        Provider.of<DashboardController?>(context, listen: false) ??
+            Provider.of<AppState?>(context, listen: false)?.dashboardController;
     if (dashboard != null) {
       await dashboard.refresh();
     }

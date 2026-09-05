@@ -121,7 +121,8 @@ void main() {
   }
 
   group('TodayPage Auto-Refresh & 30-second interval', () {
-    testWidgets('reloads immediately on initial visit and every 30 seconds while open',
+    testWidgets(
+        'reloads immediately on initial visit and every 30 seconds while open',
         (tester) async {
       await tester.pumpWidget(
         buildTestApp(
@@ -150,7 +151,8 @@ void main() {
       expect(dashboardController.refreshCount, 3);
     });
 
-    testWidgets('pauses timer when tab is switched away and reloads immediately when returning',
+    testWidgets(
+        'pauses timer when tab is switched away and reloads immediately when returning',
         (tester) async {
       await tester.pumpWidget(
         buildTestApp(
@@ -201,7 +203,8 @@ void main() {
       expect(dashboardController.refreshCount, 3);
     });
 
-    testWidgets('pauses timer when route is pushed and reloads immediately when route is popped',
+    testWidgets(
+        'pauses timer when route is pushed and reloads immediately when route is popped',
         (tester) async {
       final navKey = GlobalKey<NavigatorState>();
 

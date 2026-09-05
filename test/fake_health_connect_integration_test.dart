@@ -375,8 +375,7 @@ void main() {
             NutritionController(repository: nutritionRepo);
         final weightController = WeightController(repository: weightRepo);
         final cycleController = CycleController(repository: cycleRepo);
-        final settingsController =
-            SettingsController(repository: settingsRepo);
+        final settingsController = SettingsController(repository: settingsRepo);
         await settingsController.initialize();
 
         final dashboardController = DashboardController(

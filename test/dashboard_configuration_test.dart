@@ -310,7 +310,8 @@ void main() {
       expect(
         dashboardController.totalCalories,
         closeTo(
-          dashboardController.activeCalories + dashboardController.proportionalBmr,
+          dashboardController.activeCalories +
+              dashboardController.proportionalBmr,
           0.001,
         ),
       );
@@ -330,7 +331,8 @@ void main() {
       expect(
         dashboardController.totalCalories,
         closeTo(
-          dashboardController.activeCalories + dashboardController.proportionalBmr,
+          dashboardController.activeCalories +
+              dashboardController.proportionalBmr,
           0.001,
         ),
       );

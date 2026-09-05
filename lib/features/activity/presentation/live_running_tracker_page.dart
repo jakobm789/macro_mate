@@ -264,7 +264,8 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                               height: 32,
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.blueAccent.withValues(alpha: 0.3),
+                                  color:
+                                      Colors.blueAccent.withValues(alpha: 0.3),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Center(

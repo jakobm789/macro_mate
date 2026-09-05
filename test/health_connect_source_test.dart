@@ -177,19 +177,18 @@ void main() {
         await source.read(now.subtract(const Duration(hours: 1)), now);
         expect(mockClient.queriedDataTypes, isNotNull);
         expect(
-          mockClient.queriedDataTypes!
-              .contains(HealthDataType.STEPS),
+          mockClient.queriedDataTypes!.contains(HealthDataType.STEPS),
           isTrue,
         );
         expect(
-          mockClient.queriedDataTypes!
-              .contains(HealthDataType.SLEEP_SESSION),
+          mockClient.queriedDataTypes!.contains(HealthDataType.SLEEP_SESSION),
           isFalse,
         );
       },
     );
 
-    test('currentPermissions denies read when no types are authorized', () async {
+    test('currentPermissions denies read when no types are authorized',
+        () async {
       mockClient.grantedTypes = [];
       final perms = await source.currentPermissions();
       expect(perms.readGranted, isFalse);
