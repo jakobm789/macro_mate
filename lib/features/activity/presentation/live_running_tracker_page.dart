@@ -26,6 +26,7 @@ class LiveRunningTrackerPage extends StatefulWidget {
 class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
   final MapController _mapController = MapController();
   bool _followRunner = true;
+  LatLng? _initialUserLocation;
 
   @override
   void initState() {
@@ -35,7 +36,26 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
       if (!controller.isTrackingActive) {
         controller.setSport(widget.initialSport);
       }
+      _fetchInitialPosition();
     });
+  }
+
+  Future<void> _fetchInitialPosition() async {
+    try {
+      final pos = await LocationTrackerService().getCurrentPosition();
+      if (pos != null && mounted) {
+        final loc = LatLng(pos.latitude, pos.longitude);
+        setState(() {
+          _initialUserLocation = loc;
+        });
+        final controller = _getController(context);
+        if (!controller.isTrackingActive && controller.routePoints.isEmpty) {
+          try {
+            _mapController.move(loc, 16.0);
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
   }
 
   RunningTrackerController _getController(
@@ -84,7 +104,7 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
             controller.routePoints.last.latitude,
             controller.routePoints.last.longitude,
           )
-        : const LatLng(52.5200, 13.4050);
+        : (_initialUserLocation ?? const LatLng(52.5200, 13.4050));
 
     final startLatLng = hasPoints
         ? LatLng(
@@ -237,31 +257,32 @@ class _LiveRunningTrackerPageState extends State<LiveRunningTrackerPage> {
                                 ),
                               ),
                             ),
-                          Marker(
-                            point: currentLatLng,
-                            width: 32,
-                            height: 32,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.blueAccent.withValues(alpha: 0.3),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: Colors.blueAccent,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 2,
+                          if (hasPoints || _initialUserLocation != null)
+                            Marker(
+                              point: currentLatLng,
+                              width: 32,
+                              height: 32,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.blueAccent.withValues(alpha: 0.3),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      color: Colors.blueAccent,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 2,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ],

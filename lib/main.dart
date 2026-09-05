@@ -15,6 +15,7 @@ import 'features/health/data/health_background_sync.dart';
 import 'features/cycle/presentation/cycle_page.dart';
 import 'pages/backup_page.dart';
 import 'app/navigation/app_shell.dart';
+import 'app/navigation/app_route_observer.dart';
 import 'features/activity/presentation/activity_page.dart';
 import 'features/gym/presentation/gym_page.dart';
 import 'features/gym/presentation/gym_controller.dart';
@@ -321,6 +322,9 @@ class _MyAppState extends State<MyApp> {
         darkTheme: _buildTheme(Brightness.dark),
         themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
         home: const AppRoot(),
+        navigatorObservers: [
+          appRouteObserver,
+        ],
         routes: {
           '/nutrition': (context) =>
               const AppDiagnosticsBanner(child: MyHomePage(title: 'MacroMate')),

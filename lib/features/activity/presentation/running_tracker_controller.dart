@@ -66,6 +66,10 @@ class RunningTrackerController extends ChangeNotifier {
   bool _autoPauseEnabled = false;
   bool get autoPauseEnabled => _autoPauseEnabled;
 
+  final List<double> _recentSpeedsMs = [];
+  int _consecutiveLowSpeedCount = 0;
+  bool _isFirstPointAfterResume = false;
+
   Timer? _timer;
   StreamSubscription<LiveGpsPoint>? _gpsSub;
   DateTime? _workoutStartTimeUtc;
@@ -107,6 +111,9 @@ class RunningTrackerController extends ChangeNotifier {
     _elevationGainMeters = 0.0;
     _routePoints.clear();
     _splits.clear();
+    _recentSpeedsMs.clear();
+    _consecutiveLowSpeedCount = 0;
+    _isFirstPointAfterResume = false;
     _lastSplitNotification = null;
     _lastSplitSeconds = 0;
     _lastSplitDistanceMeters = 0.0;
@@ -123,6 +130,7 @@ class RunningTrackerController extends ChangeNotifier {
     _status = TrackingStatus.paused;
     _currentSpeedKmh = 0.0;
     _currentPaceMinPerKm = null;
+    _recentSpeedsMs.clear();
     _stopTimer();
     notifyListeners();
   }
@@ -130,6 +138,9 @@ class RunningTrackerController extends ChangeNotifier {
   void resumeWorkout() {
     if (_status != TrackingStatus.paused) return;
     _status = TrackingStatus.running;
+    _isFirstPointAfterResume = true;
+    _consecutiveLowSpeedCount = 0;
+    _recentSpeedsMs.clear();
     _startTimer();
     notifyListeners();
   }
@@ -159,7 +170,7 @@ class RunningTrackerController extends ChangeNotifier {
 
   void _startGps() {
     _gpsSub?.cancel();
-    _gpsSub = _locationService.startTracking().listen(
+    _gpsSub = _locationService.startTracking(sport: _sport).listen(
       (point) => onNewLocationPoint(point),
       onError: (e) {
         debugPrint('[RunningTracker] GPS Error: $e');
@@ -171,7 +182,17 @@ class RunningTrackerController extends ChangeNotifier {
   void onNewLocationPoint(LiveGpsPoint point) {
     if (_status != TrackingStatus.running) return;
 
+    if (_isFirstPointAfterResume) {
+      _isFirstPointAfterResume = false;
+      _routePoints.add(point);
+      _currentElevationMeters = point.altitude;
+      _consecutiveLowSpeedCount = 0;
+      notifyListeners();
+      return;
+    }
+
     _currentElevationMeters = point.altitude;
+    double effectiveSpeedMs = 0.0;
 
     if (_routePoints.isNotEmpty) {
       final prev = _routePoints.last;
@@ -181,11 +202,29 @@ class RunningTrackerController extends ChangeNotifier {
         point.latitude,
         point.longitude,
       );
+      final deltaSec = point.timestamp
+              .difference(prev.timestamp)
+              .inMilliseconds /
+          1000.0;
 
       _distanceMeters += deltaDist;
 
-      if (point.altitude > prev.altitude) {
-        _elevationGainMeters += (point.altitude - prev.altitude);
+      // Elevation gain with noise damping (suppress vertical jitter < 1.5m)
+      final altDiff = point.altitude - prev.altitude;
+      if (altDiff >= 1.5) {
+        _elevationGainMeters += altDiff;
+      }
+
+      if (deltaSec > 0) {
+        final calculatedSpeedMs = deltaDist / deltaSec;
+        // Prefer reported sensor speed if non-zero; fallback to calculated speed
+        if (point.speed > 0.2) {
+          effectiveSpeedMs = point.speed;
+        } else {
+          effectiveSpeedMs = calculatedSpeedMs;
+        }
+      } else {
+        effectiveSpeedMs = point.speed;
       }
 
       // Check for kilometer split boundary
@@ -213,12 +252,24 @@ class RunningTrackerController extends ChangeNotifier {
         _lastSplitSeconds = _elapsedSeconds;
         _lastSplitDistanceMeters = _distanceMeters;
       }
+    } else {
+      effectiveSpeedMs = point.speed;
     }
 
     _routePoints.add(point);
 
-    // Speed & Pace calculation
-    final speedKmh = point.speed * 3.6;
+    // Speed & Pace calculation with smoothing buffer (3-5 recent samples)
+    if (effectiveSpeedMs > 0.0 || _recentSpeedsMs.isNotEmpty) {
+      _recentSpeedsMs.add(effectiveSpeedMs);
+      if (_recentSpeedsMs.length > 5) {
+        _recentSpeedsMs.removeAt(0);
+      }
+    }
+
+    final smoothedSpeedMs = _recentSpeedsMs.isNotEmpty
+        ? _recentSpeedsMs.reduce((a, b) => a + b) / _recentSpeedsMs.length
+        : 0.0;
+    final speedKmh = smoothedSpeedMs * 3.6;
     _currentSpeedKmh = speedKmh;
 
     if (speedKmh >= 0.8) {
@@ -227,10 +278,19 @@ class RunningTrackerController extends ChangeNotifier {
       _currentPaceMinPerKm = null;
     }
 
-    // Auto-pause check
-    if (_autoPauseEnabled && speedKmh < 0.8 && _elapsedSeconds > 10) {
-      pauseWorkout();
-      return;
+    // Auto-pause check: require 3 consecutive low-speed points (< 0.8 km/h)
+    // and elapsed time > 10 seconds to prevent accidental triggers while running
+    if (_autoPauseEnabled && _elapsedSeconds > 10) {
+      if (speedKmh < 0.8) {
+        _consecutiveLowSpeedCount++;
+        if (_consecutiveLowSpeedCount >= 3) {
+          pauseWorkout();
+          _consecutiveLowSpeedCount = 0;
+          return;
+        }
+      } else {
+        _consecutiveLowSpeedCount = 0;
+      }
     }
 
     notifyListeners();
@@ -301,6 +361,9 @@ class RunningTrackerController extends ChangeNotifier {
     _distanceMeters = 0.0;
     _routePoints.clear();
     _splits.clear();
+    _recentSpeedsMs.clear();
+    _consecutiveLowSpeedCount = 0;
+    _isFirstPointAfterResume = false;
     _lastSplitNotification = null;
     notifyListeners();
   }

@@ -5,6 +5,7 @@ import '../../core/database/app_database.dart';
 import '../../core/ui/design_system.dart';
 import '../../features/activity/presentation/activity_page.dart';
 import '../../features/cycle/presentation/cycle_page.dart';
+import '../../features/dashboard/presentation/dashboard_controller.dart';
 import '../../features/dashboard/presentation/today_page.dart';
 import '../../features/health/presentation/health_controller.dart';
 import '../../models/app_state.dart';
@@ -91,7 +92,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           body: IndexedStack(
             index: _index,
             children: [
-              TodayPage(onNavigateToTab: _onSelectTab),
+              TodayPage(
+                onNavigateToTab: _onSelectTab,
+                isSelectedTab: _index == 0,
+                enableAutoRefresh: widget.enablePeriodicSync,
+              ),
               MyHomePage(title: 'Ernährung', onBackToHome: _goToHome),
               ActivityPage(database: widget.database, onBackToHome: _goToHome),
               CyclePage(onBackToHome: _goToHome),
@@ -100,7 +105,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
-            onDestinationSelected: (index) => setState(() => _index = index),
+            onDestinationSelected: (index) {
+              if (index == 0 && _index == 0) {
+                final dashboard =
+                    Provider.of<DashboardController?>(context, listen: false) ??
+                        Provider.of<AppState?>(context, listen: false)
+                            ?.dashboardController;
+                dashboard?.refresh();
+              } else {
+                setState(() => _index = index);
+              }
+            },
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.today_outlined),

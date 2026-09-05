@@ -296,7 +296,7 @@ void main() {
     });
 
     test(
-        'DashboardController calculates Gesamtumsatz as activeCalories + bmr and detects missing parameters',
+        'DashboardController calculates Gesamtumsatz with proportional BMR and detects missing parameters',
         () async {
       await dashboardController.initialize();
 
@@ -309,6 +309,13 @@ void main() {
       expect(dashboardController.bmr, equals(1750.0));
       expect(
         dashboardController.totalCalories,
+        closeTo(
+          dashboardController.activeCalories + dashboardController.proportionalBmr,
+          0.001,
+        ),
+      );
+      expect(
+        dashboardController.estimatedFullDayEnergyExpenditure,
         equals(dashboardController.activeCalories + 1750.0),
       );
 
@@ -322,6 +329,13 @@ void main() {
       expect(dashboardController.bmr, equals(expectedBmr));
       expect(
         dashboardController.totalCalories,
+        closeTo(
+          dashboardController.activeCalories + dashboardController.proportionalBmr,
+          0.001,
+        ),
+      );
+      expect(
+        dashboardController.estimatedFullDayEnergyExpenditure,
         equals(dashboardController.activeCalories + expectedBmr),
       );
     });

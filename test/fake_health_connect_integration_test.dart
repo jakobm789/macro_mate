@@ -6,9 +6,17 @@ import 'package:macro_mate/features/activity/presentation/activity_controller.da
 import 'package:macro_mate/features/cycle/data/drift_cycle_repository.dart';
 import 'package:macro_mate/features/cycle/domain/cycle_models.dart';
 import 'package:macro_mate/features/cycle/presentation/cycle_controller.dart';
+import 'package:macro_mate/features/dashboard/presentation/dashboard_controller.dart';
 import 'package:macro_mate/features/health/data/drift_health_repository.dart';
 import 'package:macro_mate/features/health/domain/health_models.dart';
 import 'package:macro_mate/features/health/presentation/health_controller.dart';
+import 'package:macro_mate/features/nutrition/data/drift_nutrition_repository.dart';
+import 'package:macro_mate/features/nutrition/presentation/nutrition_controller.dart';
+import 'package:macro_mate/features/settings/data/drift_settings_repository.dart';
+import 'package:macro_mate/features/settings/presentation/settings_controller.dart';
+import 'package:macro_mate/features/weight/data/drift_weight_repository.dart';
+import 'package:macro_mate/features/weight/presentation/weight_controller.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fake_health_connect_source.dart';
 
@@ -351,6 +359,113 @@ void main() {
         // Cleanup
         healthController.stopPeriodicForegroundSync();
         expect(healthController.isForegroundSyncActive, isFalse);
+      },
+    );
+
+    test(
+      'dashboardController.refresh() reliably syncs Health Connect without race conditions',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final nutritionRepo = DriftNutritionRepository(database: db);
+        final weightRepo = DriftWeightRepository(database: db);
+        final cycleRepo = DriftCycleRepository(database: db);
+        final settingsRepo = DriftSettingsRepository(database: db);
+
+        final nutritionController =
+            NutritionController(repository: nutritionRepo);
+        final weightController = WeightController(repository: weightRepo);
+        final cycleController = CycleController(repository: cycleRepo);
+        final settingsController =
+            SettingsController(repository: settingsRepo);
+        await settingsController.initialize();
+
+        final dashboardController = DashboardController(
+          nutritionController: nutritionController,
+          weightController: weightController,
+          healthController: healthController,
+          activityController: activityController,
+          cycleController: cycleController,
+          settingsController: settingsController,
+        );
+
+        final nowUtc = DateTime.now().toUtc();
+        final todayStr = nowUtc.toIso8601String().substring(0, 10);
+
+        fakeSource.addRecord(
+          HealthRecord(
+            id: 'dashboard_refresh_step_1',
+            metric: HealthMetric.steps,
+            sourceId: 'com.google.android.apps.fitness',
+            sourceName: 'Google Fit',
+            startUtc: nowUtc.subtract(const Duration(minutes: 15)),
+            endUtc: nowUtc.subtract(const Duration(minutes: 5)),
+            localDay: todayStr,
+            value: 1500,
+            unit: 'count',
+          ),
+        );
+
+        // Before refresh
+        expect(dashboardController.steps, 0);
+
+        // Perform dashboard refresh (what TodayPage 30s auto-refresh calls!)
+        await dashboardController.refresh();
+
+        // Must have reliably synced and updated the step count
+        expect(dashboardController.steps, 1500);
+      },
+    );
+
+    test(
+      'lifecycle resume automatically re-evaluates newly granted permissions and syncs',
+      () async {
+        healthController.startPeriodicForegroundSync(
+          interval: const Duration(seconds: 30),
+        );
+
+        // Simulate user having no permissions at start
+        fakeSource.permissions = const HealthPermissionState(
+          readGranted: false,
+          historyGranted: false,
+          backgroundGranted: false,
+        );
+        await healthController.load();
+        expect(healthController.permissionState?.readGranted, isFalse);
+
+        final nowUtc = DateTime.now().toUtc();
+        final todayStr = nowUtc.toIso8601String().substring(0, 10);
+
+        // User goes to Health Connect settings, grants permissions, and walks 600 steps
+        fakeSource.permissions = const HealthPermissionState(
+          readGranted: true,
+          historyGranted: true,
+          backgroundGranted: true,
+        );
+        fakeSource.addRecord(
+          HealthRecord(
+            id: 'resume_new_perm_step',
+            metric: HealthMetric.steps,
+            sourceId: 'com.google.android.apps.fitness',
+            sourceName: 'Google Fit',
+            startUtc: nowUtc.subtract(const Duration(minutes: 5)),
+            endUtc: nowUtc.subtract(const Duration(minutes: 1)),
+            localDay: todayStr,
+            value: 600,
+            unit: 'count',
+          ),
+        );
+
+        // User switches back to MacroMate (lifecycle resumed)
+        await healthController.handleLifecycleChange(AppLifecycleState.resumed);
+
+        // Permission state should be refreshed and data synced immediately
+        expect(healthController.permissionState?.readGranted, isTrue);
+        expect(
+          healthController.summariesState.any((s) => s.steps == 600),
+          isTrue,
+        );
+
+        healthController.stopPeriodicForegroundSync();
       },
     );
   });

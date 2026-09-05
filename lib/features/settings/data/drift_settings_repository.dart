@@ -29,6 +29,7 @@ class DriftSettingsRepository implements SettingsRepository {
   static const String _userPasswordKey = 'user_password';
   static const String _genderKey = 'user_gender';
   static const String _bmrKey = 'bmr_formula';
+  static const String _stepGoalKey = 'user_step_goal';
   static const String _dashboardCardOrderKey = 'dashboard_card_order';
   static const String _dashboardCardVisibilityKey = 'dashboard_card_visibility';
 
@@ -103,13 +104,18 @@ class DriftSettingsRepository implements SettingsRepository {
     final prefs = await SharedPreferences.getInstance();
     final genderStr = prefs.getString(_genderKey);
     final bmrStr = prefs.getString(_bmrKey);
+    final stepGoal = prefs.getInt(_stepGoalKey) ?? 10000;
 
     final gender = genderStr == 'female' ? Gender.female : Gender.male;
     final bmrFormula =
         bmrStr == 'harris' ? BmrFormula.harris : BmrFormula.mifflin;
 
     if (rows.isEmpty) {
-      return UserGoals(gender: gender, bmrFormula: bmrFormula);
+      return UserGoals(
+        gender: gender,
+        bmrFormula: bmrFormula,
+        stepGoal: stepGoal,
+      );
     }
 
     final row = rows.first;
@@ -119,6 +125,7 @@ class DriftSettingsRepository implements SettingsRepository {
       proteinPercentage: row.proteinPercentage,
       fatPercentage: row.fatPercentage,
       sugarPercentage: row.sugarPercentage,
+      stepGoal: stepGoal,
       autoCalorieMode: AutoCalorieMode.values.firstWhere(
         (e) => e.index == row.autoCalorieMode,
         orElse: () => AutoCalorieMode.off,
@@ -147,6 +154,7 @@ class DriftSettingsRepository implements SettingsRepository {
         _genderKey, goals.gender == Gender.female ? 'female' : 'male');
     await prefs.setString(
         _bmrKey, goals.bmrFormula == BmrFormula.harris ? 'harris' : 'mifflin');
+    await prefs.setInt(_stepGoalKey, goals.stepGoal);
 
     final companion = GoalsCompanion(
       dailyCalories: Value(goals.dailyCalories),

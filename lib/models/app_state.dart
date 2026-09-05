@@ -269,6 +269,9 @@ class AppState extends ChangeNotifier {
   int get dailyCalorieGoal => settingsController.goals.dailyCalories;
   set dailyCalorieGoal(int val) => settingsController
       .updateGoals(settingsController.goals.copyWith(dailyCalories: val));
+  int get dailyStepGoal => settingsController.goals.stepGoal;
+  set dailyStepGoal(int val) => settingsController
+      .updateGoals(settingsController.goals.copyWith(stepGoal: val));
   double get dailyCarbGoal => settingsController.dailyCarbGoal;
   double get dailyProteinGoal => settingsController.dailyProteinGoal;
   double get dailyFatGoal => settingsController.dailyFatGoal;
@@ -751,6 +754,7 @@ class AppState extends ChangeNotifier {
     int? proteinPercentage,
     int? fatPercentage,
     int? sugarPercentage,
+    int? stepGoal,
   ]) async {
     if (goalsOrCalories is UserGoals) {
       await settingsController.updateGoals(goalsOrCalories);
@@ -762,6 +766,7 @@ class AppState extends ChangeNotifier {
         proteinPercentage: proteinPercentage ?? current.proteinPercentage,
         fatPercentage: fatPercentage ?? current.fatPercentage,
         sugarPercentage: sugarPercentage ?? current.sugarPercentage,
+        stepGoal: stepGoal ?? current.stepGoal,
       );
       await settingsController.updateGoals(updated);
     } else {

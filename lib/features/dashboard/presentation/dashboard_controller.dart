@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/logging/app_logger.dart';
+import '../../../core/time/clock.dart';
 import '../../../core/widgets/app_widget_service.dart';
 import '../../activity/presentation/activity_controller.dart';
 import '../../cycle/presentation/cycle_controller.dart';
@@ -39,13 +40,15 @@ class DashboardController extends ChangeNotifier {
     required CycleController cycleController,
     required SettingsController settingsController,
     AppLogger logger = const AppLogger(),
+    Clock clock = const SystemClock(),
   })  : _nutrition = nutritionController,
         _weight = weightController,
         _health = healthController,
         _activity = activityController,
         _cycle = cycleController,
         _settings = settingsController,
-        _logger = logger {
+        _logger = logger,
+        _clock = clock {
     _initDefaults();
     _health.addListener(_handleHealthChanged);
   }
@@ -57,6 +60,7 @@ class DashboardController extends ChangeNotifier {
   final CycleController _cycle;
   final SettingsController _settings;
   final AppLogger _logger;
+  final Clock _clock;
 
   static const List<String> defaultCardOrder = [
     'calories',
@@ -199,6 +203,7 @@ class DashboardController extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    if (_isLoading) return;
     _isLoading = true;
     notifyListeners();
 
@@ -206,7 +211,7 @@ class DashboardController extends ChangeNotifier {
       await Future.wait<dynamic>([
         _nutrition.loadDailyFoods(),
         _weight.loadWeights(),
-        _health.load(),
+        _health.syncOrLoad(),
         _activity.loadActivityData(),
         _cycle.load(),
       ]);
@@ -252,7 +257,13 @@ class DashboardController extends ChangeNotifier {
   // Activity getters
   int get steps =>
       _todayHealthSummary?.steps ?? _activity.todaySummary?.steps ?? 0;
-  int get stepGoal => 10000;
+  int get stepGoal => _settings.goals.stepGoal;
+
+  Future<void> updateStepGoal(int newGoal) async {
+    if (newGoal <= 0) return;
+    await _settings.updateGoals(_settings.goals.copyWith(stepGoal: newGoal));
+    notifyListeners();
+  }
   double get activeCalories =>
       _todayHealthSummary?.activeCalories ??
       _activity.todaySummary?.activeCalories ??
@@ -282,7 +293,7 @@ class DashboardController extends ChangeNotifier {
   /// Whether all necessary values for Grundumsatz calculation are present.
   bool get isBmrCalculationComplete => missingBmrParameters.isEmpty;
 
-  /// Calculated BMR (Grundumsatz).
+  /// Calculated BMR (Grundumsatz für 24 Stunden).
   /// Uses Mifflin-St Jeor or Harris-Benedict formula if weight, height, and age are valid.
   /// Falls back to 1750.0 kcal baseline estimate if values are missing.
   double get bmr {
@@ -297,10 +308,23 @@ class DashboardController extends ChangeNotifier {
     return 1750.0;
   }
 
-  /// Total Daily Energy Expenditure (Gesamtumsatz = Aktivkalorien + Grundumsatz).
-  double get totalEnergyExpenditure => activeCalories + bmr;
+  /// Fraction of the current day that has elapsed (0.0 at midnight to 1.0 at end of day).
+  double get dayProgress {
+    final now = _clock.now();
+    final elapsedSeconds = now.hour * 3600 + now.minute * 60 + now.second;
+    return (elapsedSeconds / 86400.0).clamp(0.0, 1.0);
+  }
 
-  /// Total calories expenditure (Gesamtumsatz).
+  /// Proportional BMR (Grundumsatz) burned so far today according to day progress.
+  double get proportionalBmr => bmr * dayProgress;
+
+  /// Total Energy Expenditure so far today (Aktivkalorien + anteiliger Grundumsatz).
+  double get totalEnergyExpenditure => activeCalories + proportionalBmr;
+
+  /// Full 24h estimated Total Daily Energy Expenditure (Aktivkalorien + voller Grundumsatz).
+  double get estimatedFullDayEnergyExpenditure => activeCalories + bmr;
+
+  /// Total calories expenditure so far today (Gesamtumsatz).
   double? get totalCalories => totalEnergyExpenditure;
   double? get averageHeartRate => _activity.todaySummary?.averageHeartRate;
   double? get restingHeartRate => _activity.todaySummary?.restingHeartRate;

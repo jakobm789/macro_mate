@@ -10,6 +10,7 @@ class UserGoals {
   final int proteinPercentage;
   final int fatPercentage;
   final int sugarPercentage;
+  final int stepGoal;
   final AutoCalorieMode autoCalorieMode;
   final double customPercentPerMonth;
   final bool useCustomStartCalories;
@@ -31,6 +32,7 @@ class UserGoals {
     this.proteinPercentage = 30,
     this.fatPercentage = 20,
     this.sugarPercentage = 20,
+    this.stepGoal = 10000,
     this.autoCalorieMode = AutoCalorieMode.off,
     this.customPercentPerMonth = 1.0,
     this.useCustomStartCalories = false,
@@ -53,6 +55,7 @@ class UserGoals {
     int? proteinPercentage,
     int? fatPercentage,
     int? sugarPercentage,
+    int? stepGoal,
     AutoCalorieMode? autoCalorieMode,
     double? customPercentPerMonth,
     bool? useCustomStartCalories,
@@ -74,6 +77,7 @@ class UserGoals {
       proteinPercentage: proteinPercentage ?? this.proteinPercentage,
       fatPercentage: fatPercentage ?? this.fatPercentage,
       sugarPercentage: sugarPercentage ?? this.sugarPercentage,
+      stepGoal: stepGoal ?? this.stepGoal,
       autoCalorieMode: autoCalorieMode ?? this.autoCalorieMode,
       customPercentPerMonth:
           customPercentPerMonth ?? this.customPercentPerMonth,
@@ -99,6 +103,7 @@ class UserGoals {
         'proteinPercentage': proteinPercentage,
         'fatPercentage': fatPercentage,
         'sugarPercentage': sugarPercentage,
+        'stepGoal': stepGoal,
         'autoCalorieMode': autoCalorieMode.name,
         'customPercentPerMonth': customPercentPerMonth,
         'useCustomStartCalories': useCustomStartCalories,
@@ -121,6 +126,7 @@ class UserGoals {
         proteinPercentage: (map['proteinPercentage'] as num?)?.toInt() ?? 30,
         fatPercentage: (map['fatPercentage'] as num?)?.toInt() ?? 20,
         sugarPercentage: (map['sugarPercentage'] as num?)?.toInt() ?? 20,
+        stepGoal: (map['stepGoal'] as num?)?.toInt() ?? 10000,
         autoCalorieMode: AutoCalorieMode.values.firstWhere(
           (m) => m.name == map['autoCalorieMode'],
           orElse: () => AutoCalorieMode.off,

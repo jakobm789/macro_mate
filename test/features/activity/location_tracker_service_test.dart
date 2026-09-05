@@ -64,13 +64,13 @@ void main() {
         headingAccuracy: 1.0,
       ));
 
-      // 2. Inaccurate point (accuracy = 35m, should be dropped)
+      // 2. Inaccurate point (accuracy = 40m, should be dropped)
       controller.add(Position(
-        latitude: 52.5210,
-        longitude: 13.4060,
+        latitude: 52.52015,
+        longitude: 13.4050,
         timestamp: t0.add(const Duration(seconds: 5)),
         altitude: 40.0,
-        accuracy: 35.0, // inaccurate
+        accuracy: 40.0, // inaccurate (> 35m)
         heading: 0,
         speed: 3.5,
         speedAccuracy: 0.5,
@@ -78,10 +78,10 @@ void main() {
         headingAccuracy: 1.0,
       ));
 
-      // 3. Good point
+      // 3. Good point (~33m from point 1 after 10s = 3.3 m/s)
       controller.add(Position(
-        latitude: 52.5220,
-        longitude: 13.4070,
+        latitude: 52.52030,
+        longitude: 13.4050,
         timestamp: t0.add(const Duration(seconds: 10)),
         altitude: 42.0,
         accuracy: 5.0,
@@ -96,7 +96,7 @@ void main() {
 
       expect(received.length, 2);
       expect(received[0].latitude, 52.5200);
-      expect(received[1].latitude, 52.5220);
+      expect(received[1].latitude, 52.52030);
 
       await sub.cancel();
       await controller.close();

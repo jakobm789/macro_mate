@@ -66,10 +66,28 @@ class HealthConnectSource implements HealthDataSource {
     return HealthAvailability.available;
   }
 
+  Future<List<HealthDataType>> getGrantedTypes() async {
+    await _configure();
+    final types = _generalTypes;
+    if (await _client.hasPermissions(types) == true) {
+      return types;
+    }
+    final granted = <HealthDataType>[];
+    for (final type in types) {
+      try {
+        if (await _client.hasPermissions([type]) == true) {
+          granted.add(type);
+        }
+      } catch (_) {}
+    }
+    return granted;
+  }
+
   @override
   Future<HealthPermissionState> currentPermissions() async {
     await _configure();
-    final read = await _client.hasPermissions(_generalTypes) ?? false;
+    final granted = await getGrantedTypes();
+    final read = granted.isNotEmpty;
     final history = await _client.isHealthDataHistoryAuthorized();
     final background = await _client.isHealthDataInBackgroundAuthorized();
     return HealthPermissionState(
@@ -121,7 +139,8 @@ class HealthConnectSource implements HealthDataSource {
   @override
   Future<List<HealthRecord>> read(DateTime startUtc, DateTime endUtc) async {
     await _configure();
-    final types = _generalTypes;
+    final granted = await getGrantedTypes();
+    final types = granted.isNotEmpty ? granted : _generalTypes;
     final points = <HealthDataPoint>[];
 
     try {

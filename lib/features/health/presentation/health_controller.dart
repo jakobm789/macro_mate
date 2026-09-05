@@ -13,7 +13,7 @@ class HealthController extends ChangeNotifier {
     required HealthRepository repository,
     PhoneStepSensorService? phoneStepSensorService,
     Clock clock = const SystemClock(),
-    this.minimumSyncInterval = const Duration(seconds: 25),
+    this.minimumSyncInterval = const Duration(seconds: 10),
     this.foregroundSyncInterval = const Duration(seconds: 30),
     this.maxRetries = 3,
   })  : _repository = repository,
@@ -34,6 +34,7 @@ class HealthController extends ChangeNotifier {
 
   Timer? _foregroundSyncTimer;
   StreamSubscription<int>? _phoneStepSubscription;
+  Future<void>? _activeRun;
   bool _isForegroundSyncActive = false;
   bool get isForegroundSyncActive => _isForegroundSyncActive;
   HealthAvailability? availabilityState;
@@ -138,6 +139,9 @@ class HealthController extends ChangeNotifier {
     });
     if (lastAttempt != null &&
         now.difference(lastAttempt) < minimumSyncInterval) {
+      if (summariesState.isEmpty) {
+        await _loadSummaries();
+      }
       await _loadDiagnostics();
       return;
     }
@@ -218,21 +222,47 @@ class HealthController extends ChangeNotifier {
   }
 
   Future<void> _run(Future<void> Function() action) async {
-    if (isLoading) return;
+    if (_activeRun != null) {
+      await _activeRun;
+      return;
+    }
+    final completer = Completer<void>();
+    _activeRun = completer.future;
     isLoading = true;
     errorMessage = null;
     notifyListeners();
     try {
       await action();
+      completer.complete();
     } catch (error) {
       _logger.error('health_controller', error);
       errorMessage = error is AppFailure
           ? error.userMessage
           : 'Health-Connect-Synchronisierung fehlgeschlagen.';
+      completer.complete();
     } finally {
       isLoading = false;
+      _activeRun = null;
       notifyListeners();
     }
+  }
+
+  /// Refreshes health data: checks permissions/availability, synchronizes
+  /// with Health Connect or phone sensor if authorized, or falls back to
+  /// loading cached database summaries.
+  Future<void> syncOrLoad({bool force = false}) async {
+    await _run(() async {
+      availabilityState ??= await _repository.availability();
+      permissionState = await _repository.permissions();
+      await checkPhoneSensor();
+
+      if (permissionState?.readGranted == true || isPhoneSensorEnabled) {
+        await _syncLast30Days();
+      } else {
+        await _loadSummaries();
+        await _loadDiagnostics();
+      }
+    });
   }
 
   void startPeriodicForegroundSync({Duration? interval}) {
@@ -252,12 +282,17 @@ class HealthController extends ChangeNotifier {
 
   Future<void> handleLifecycleChange(AppLifecycleState state) async {
     if (state == AppLifecycleState.resumed) {
+      try {
+        availabilityState = await _repository.availability();
+        permissionState = await _repository.permissions();
+      } catch (_) {}
+
       if (_isForegroundSyncActive) {
         _foregroundSyncTimer?.cancel();
         _foregroundSyncTimer = Timer.periodic(foregroundSyncInterval, (_) {
           triggerForegroundPeriodicSync();
         });
-        await triggerForegroundPeriodicSync();
+        await triggerForegroundPeriodicSync(force: true);
       }
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
@@ -268,14 +303,15 @@ class HealthController extends ChangeNotifier {
     }
   }
 
-  Future<void> triggerForegroundPeriodicSync() async {
+  Future<void> triggerForegroundPeriodicSync({bool force = false}) async {
     if (!_isForegroundSyncActive) return;
-    if (isLoading) return;
-    if (permissionState?.readGranted != true && !isPhoneSensorEnabled) {
-      return;
-    }
     try {
-      await _run(_syncLast30Days);
+      if (permissionState?.readGranted != true) {
+        permissionState = await _repository.permissions();
+      }
+      if (permissionState?.readGranted == true || isPhoneSensorEnabled) {
+        await _run(_syncLast30Days);
+      }
     } catch (e) {
       _logger.warning('Fehler beim periodischen Vordergrund-Sync: $e');
     }

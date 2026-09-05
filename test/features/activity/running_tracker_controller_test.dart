@@ -14,7 +14,8 @@ class FakeLocationTrackerService extends LocationTrackerService {
   @override
   Stream<LiveGpsPoint> startTracking({
     LocationAccuracy accuracy = LocationAccuracy.high,
-    int distanceFilterMeters = 3,
+    int distanceFilterMeters = 2,
+    SportType sport = SportType.running,
   }) {
     return const Stream.empty();
   }

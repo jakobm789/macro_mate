@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 /// A comprehensive, all-in-one summary card presenting calories, macros,
 /// steps, energy expenditure, weight, and cycle status in a single unified view.
@@ -259,7 +260,7 @@ class OverviewSummaryCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          ' / $stepGoal Schritte',
+                          ' / ${NumberFormat.decimalPattern('de_DE').format(stepGoal)} Schritte',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),

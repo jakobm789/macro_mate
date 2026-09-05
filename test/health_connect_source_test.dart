@@ -36,11 +36,16 @@ class _MockHealthClient implements Health {
     return true;
   }
 
+  List<HealthDataType>? grantedTypes;
+
   @override
   Future<bool?> hasPermissions(
     List<HealthDataType> types, {
     List<HealthDataAccess>? permissions,
   }) async {
+    if (grantedTypes != null) {
+      return types.every((t) => grantedTypes!.contains(t));
+    }
     return true;
   }
 
@@ -155,6 +160,39 @@ void main() {
 
       expect(records, isNotEmpty);
       expect(mockClient.individuallyQueriedTypes, isNotEmpty);
+    });
+
+    test(
+      'currentPermissions grants read when subset of types is authorized',
+      () async {
+        mockClient.grantedTypes = [
+          HealthDataType.STEPS,
+          HealthDataType.ACTIVE_ENERGY_BURNED,
+        ];
+        final perms = await source.currentPermissions();
+        expect(perms.readGranted, isTrue);
+
+        // Queries only granted types in read()
+        final now = DateTime.utc(2026, 9, 3, 12, 0);
+        await source.read(now.subtract(const Duration(hours: 1)), now);
+        expect(mockClient.queriedDataTypes, isNotNull);
+        expect(
+          mockClient.queriedDataTypes!
+              .contains(HealthDataType.STEPS),
+          isTrue,
+        );
+        expect(
+          mockClient.queriedDataTypes!
+              .contains(HealthDataType.SLEEP_SESSION),
+          isFalse,
+        );
+      },
+    );
+
+    test('currentPermissions denies read when no types are authorized', () async {
+      mockClient.grantedTypes = [];
+      final perms = await source.currentPermissions();
+      expect(perms.readGranted, isFalse);
     });
   });
 }

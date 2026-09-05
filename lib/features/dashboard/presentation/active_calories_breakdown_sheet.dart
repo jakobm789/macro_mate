@@ -200,8 +200,13 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
                 ? (totalCalories! - activeCalories)
                 : 1750.0));
 
-    // Gesamtumsatz = Aktivkalorien + Grundumsatz
-    final calculatedTotal = activeCalories + effectiveBmr;
+    final dayProgress =
+        ((now.hour * 3600 + now.minute * 60 + now.second) / 86400.0)
+            .clamp(0.0, 1.0);
+    final proportionalBmr = effectiveBmr * dayProgress;
+
+    // Gesamtumsatz = Aktivkalorien + anteiliger Grundumsatz
+    final calculatedTotal = totalCalories ?? (activeCalories + proportionalBmr);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.8,
@@ -348,7 +353,7 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'Gesamtumsatz = Aktivkalorien + Grundumsatz. Für exakte Berechnung fehlt: ${effectiveMissing.join(", ")}.',
+                                'Gesamtumsatz = Aktivkalorien + anteiliger Grundumsatz. Für exakte Berechnung fehlt: ${effectiveMissing.join(", ")}.',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
@@ -696,7 +701,7 @@ class ActiveCaloriesBreakdownSheet extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Gesamtumsatz = Aktivkalorien (${activeCalories.round()} kcal) + Grundumsatz (${effectiveBmr.round()} kcal) = ${calculatedTotal.round()} kcal. Aktivkalorien stammen aus deinen Schritten, Alltagsbewegungen sowie erfassten Trainings.',
+                      'Gesamtumsatz (Stand jetzt) = Aktivkalorien (${activeCalories.round()} kcal) + anteiliger Grundumsatz (${proportionalBmr.round()} kcal von ${effectiveBmr.round()} kcal/Tag) = ${calculatedTotal.round()} kcal. Aktivkalorien stammen aus deinen Schritten, Alltagsbewegungen sowie erfassten Trainings.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),

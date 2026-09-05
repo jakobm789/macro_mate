@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 enum SportType {
@@ -62,17 +63,23 @@ class LocationTrackerService {
     return true;
   }
 
-  /// Obtains the current initial position
+  /// Obtains the current initial position with fallback to last known
   Future<Position?> getCurrentPosition() async {
     try {
       final hasPermission = await checkAndRequestPermission();
       if (!hasPermission) return null;
-      return await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 5),
-        ),
-      );
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      try {
+        final current = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 4),
+          ),
+        );
+        return current;
+      } catch (_) {
+        return lastKnown;
+      }
     } catch (_) {
       return null;
     }
@@ -81,36 +88,85 @@ class LocationTrackerService {
   /// Starts listening to position updates and delivers filtered points
   Stream<LiveGpsPoint> startTracking({
     LocationAccuracy accuracy = LocationAccuracy.high,
-    int distanceFilterMeters = 3,
+    int distanceFilterMeters = 2,
+    SportType sport = SportType.running,
   }) {
     late final StreamController<LiveGpsPoint> controller;
 
     controller = StreamController<LiveGpsPoint>(
       onListen: () {
+        LocationSettings locationSettings;
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+          locationSettings = AndroidSettings(
+            accuracy: accuracy,
+            distanceFilter: distanceFilterMeters,
+            intervalDuration: const Duration(seconds: 1),
+            foregroundNotificationConfig: const ForegroundNotificationConfig(
+              notificationTitle: 'MacroMate Aktivitätstracking',
+              notificationText: 'GPS-Aufzeichnung läuft...',
+              notificationChannelName: 'Aktivitätstracking',
+              notificationIcon: AndroidResource(
+                name: 'launcher_icon',
+                defType: 'mipmap',
+              ),
+              enableWakeLock: true,
+              setOngoing: true,
+            ),
+          );
+        } else {
+          locationSettings = LocationSettings(
+            accuracy: accuracy,
+            distanceFilter: distanceFilterMeters,
+          );
+        }
+
         final stream = _positionStreamOverride ??
             Geolocator.getPositionStream(
-              locationSettings: LocationSettings(
-                accuracy: accuracy,
-                distanceFilter: distanceFilterMeters,
-              ),
+              locationSettings: locationSettings,
             );
 
         Position? previousPosition;
 
         _subscription = stream.listen(
           (pos) {
-            // Filter inaccurate positions (> 25m horizontal accuracy)
-            if (pos.accuracy > 25.0) return;
+            // Filter invalid accuracy
+            if (pos.accuracy <= 0.0) return;
 
-            // Filter micro-jitter when stationary
+            // Accuracy gate: allow up to 45m on the first point for fast lock,
+            // then require <= 35m for clean tracking without dropout under tree cover
+            final maxAccuracy = previousPosition == null ? 45.0 : 35.0;
+            if (pos.accuracy > maxAccuracy) return;
+
             if (previousPosition != null) {
+              final dtSeconds = pos.timestamp
+                      .difference(previousPosition!.timestamp)
+                      .inMilliseconds /
+                  1000.0;
+              // Discard duplicate or backwards timestamps
+              if (dtSeconds <= 0) return;
+
               final d = calculateDistanceMeters(
                 previousPosition!.latitude,
                 previousPosition!.longitude,
                 pos.latitude,
                 pos.longitude,
               );
-              if (d < 1.5 && pos.speed < 0.5) return;
+
+              final impliedSpeed = d / dtSeconds; // in m/s
+
+              // Outlier filter (GPS teleports / glitch jumps)
+              // Running/Walking/Hiking max ~15 m/s (54 km/h), Cycling max ~35 m/s (126 km/h)
+              final maxAllowedSpeed =
+                  sport == SportType.cycling ? 35.0 : 15.0;
+              if (impliedSpeed > maxAllowedSpeed) {
+                return;
+              }
+
+              // Micro-jitter filter when stationary (e.g. traffic lights)
+              final reportedSpeed = math.max(0.0, pos.speed);
+              if (d < 1.2 && reportedSpeed < 0.4 && impliedSpeed < 0.4) {
+                return;
+              }
             }
 
             previousPosition = pos;

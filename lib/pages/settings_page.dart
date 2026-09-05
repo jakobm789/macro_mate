@@ -22,6 +22,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late TextEditingController calorieController;
+  late TextEditingController stepGoalController;
   late int carbPercentage;
   late int proteinPercentage;
   late int fatPercentage;
@@ -114,6 +115,9 @@ class _SettingsPageState extends State<SettingsPage> {
     calorieController = TextEditingController(
       text: appState.dailyCalorieGoal.toString(),
     );
+    stepGoalController = TextEditingController(
+      text: appState.dailyStepGoal.toString(),
+    );
     _selectedMode = appState.autoMode;
     _customPercentController = TextEditingController(
       text: appState.customPercentPerMonth.toStringAsFixed(1),
@@ -150,7 +154,11 @@ class _SettingsPageState extends State<SettingsPage> {
     reminderSupplementTime = appState.reminderSupplementTime;
     reminderSupplementTime2 = appState.reminderSupplementTimeSecond;
     reminderMealsEnabled = appState.reminderMealsEnabled;
-    unawaited(appState.refreshInstalledLocalLlmModels());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        appState.refreshInstalledLocalLlmModels();
+      }
+    });
     reminderBreakfast = appState.reminderBreakfast;
     reminderLunch = appState.reminderLunch;
     reminderDinner = appState.reminderDinner;
@@ -161,6 +169,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void dispose() {
     calorieController.dispose();
+    stepGoalController.dispose();
     _customPercentController.dispose();
     _startCaloriesController.dispose();
     _ageController.dispose();
@@ -214,6 +223,10 @@ class _SettingsPageState extends State<SettingsPage> {
       appState.userStartCalories = startCals;
       appState.autoMode = forceManualMode ? AutoCalorieMode.off : _selectedMode;
       appState.dailyCalorieGoal = newCalorieGoal;
+      int? newStepGoal = int.tryParse(stepGoalController.text);
+      if (newStepGoal != null && newStepGoal > 0) {
+        appState.dailyStepGoal = newStepGoal;
+      }
       appState.userAge = newAge;
       appState.userActivityLevel = newActivity;
       appState.userHeight = newHeight;
@@ -306,6 +319,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void _resetGoals(AppState appState) {
     setState(() {
       calorieController.text = '2000';
+      stepGoalController.text = '10000';
       carbPercentage = 50;
       proteinPercentage = 30;
       fatPercentage = 20;
@@ -313,7 +327,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _selectedMode = AutoCalorieMode.off;
     });
     appState.autoMode = AutoCalorieMode.off;
-    appState.updateGoals(2000, 50, 30, 20, 20);
+    appState.updateGoals(2000, 50, 30, 20, 20, 10000);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Ziele wurden zurückgesetzt.')),
     );
@@ -720,7 +734,20 @@ class _SettingsPageState extends State<SettingsPage> {
                     setState(() {});
                   },
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: stepGoalController,
+                  decoration: const InputDecoration(
+                    labelText: 'Tägliches Schritteziel',
+                    hintText: 'z.B. 10000',
+                    suffixText: 'Schritte',
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    setState(() {});
+                  },
+                ),
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [

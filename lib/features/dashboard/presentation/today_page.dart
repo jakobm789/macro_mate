@@ -1,23 +1,153 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/navigation/app_route_observer.dart';
 import '../../../core/ui/design_system.dart';
 import '../../../models/app_state.dart';
 import 'active_calories_breakdown_sheet.dart';
 import 'dashboard_config_sheet.dart';
 import 'dashboard_controller.dart';
 import 'overview_summary_card.dart';
+import 'step_goal_sheet.dart';
 
 class TodayPage extends StatefulWidget {
-  const TodayPage({super.key, this.onNavigateToTab});
+  const TodayPage({
+    super.key,
+    this.onNavigateToTab,
+    this.isSelectedTab = true,
+    this.enableAutoRefresh = true,
+    this.autoRefreshInterval = const Duration(seconds: 30),
+  });
 
   final ValueChanged<int>? onNavigateToTab;
+  final bool isSelectedTab;
+  final bool enableAutoRefresh;
+  final Duration autoRefreshInterval;
 
   @override
   State<TodayPage> createState() => _TodayPageState();
 }
 
-class _TodayPageState extends State<TodayPage> {
+class _TodayPageState extends State<TodayPage>
+    with RouteAware, WidgetsBindingObserver {
+  Timer? _refreshTimer;
+  bool _isTopRoute = true;
+  bool _isAppResumed = true;
+
+  bool get _isActive => widget.isSelectedTab && _isTopRoute && _isAppResumed;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _isActive) {
+        _reloadAndRestartTimer();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final modalRoute = ModalRoute.of(context);
+    if (modalRoute != null) {
+      appRouteObserver.subscribe(this, modalRoute);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant TodayPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isSelectedTab != oldWidget.isSelectedTab ||
+        widget.enableAutoRefresh != oldWidget.enableAutoRefresh ||
+        widget.autoRefreshInterval != oldWidget.autoRefreshInterval) {
+      if (widget.isSelectedTab && widget.enableAutoRefresh) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _isActive) {
+            _reloadAndRestartTimer();
+          }
+        });
+      } else {
+        _stopTimer();
+      }
+    }
+  }
+
+  @override
+  void didPushNext() {
+    _isTopRoute = false;
+    _stopTimer();
+  }
+
+  @override
+  void didPopNext() {
+    _isTopRoute = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _isActive) {
+        _reloadAndRestartTimer();
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _isAppResumed = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _isActive) {
+          _reloadAndRestartTimer();
+        }
+      });
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      _isAppResumed = false;
+      _stopTimer();
+    }
+  }
+
+  @override
+  void dispose() {
+    _stopTimer();
+    appRouteObserver.unsubscribe(this);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  void _reloadAndRestartTimer() {
+    _performReload();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _stopTimer();
+    if (!widget.enableAutoRefresh) return;
+    _refreshTimer = Timer.periodic(widget.autoRefreshInterval, (_) {
+      if (mounted && _isActive) {
+        _performReload();
+      }
+    });
+  }
+
+  void _stopTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+  }
+
+  Future<void> _performReload() async {
+    if (!mounted) return;
+    final dashboard = Provider.of<DashboardController?>(context, listen: false) ??
+        Provider.of<AppState?>(context, listen: false)?.dashboardController;
+    if (dashboard != null) {
+      await dashboard.refresh();
+    }
+  }
+
   String get _formattedDate {
     final now = DateTime.now();
     const weekdays = [
@@ -75,6 +205,7 @@ class _TodayPageState extends State<TodayPage> {
     final targetFat = dashboard?.dailyFatGoal ?? appState.dailyFatGoal;
 
     final steps = dashboard?.steps ?? 0;
+    final stepGoal = dashboard?.stepGoal ?? appState.dailyStepGoal;
     final activeKcal = dashboard?.activeCalories ?? 0.0;
     final distanceKm = dashboard?.distanceKm ?? 0.0;
 
@@ -102,8 +233,15 @@ class _TodayPageState extends State<TodayPage> {
             ? appState.settingsController.calculateBmr(weightKg: weight)
             : 1750.0);
 
-    // Gesamtumsatz = Aktivkalorien + Grundumsatz
-    final totalKcal = dashboard?.totalCalories ?? (activeKcal + bmr);
+    final now = DateTime.now();
+    final dayProgress =
+        ((now.hour * 3600 + now.minute * 60 + now.second) / 86400.0)
+            .clamp(0.0, 1.0);
+    final proportionalBmr = dashboard?.proportionalBmr ?? (bmr * dayProgress);
+
+    // Gesamtumsatz = Aktivkalorien + anteiliger Grundumsatz
+    final totalKcal =
+        dashboard?.totalCalories ?? (activeKcal + proportionalBmr);
 
     final lastSync = dashboard?.lastSyncTime;
     final healthError = dashboard?.healthErrorMessage;
@@ -131,18 +269,16 @@ class _TodayPageState extends State<TodayPage> {
             icon: const Icon(Icons.refresh),
             tooltip: 'Aktualisieren',
             onPressed: () async {
-              if (dashboard != null) {
-                await dashboard.refresh();
-              }
+              await _performReload();
+              _startTimer();
             },
           ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          if (dashboard != null) {
-            await dashboard.refresh();
-          }
+          await _performReload();
+          _startTimer();
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -185,10 +321,12 @@ class _TodayPageState extends State<TodayPage> {
                     consumedFat: consumedFat,
                     targetFat: targetFat,
                     steps: steps,
+                    stepGoal: stepGoal,
                     distanceKm: distanceKm,
                     activeKcal: activeKcal,
                     totalKcal: totalKcal,
                     bmr: bmr,
+                    proportionalBmr: proportionalBmr,
                     missingBmr: missingBmr,
                     weight: weight,
                     weightTrend: weightTrend,
@@ -198,6 +336,7 @@ class _TodayPageState extends State<TodayPage> {
                     cyclePhase: cyclePhase,
                     cycleTip: cycleTip,
                     impulses: impulses,
+                    dashboard: dashboard,
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -229,10 +368,12 @@ class _TodayPageState extends State<TodayPage> {
     required double consumedFat,
     required double targetFat,
     required int steps,
+    int stepGoal = 10000,
     required double distanceKm,
     required double activeKcal,
     required double? totalKcal,
     double bmr = 1750.0,
+    double proportionalBmr = 0.0,
     List<String> missingBmr = const [],
     required double? weight,
     required double? weightTrend,
@@ -242,6 +383,7 @@ class _TodayPageState extends State<TodayPage> {
     required String? cyclePhase,
     required String? cycleTip,
     required List<ActionImpulse> impulses,
+    DashboardController? dashboard,
   }) {
     switch (cardId) {
       case 'calories':
@@ -263,32 +405,49 @@ class _TodayPageState extends State<TodayPage> {
           },
         );
       case 'steps':
+        final formattedGoal =
+            NumberFormat.decimalPattern('de_DE').format(stepGoal);
         return ActivityMetricCard(
           title: 'Schritte & Distanz',
           value: '$steps Schritte',
           subtitle: steps == 0
-              ? 'Noch keine Schritte synchronisiert'
-              : '${distanceKm.toStringAsFixed(1)} km zurückgelegt (Ziel: 10.000)',
+              ? 'Noch keine Schritte synchronisiert (Ziel: $formattedGoal)'
+              : '${distanceKm.toStringAsFixed(1)} km zurückgelegt (Ziel: $formattedGoal)',
           icon: Icons.directions_walk,
           accentColor: Colors.teal,
-          progress: steps > 0 ? (steps / 10000.0) : null,
+          progress:
+              steps > 0 ? (steps / stepGoal.toDouble()).clamp(0.0, 1.0) : null,
           onTap: () {
-            if (widget.onNavigateToTab != null) {
-              widget.onNavigateToTab!(2);
-            } else {
-              Navigator.pushNamed(context, '/activity');
-            }
+            StepGoalSheet.show(
+              context,
+              currentGoal: stepGoal,
+              currentSteps: steps,
+              distanceKm: distanceKm,
+              onSaveGoal: (newGoal) async {
+                if (dashboard != null) {
+                  await dashboard.updateStepGoal(newGoal);
+                } else {
+                  context.read<AppState>().dailyStepGoal = newGoal;
+                }
+              },
+              onNavigateToActivity: () {
+                if (widget.onNavigateToTab != null) {
+                  widget.onNavigateToTab!(2);
+                } else {
+                  Navigator.pushNamed(context, '/activity');
+                }
+              },
+            );
           },
         );
       case 'active_energy':
-        final effectiveTotal = totalKcal ?? (activeKcal + bmr);
+        final effectiveTotal = totalKcal ?? (activeKcal + proportionalBmr);
         final String subtitleText;
         if (missingBmr.isNotEmpty) {
           subtitleText =
               'Gesamtumsatz: ~${effectiveTotal.round()} kcal · Fehlend für Grundumsatz: ${missingBmr.join(", ")}';
         } else {
-          subtitleText =
-              'Gesamtumsatz: ${effectiveTotal.round()} kcal (inkl. ${bmr.round()} kcal Grundumsatz)';
+          subtitleText = 'Gesamtumsatz: ${effectiveTotal.round()} kcal';
         }
         return ActivityMetricCard(
           title: 'Aktivenergie',
@@ -487,9 +646,10 @@ class _TodayPageState extends State<TodayPage> {
           consumedFat: consumedFat,
           targetFat: targetFat,
           steps: steps,
+          stepGoal: stepGoal,
           distanceKm: distanceKm,
           activeKcal: activeKcal,
-          totalKcal: totalKcal ?? (activeKcal + bmr),
+          totalKcal: totalKcal ?? (activeKcal + proportionalBmr),
           weight: weight,
           weightTrend: weightTrend,
           cycleDay: cycleDay,
