@@ -177,10 +177,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
       expect(find.text('Dein Überblick'), findsOneWidget);
 
-      // Tap Schritte & Distanz card -> opens the step-goal sheet.
+      // Tap Schritte & Distanz card -> opens StepGoalSheet, then tap to switch to Tab 2: Aktivität
       await tester.tap(find.text('Schritte & Distanz'));
       await tester.pumpAndSettle();
       expect(find.text('Tägliches Schritteziel'), findsOneWidget);
+      await tester.tap(find.text('Zu Aktivitäten & Workouts'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ActivityPage), findsOneWidget);
       expect(find.byType(NavigationBar), findsOneWidget);
     });
 
