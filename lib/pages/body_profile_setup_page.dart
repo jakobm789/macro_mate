@@ -36,11 +36,11 @@ class _BodyProfileSetupPageState extends State<BodyProfileSetupPage> {
     setState(() => _isSaving = true);
     try {
       await context.read<AppState>().saveBodyProfileSettings(
-            userAge: int.parse(_ageController.text.trim()),
-            userHeight: double.parse(_heightController.text.trim()),
-            gender: _gender,
-            bodyProfileConfigured: true,
-          );
+        userAge: int.parse(_ageController.text.trim()),
+        userHeight: double.parse(_heightController.text.trim()),
+        gender: _gender,
+        bodyProfileConfigured: true,
+      );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -165,7 +165,9 @@ class _BodyProfileSetupPageState extends State<BodyProfileSetupPage> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Text('Profil speichern'),
                       ),
