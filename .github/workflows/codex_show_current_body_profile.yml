@@ -1,0 +1,20 @@
+name: Show Current Body Profile Formatting
+
+on:
+  push:
+    branches: [codex/show-current-body-profile]
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - run: dart format --output=show lib/pages/body_profile_setup_page.dart
