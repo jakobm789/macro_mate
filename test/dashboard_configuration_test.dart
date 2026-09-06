@@ -52,6 +52,14 @@ void main() {
     activityController = ActivityController(repository: healthRepo);
     cycleController = CycleController(repository: cycleRepo);
     settingsController = SettingsController(repository: settingsRepo);
+    await settingsController.updateGoals(
+      settingsController.goals.copyWith(
+        userAge: 30,
+        userHeight: 170,
+        gender: Gender.male,
+        bodyProfileConfigured: true,
+      ),
+    );
 
     dashboardController = DashboardController(
       nutritionController: nutritionController,

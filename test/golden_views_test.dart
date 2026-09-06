@@ -106,6 +106,14 @@ void main() {
       healthRepository: healthRepo,
     );
     settingsController = SettingsController(repository: settingsRepo);
+    await settingsController.updateGoals(
+      settingsController.goals.copyWith(
+        userAge: 30,
+        userHeight: 170,
+        gender: Gender.male,
+        bodyProfileConfigured: true,
+      ),
+    );
     notificationController =
         NotificationController(repository: notificationRepo);
 
