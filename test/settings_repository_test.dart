@@ -45,6 +45,25 @@ void main() {
     expect(controller.dailyFatGoal, (2400 * 0.20) / 9.0);
   });
 
+  test('requires an explicit body profile before using BMR inputs', () async {
+    expect(controller.goals.bodyProfileConfigured, isFalse);
+    expect(controller.goals.userAge, 0);
+    expect(controller.goals.userHeight, 0.0);
+
+    await controller.updateGoals(
+      controller.goals.copyWith(
+        userAge: 32,
+        userHeight: 181,
+        gender: Gender.male,
+        bodyProfileConfigured: true,
+      ),
+    );
+
+    expect(controller.goals.bodyProfileConfigured, isTrue);
+    expect(controller.goals.userAge, 32);
+    expect(controller.goals.userHeight, 181.0);
+  });
+
   test('calculates BMR and TDEE correctly for Mifflin and Harris formulas',
       () async {
     // Male, 80kg, 180cm, 30 years old, activity level 1.5

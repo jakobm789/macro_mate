@@ -14,6 +14,7 @@ import 'features/health/presentation/health_page.dart';
 import 'features/health/data/health_background_sync.dart';
 import 'features/cycle/presentation/cycle_page.dart';
 import 'pages/backup_page.dart';
+import 'pages/body_profile_setup_page.dart';
 import 'app/navigation/app_shell.dart';
 import 'app/navigation/app_route_observer.dart';
 import 'features/activity/presentation/activity_page.dart';
@@ -374,6 +375,9 @@ class AppRoot extends StatelessWidget {
         if (!appState.isInitialized) return const LoadingScreen();
         if (!appState.isLoggedIn) {
           return const AppDiagnosticsBanner(child: LoginPage());
+        }
+        if (!appState.hasCompletedBodyProfile) {
+          return const AppDiagnosticsBanner(child: BodyProfileSetupPage());
         }
         return AppDiagnosticsBanner(
           child: AppShell(database: appState.database),

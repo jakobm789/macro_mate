@@ -299,6 +299,8 @@ class AppState extends ChangeNotifier {
   int get userStartCalories => settingsController.goals.userStartCalories;
   set userStartCalories(int val) => settingsController
       .updateGoals(settingsController.goals.copyWith(userStartCalories: val));
+  bool get hasCompletedBodyProfile =>
+      settingsController.goals.bodyProfileConfigured;
   int get userAge => settingsController.goals.userAge;
   set userAge(int val) => settingsController
       .updateGoals(settingsController.goals.copyWith(userAge: val));
@@ -725,6 +727,7 @@ class AppState extends ChangeNotifier {
     double? targetWeight,
     double? targetWeeklyChange,
     DateTime? targetDate,
+    bool? bodyProfileConfigured,
   }) async {
     final updated = settingsController.goals.copyWith(
       gender: gender,
@@ -744,6 +747,7 @@ class AppState extends ChangeNotifier {
       targetDate: targetDate != null
           ? DateFormat('yyyy-MM-dd').format(targetDate)
           : null,
+      bodyProfileConfigured: bodyProfileConfigured ?? true,
     );
     await settingsController.updateGoals(updated);
   }

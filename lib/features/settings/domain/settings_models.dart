@@ -25,6 +25,7 @@ class UserGoals {
   final double? targetWeeklyChange;
   final Gender gender;
   final BmrFormula bmrFormula;
+  final bool bodyProfileConfigured;
 
   const UserGoals({
     this.dailyCalories = 2000,
@@ -37,9 +38,9 @@ class UserGoals {
     this.customPercentPerMonth = 1.0,
     this.useCustomStartCalories = false,
     this.userStartCalories = 2000,
-    this.userAge = 30,
+    this.userAge = 0,
     this.userActivityLevel = 1.3,
-    this.userHeight = 170.0,
+    this.userHeight = 0.0,
     this.useProteinPerKg = false,
     this.proteinPerKg = 2.0,
     this.targetWeight,
@@ -47,6 +48,7 @@ class UserGoals {
     this.targetWeeklyChange,
     this.gender = Gender.male,
     this.bmrFormula = BmrFormula.mifflin,
+    this.bodyProfileConfigured = false,
   });
 
   UserGoals copyWith({
@@ -70,6 +72,7 @@ class UserGoals {
     double? targetWeeklyChange,
     Gender? gender,
     BmrFormula? bmrFormula,
+    bool? bodyProfileConfigured,
   }) {
     return UserGoals(
       dailyCalories: dailyCalories ?? this.dailyCalories,
@@ -94,6 +97,8 @@ class UserGoals {
       targetWeeklyChange: targetWeeklyChange ?? this.targetWeeklyChange,
       gender: gender ?? this.gender,
       bmrFormula: bmrFormula ?? this.bmrFormula,
+      bodyProfileConfigured:
+          bodyProfileConfigured ?? this.bodyProfileConfigured,
     );
   }
 
@@ -118,6 +123,7 @@ class UserGoals {
         'targetWeeklyChange': targetWeeklyChange,
         'gender': gender.name,
         'bmrFormula': bmrFormula.name,
+        'bodyProfileConfigured': bodyProfileConfigured,
       };
 
   factory UserGoals.fromMap(Map<String, dynamic> map) => UserGoals(
@@ -135,10 +141,10 @@ class UserGoals {
             (map['customPercentPerMonth'] as num?)?.toDouble() ?? 1.0,
         useCustomStartCalories: map['useCustomStartCalories'] == true,
         userStartCalories: (map['userStartCalories'] as num?)?.toInt() ?? 2000,
-        userAge: (map['userAge'] as num?)?.toInt() ?? 30,
+        userAge: (map['userAge'] as num?)?.toInt() ?? 0,
         userActivityLevel:
             (map['userActivityLevel'] as num?)?.toDouble() ?? 1.3,
-        userHeight: (map['userHeight'] as num?)?.toDouble() ?? 170.0,
+        userHeight: (map['userHeight'] as num?)?.toDouble() ?? 0.0,
         useProteinPerKg: map['useProteinPerKg'] == true,
         proteinPerKg: (map['proteinPerKg'] as num?)?.toDouble() ?? 2.0,
         targetWeight: (map['targetWeight'] as num?)?.toDouble(),
@@ -152,6 +158,7 @@ class UserGoals {
           (b) => b.name == map['bmrFormula'],
           orElse: () => BmrFormula.mifflin,
         ),
+        bodyProfileConfigured: map['bodyProfileConfigured'] == true,
       );
 }
 
