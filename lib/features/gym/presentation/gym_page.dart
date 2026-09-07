@@ -292,7 +292,8 @@ class _GymPageState extends State<GymPage> {
 
             // Activity Heatmap (GitHub-Style)
             ActivityHeatmapWidget(
-              workoutSessions: controller.recentSessions,
+              activityStartTimes:
+                  controller.recentSessions.map((session) => session.startUtc),
               weeksToShow: 18,
             ),
             const SizedBox(height: 16),

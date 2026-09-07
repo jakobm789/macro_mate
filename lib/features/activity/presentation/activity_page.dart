@@ -9,6 +9,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/ui/design_system.dart';
 import '../../../models/app_state.dart';
 import '../../health/domain/health_models.dart';
+import '../../gym/presentation/widgets/activity_heatmap_widget.dart';
 import '../domain/cardio_metrics_calculator.dart';
 import '../domain/location_tracker_service.dart';
 import 'activity_controller.dart';
@@ -40,6 +41,7 @@ class _ActivityPageState extends State<ActivityPage> {
   String? _error;
   List<WorkoutSessionRow> _workouts = const [];
   List<SleepSessionRow> _sleep = const [];
+  List<GymWorkoutSessionRow> _gymWorkouts = const [];
   double? _heartRate;
 
   @override
@@ -115,6 +117,12 @@ class _ActivityPageState extends State<ActivityPage> {
                 row.startUtc.isBiggerOrEqualValue(from.toIso8601String()))
             ..orderBy([(row) => OrderingTerm.desc(row.startUtc)]))
           .get();
+      final gymWorkouts = await (_database!.select(
+            _database!.gymWorkoutSessions,
+          )
+            ..where((row) =>
+                row.startUtc.isBiggerOrEqualValue(from.toIso8601String())))
+          .get();
       final sleep = await (_database!.select(_database!.sleepSessions)
             ..where((row) =>
                 row.startUtc.isBiggerOrEqualValue(from.toIso8601String()))
@@ -133,6 +141,7 @@ class _ActivityPageState extends State<ActivityPage> {
       setState(() {
         _workouts = workouts;
         _sleep = sleep;
+        _gymWorkouts = gymWorkouts;
         _heartRate = average;
         _loading = false;
       });
@@ -227,7 +236,7 @@ class _ActivityPageState extends State<ActivityPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: KpiCard(
-                    title: 'Schlafsessions',
+                    title: 'Schlaf',
                     value: '${_sleep.length}',
                     subtitle: 'importiert',
                     icon: Icons.bedtime_outlined,
@@ -241,6 +250,14 @@ class _ActivityPageState extends State<ActivityPage> {
               value: _heartRate == null ? '–' : '${_heartRate!.round()} bpm',
               subtitle: 'Durchschnitt aus verfügbaren Samples',
               icon: Icons.favorite_outline,
+            ),
+            const SizedBox(height: 16),
+            ActivityHeatmapWidget(
+              activityStartTimes: [
+                ..._workouts.map((workout) => workout.startUtc),
+                ..._gymWorkouts.map((workout) => workout.startUtc),
+              ],
+              weeksToShow: 18,
             ),
             const SizedBox(height: 16),
 

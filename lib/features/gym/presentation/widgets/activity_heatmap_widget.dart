@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../../core/database/app_database.dart';
 
 class ActivityHeatmapWidget extends StatelessWidget {
   const ActivityHeatmapWidget({
     super.key,
-    required this.workoutSessions,
+    required this.activityStartTimes,
     this.weeksToShow = 20,
   });
 
-  final List<GymWorkoutSessionRow> workoutSessions;
+  final Iterable<String> activityStartTimes;
   final int weeksToShow;
 
   @override
@@ -19,12 +18,12 @@ class ActivityHeatmapWidget extends StatelessWidget {
 
     // Map workouts by ISO Date string YYYY-MM-DD
     final workoutCountsByDay = <String, int>{};
-    for (final s in workoutSessions) {
-      final dateKey = s.startUtc.split('T').first;
+    for (final startTime in activityStartTimes) {
+      final dateKey = startTime.split('T').first;
       workoutCountsByDay[dateKey] = (workoutCountsByDay[dateKey] ?? 0) + 1;
     }
 
-    final totalWorkouts = workoutSessions.length;
+    final totalWorkouts = workoutCountsByDay.values.fold<int>(0, (sum, value) => sum + value);
 
     // Calculate start date aligned to Monday
     final currentWeekday = now.weekday; // 1 (Mon) .. 7 (Sun)
@@ -174,7 +173,7 @@ class ActivityHeatmapWidget extends StatelessWidget {
     }
 
     return Tooltip(
-      message: isFuture ? '' : '$key: $count Workout(s)',
+      message: isFuture ? '' : count.toString() + ' Aktivität(en)',
       child: Container(
         width: 12,
         height: 12,
