@@ -210,11 +210,12 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
     }
 
     final routinesPayload = _routines.map((r) => r.toMap()).toList();
+    final planName = _nameController.text.trim();
 
     if (widget.isEditing) {
       await controller.updateManualPlan(
         planId: widget.plan!.id,
-        name: _nameController.text.trim(),
+        name: planName,
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
@@ -223,7 +224,7 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
       );
     } else {
       await controller.saveManualPlan(
-        name: _nameController.text.trim(),
+        name: planName,
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
@@ -239,8 +240,8 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
         SnackBar(
           content: Text(
             widget.isEditing
-                ? 'Plan "' + _nameController.text.trim() + '" wurde aktualisiert.'
-                : 'Plan "' + _nameController.text.trim() + '" erfolgreich erstellt und aktiviert!',
+                ? 'Plan "$planName" wurde aktualisiert.'
+                : 'Plan "$planName" erfolgreich erstellt und aktiviert!',
           ),
         ),
       );

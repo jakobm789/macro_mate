@@ -422,7 +422,11 @@ class _GymPageState extends State<GymPage> {
   ) async {
     if (controller.isWorkoutActive) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Beende das laufende Training, bevor du den Plan löschst.')),
+        const SnackBar(
+          content: Text(
+            'Beende das laufende Training, bevor du den Plan löschst.',
+          ),
+        ),
       );
       return;
     }
@@ -430,11 +434,21 @@ class _GymPageState extends State<GymPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Trainingsplan löschen?'),
-        content: Text('Möchtest du "' + plan.name + '" wirklich löschen? Bereits absolvierte Workouts bleiben erhalten.'),
+        content: Text(
+          'Möchtest du "' +
+              plan.name +
+              '" wirklich löschen? Bereits absolvierte Workouts bleiben erhalten.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Plan löschen'),
           ),
@@ -451,7 +465,10 @@ class _GymPageState extends State<GymPage> {
     }
   }
 
-  void _openManualPlanEditor(BuildContext context, {GymWorkoutPlanRow? plan}) {
+  void _openManualPlanEditor(
+    BuildContext context, {
+    GymWorkoutPlanRow? plan,
+  }) {
     final controller = context.read<GymController>();
     Navigator.push(
       context,
@@ -461,7 +478,8 @@ class _GymPageState extends State<GymPage> {
           child: ManualPlanEditorPage(
             plan: plan,
             routines: plan == null ? const [] : controller.routines,
-            routineExercises: plan == null ? const {} : controller.routineExercises,
+            routineExercises:
+                plan == null ? const {} : controller.routineExercises,
           ),
         ),
       ),

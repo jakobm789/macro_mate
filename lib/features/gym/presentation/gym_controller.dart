@@ -563,7 +563,8 @@ class GymController extends ChangeNotifier {
 
   Future<void> deleteWorkoutPlan(String planId) async {
     if (isWorkoutActive) {
-      _errorMessage = 'Beende das laufende Training, bevor du den Plan löschst.';
+      _errorMessage =
+          'Beende das laufende Training, bevor du den Plan löschst.';
       notifyListeners();
       return;
     }
