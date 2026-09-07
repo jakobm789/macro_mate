@@ -532,6 +532,12 @@ class DriftGymRepository {
         .get();
   }
 
+  Future<void> deleteWorkoutPlan(String planId) async {
+    await (_db.delete(_db.gymWorkoutPlans)
+          ..where((t) => t.id.equals(planId)))
+        .go();
+  }
+
   Future<List<GymPlanRoutineRow>> getRoutinesForPlan(String planId) async {
     return (_db.select(_db.gymPlanRoutines)
           ..where((t) => t.planId.equals(planId))

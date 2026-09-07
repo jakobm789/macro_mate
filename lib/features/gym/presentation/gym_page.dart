@@ -154,47 +154,63 @@ class _GymPageState extends State<GymPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                activePlan?.name ??
-                                    'Kein aktiver Trainingsplan',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (activePlan?.description != null)
-                                Text(
-                                  activePlan!.description!,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.hintColor,
-                                  ),
-                                ),
-                            ],
+                    Text(
+                      activePlan?.name ?? 'Kein aktiver Trainingsplan',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (activePlan?.description case final description?)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.hintColor,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: [
-                            OutlinedButton.icon(
-                              icon: const Icon(Icons.edit_note, size: 16),
-                              label: const Text('Plan erstellen'),
-                              onPressed: () => _openManualPlanEditor(context),
-                            ),
-                            OutlinedButton.icon(
-                              icon: const Icon(Icons.auto_awesome, size: 16),
-                              label: const Text('AI Coach'),
-                              onPressed: () => _openAiCoach(context),
-                            ),
-                          ],
+                      ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        FilledButton.icon(
+                          icon: Icon(
+                            activePlan == null
+                                ? Icons.edit_note
+                                : Icons.edit_outlined,
+                            size: 18,
+                          ),
+                          label: Text(
+                            activePlan == null
+                                ? 'Plan erstellen'
+                                : 'Plan bearbeiten',
+                          ),
+                          onPressed: () => _openManualPlanEditor(
+                            context,
+                            plan: activePlan,
+                          ),
                         ),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.auto_awesome, size: 18),
+                          label: const Text('AI Coach'),
+                          onPressed: () => _openAiCoach(context),
+                        ),
+                        if (activePlan != null)
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            tooltip: 'Plan löschen',
+                            onPressed: () => _confirmDeletePlan(
+                              context,
+                              controller,
+                              activePlan,
+                            ),
+                          ),
                       ],
                     ),
                     if (controller.routines.isNotEmpty) ...[
@@ -399,13 +415,54 @@ class _GymPageState extends State<GymPage> {
     }
   }
 
-  void _openManualPlanEditor(BuildContext context) {
+  Future<void> _confirmDeletePlan(
+    BuildContext context,
+    GymController controller,
+    GymWorkoutPlanRow plan,
+  ) async {
+    if (controller.isWorkoutActive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Beende das laufende Training, bevor du den Plan löschst.')),
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Trainingsplan löschen?'),
+        content: Text('Möchtest du "' + plan.name + '" wirklich löschen? Bereits absolvierte Workouts bleiben erhalten.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Plan löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await controller.deleteWorkoutPlan(plan.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Plan "' + plan.name + '" wurde gelöscht.')),
+        );
+      }
+    }
+  }
+
+  void _openManualPlanEditor(BuildContext context, {GymWorkoutPlanRow? plan}) {
+    final controller = context.read<GymController>();
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ChangeNotifierProvider.value(
-          value: context.read<GymController>(),
-          child: const ManualPlanEditorPage(),
+          value: controller,
+          child: ManualPlanEditorPage(
+            plan: plan,
+            routines: plan == null ? const [] : controller.routines,
+            routineExercises: plan == null ? const {} : controller.routineExercises,
+          ),
         ),
       ),
     );

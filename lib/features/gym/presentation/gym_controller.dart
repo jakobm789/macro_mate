@@ -534,6 +534,52 @@ class GymController extends ChangeNotifier {
     }
   }
 
+  Future<void> updateManualPlan({
+    required String planId,
+    required String name,
+    String? description,
+    required int daysPerWeek,
+    required List<Map<String, dynamic>> routinesWithExercises,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _repository.saveWorkoutPlan(
+        planId: planId,
+        name: name,
+        description: description,
+        daysPerWeek: daysPerWeek,
+        isActive: true,
+        routinesWithExercises: routinesWithExercises,
+      );
+      await loadData();
+    } catch (e) {
+      _errorMessage = 'Fehler beim Aktualisieren des Plans: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteWorkoutPlan(String planId) async {
+    if (isWorkoutActive) {
+      _errorMessage = 'Beende das laufende Training, bevor du den Plan löschst.';
+      notifyListeners();
+      return;
+    }
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _repository.deleteWorkoutPlan(planId);
+      await loadData();
+    } catch (e) {
+      _errorMessage = 'Fehler beim Löschen des Plans: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   @override
   void dispose() {
     _restTimer?.cancel();

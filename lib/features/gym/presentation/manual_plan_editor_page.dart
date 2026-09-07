@@ -1,24 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/database/app_database.dart';
 import '../domain/gym_models.dart';
 import 'gym_controller.dart';
 
 class ManualPlanEditorPage extends StatefulWidget {
-  const ManualPlanEditorPage({super.key});
+  const ManualPlanEditorPage({
+    super.key,
+    this.plan,
+    this.routines = const [],
+    this.routineExercises = const {},
+  });
+
+  final GymWorkoutPlanRow? plan;
+  final List<GymPlanRoutineRow> routines;
+  final Map<String, List<GymPlanRoutineExerciseRow>> routineExercises;
+
+  bool get isEditing => plan != null;
 
   @override
   State<ManualPlanEditorPage> createState() => _ManualPlanEditorPageState();
 }
 
 class _DraftExercise {
-  _DraftExercise({required this.exercise});
+  _DraftExercise({
+    required this.exercise,
+    this.targetSets = 4,
+    this.targetRepsMin = 8,
+    this.targetRepsMax = 12,
+    this.restSeconds = 180,
+  });
 
   final GymExercise exercise;
-  int targetSets = 4;
-  int targetRepsMin = 8;
-  int targetRepsMax = 12;
-  int restSeconds = 180; // Standard 3 Minuten
+  int targetSets;
+  int targetRepsMin;
+  int targetRepsMax;
+  int restSeconds;
 
   Map<String, dynamic> toMap() => {
         'exerciseId': exercise.id,
@@ -31,36 +49,85 @@ class _DraftExercise {
 
 class _DraftRoutine {
   _DraftRoutine({
+    this.id,
     required this.name,
     required this.dayOfWeek,
     List<_DraftExercise>? exercises,
   }) : exercises = exercises ?? [];
 
+  final String? id;
   String name;
   int dayOfWeek;
   final List<_DraftExercise> exercises;
 
   int get totalSets => exercises.fold<int>(0, (sum, ex) => sum + ex.targetSets);
 
-  Map<String, dynamic> toMap() => {
-        'name': name,
-        'dayOfWeek': dayOfWeek,
-        'progressionType': 'linear',
-        'exercises': exercises.map((e) => e.toMap()).toList(),
-      };
+  Map<String, dynamic> toMap() {
+    final data = <String, dynamic>{
+      'name': name,
+      'dayOfWeek': dayOfWeek,
+      'progressionType': 'linear',
+      'exercises': exercises.map((e) => e.toMap()).toList(),
+    };
+    if (id != null) data['id'] = id;
+    return data;
+  }
 }
 
 class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController(text: 'Mein Trainingsplan');
-  final _descriptionController = TextEditingController();
-  int _daysPerWeek = 3;
+  late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
+  late int _daysPerWeek;
+  final List<_DraftRoutine> _routines = [];
 
-  final List<_DraftRoutine> _routines = [
-    _DraftRoutine(name: 'Tag 1: Push / Brust & Schultern', dayOfWeek: 1),
-    _DraftRoutine(name: 'Tag 2: Pull / Rücken & Bizeps', dayOfWeek: 3),
-    _DraftRoutine(name: 'Tag 3: Beine & Bauch', dayOfWeek: 5),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(
+      text: widget.plan?.name ?? 'Mein Trainingsplan',
+    );
+    _descriptionController = TextEditingController(
+      text: widget.plan?.description ?? '',
+    );
+    _daysPerWeek = widget.plan?.daysPerWeek ?? 3;
+
+    if (widget.isEditing) {
+      final exercisesById = {
+        for (final exercise in context.read<GymController>().exercises)
+          exercise.id: exercise,
+      };
+      for (final routine in widget.routines) {
+        final plannedExercises =
+            widget.routineExercises[routine.id] ??
+            const <GymPlanRoutineExerciseRow>[];
+        _routines.add(
+          _DraftRoutine(
+            id: routine.id,
+            name: routine.name,
+            dayOfWeek: routine.dayOfWeek,
+            exercises: [
+              for (final planned in plannedExercises)
+                if (exercisesById[planned.exerciseId] case final exercise?)
+                  _DraftExercise(
+                    exercise: exercise,
+                    targetSets: planned.targetSets,
+                    targetRepsMin: planned.targetRepsMin,
+                    targetRepsMax: planned.targetRepsMax,
+                    restSeconds: planned.restSeconds,
+                  ),
+            ],
+          ),
+        );
+      }
+    } else {
+      _routines.addAll([
+        _DraftRoutine(name: 'Tag 1: Push / Brust & Schultern', dayOfWeek: 1),
+        _DraftRoutine(name: 'Tag 2: Pull / Rücken & Bizeps', dayOfWeek: 3),
+        _DraftRoutine(name: 'Tag 3: Beine & Bauch', dayOfWeek: 5),
+      ]);
+    }
+  }
 
   @override
   void dispose() {
@@ -144,22 +211,36 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
 
     final routinesPayload = _routines.map((r) => r.toMap()).toList();
 
-    await controller.saveManualPlan(
-      name: _nameController.text.trim(),
-      description: _descriptionController.text.trim().isEmpty
-          ? null
-          : _descriptionController.text.trim(),
-      daysPerWeek: _daysPerWeek,
-      routinesWithExercises: routinesPayload,
-      isActive: true,
-    );
+    if (widget.isEditing) {
+      await controller.updateManualPlan(
+        planId: widget.plan!.id,
+        name: _nameController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
+        daysPerWeek: _daysPerWeek,
+        routinesWithExercises: routinesPayload,
+      );
+    } else {
+      await controller.saveManualPlan(
+        name: _nameController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
+        daysPerWeek: _daysPerWeek,
+        routinesWithExercises: routinesPayload,
+        isActive: true,
+      );
+    }
 
     if (mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Plan "${_nameController.text.trim()}" erfolgreich erstellt und aktiviert!',
+            widget.isEditing
+                ? 'Plan "' + _nameController.text.trim() + '" wurde aktualisiert.'
+                : 'Plan "' + _nameController.text.trim() + '" erfolgreich erstellt und aktiviert!',
           ),
         ),
       );
@@ -173,7 +254,9 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Neuer Trainingsplan'),
+        title: Text(
+          widget.isEditing ? 'Trainingsplan bearbeiten' : 'Neuer Trainingsplan',
+        ),
         actions: [
           TextButton.icon(
             icon: const Icon(Icons.check, color: Colors.green),
@@ -288,7 +371,11 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
             const SizedBox(height: 32),
             ElevatedButton.icon(
               icon: const Icon(Icons.check_circle_outline),
-              label: const Text('Trainingsplan speichern & aktivieren'),
+              label: Text(
+                widget.isEditing
+                    ? 'Änderungen speichern'
+                    : 'Trainingsplan speichern & aktivieren',
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.deepOrangeAccent,
                 foregroundColor: Colors.white,
