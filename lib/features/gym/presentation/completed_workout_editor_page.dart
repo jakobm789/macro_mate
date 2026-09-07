@@ -75,7 +75,7 @@ class _CompletedWorkoutEditorPageState
       body: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: sets.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        separatorBuilder: (context, index) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final set = sets[index];
           final exercise = exercises[set.exerciseId];
