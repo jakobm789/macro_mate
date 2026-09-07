@@ -13,6 +13,7 @@ import 'gym_controller.dart';
 import 'manual_plan_editor_page.dart';
 import 'widgets/activity_heatmap_widget.dart';
 import 'widgets/muscle_map_widget.dart';
+import 'completed_workout_editor_page.dart';
 import 'workout_runner_page.dart';
 
 class GymPage extends StatefulWidget {
@@ -316,17 +317,37 @@ class _GymPageState extends State<GymPage> {
                       '${session.totalTonnageKg > 0 ? ' · ${(session.totalTonnageKg / 1000).toStringAsFixed(1)}t Tonnage' : ''}'
                       '${session.rpeAverage != null ? ' · RPE ${session.rpeAverage!.toStringAsFixed(1)}' : ''}',
                     ),
-                    trailing: IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.grey,
-                      ),
-                      tooltip: 'Workout löschen',
-                      onPressed: () => _confirmDeleteWorkoutSession(
-                        context,
-                        controller,
-                        session,
-                      ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          tooltip: 'Workout bearbeiten',
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChangeNotifierProvider.value(
+                                value: controller,
+                                child: CompletedWorkoutEditorPage(
+                                  session: session,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.grey,
+                          ),
+                          tooltip: 'Workout löschen',
+                          onPressed: () => _confirmDeleteWorkoutSession(
+                            context,
+                            controller,
+                            session,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

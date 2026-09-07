@@ -398,6 +398,57 @@ class GymController extends ChangeNotifier {
     await loadData();
   }
 
+  Future<List<GymSetLog>> getWorkoutSets(String sessionId) async {
+    final rows = await _repository.getSetsForSession(sessionId);
+    return rows
+        .map(
+          (row) => GymSetLog(
+            id: row.id,
+            exerciseId: row.exerciseId,
+            setIndex: row.setIndex,
+            setType: GymSetType.values.byName(row.setType),
+            weightKg: row.weightKg,
+            reps: row.reps,
+            holdSeconds: row.holdSeconds,
+            rpe: row.rpe,
+            rir: row.rir,
+            completed: row.completed,
+          ),
+        )
+        .toList();
+  }
+
+  Future<void> updateCompletedWorkout(
+    GymWorkoutSessionRow session,
+    List<GymSetLog> sets,
+  ) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final completed = sets.where((set) => set.completed).toList();
+      final rpes = completed.map((set) => set.rpe).whereType<double>().toList();
+      final average =
+          rpes.isEmpty ? null : rpes.reduce((a, b) => a + b) / rpes.length;
+      await _repository.saveWorkoutSession(
+        sessionId: session.id,
+        routineId: session.routineId,
+        routineName: session.routineName,
+        startUtc: DateTime.parse(session.startUtc),
+        endUtc: session.endUtc == null ? null : DateTime.parse(session.endUtc!),
+        durationSeconds: session.durationSeconds,
+        notes: session.notes,
+        rpeAverage: average,
+        sets: sets,
+      );
+      await loadData();
+    } catch (error) {
+      _errorMessage = 'Fehler beim Aktualisieren des Workouts: ' + error.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> deleteWorkoutSession(String sessionId) async {
     _isLoading = true;
     notifyListeners();
