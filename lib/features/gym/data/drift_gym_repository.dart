@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/database/app_database.dart';
 import '../domain/gym_models.dart';
 import '../domain/progression_engine.dart';
+import 'opengym_exercises.dart';
 
 class WorkoutSessionSaveResult {
   const WorkoutSessionSaveResult({
@@ -27,12 +28,41 @@ class DriftGymRepository {
   static const _uuid = Uuid();
   static const _oneRepMaxCalc = OneRepMaxCalculator();
 
-  /// Ensures starter exercises are seeded if table is empty
-  Future<void> ensureSeeded() async {
-    final count = await _db.gymExercises.count().getSingle();
-    if (count == 0) {
-      await seedDefaultExercises();
-    }
+  Future<void>? _seeding;
+
+  /// Adds bundled exercises on both fresh installs and upgrades.
+  /// Stable IDs and insertOrIgnore preserve user edits and historical references.
+  Future<void> ensureSeeded() => _seeding ??= _seedCatalog().catchError(
+        (Object error) {
+          _seeding = null;
+          throw error;
+        },
+      );
+
+  Future<void> _seedCatalog() async {
+    await _db.transaction(() async {
+      final count = await _db.gymExercises.count().getSingle();
+      if (count == 0) {
+        await seedDefaultExercises();
+      }
+      await _db.batch((batch) {
+        batch.insertAll(
+          _db.gymExercises,
+          openGymExercises.map((exercise) => GymExercisesCompanion.insert(
+            id: exercise.id,
+            name: exercise.name,
+            primaryMuscle: exercise.primaryMuscle.name,
+            secondaryMusclesJson: Value(
+              jsonEncode(exercise.secondaryMuscles.map((m) => m.name).toList()),
+            ),
+            equipment: exercise.equipment.name,
+            instructions: Value(exercise.instructions),
+            isTimed: Value(exercise.isTimed),
+          )).toList(),
+          mode: InsertMode.insertOrIgnore,
+        );
+      });
+    });
   }
 
   Future<List<GymExercise>> getAllExercises() async {

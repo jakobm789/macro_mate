@@ -284,7 +284,7 @@ void main() {
     testWidgets('ActivityPage renders in Light Mode', (tester) async {
       await testScreenGolden(
         tester: tester,
-        child: ActivityPage(database: db),
+        child: ActivityPage(database: db, now: DateTime(2026, 9, 8)),
         goldenName: 'activity_page_light',
         brightness: Brightness.light,
       );
@@ -293,7 +293,7 @@ void main() {
     testWidgets('ActivityPage renders in Dark Mode', (tester) async {
       await testScreenGolden(
         tester: tester,
-        child: ActivityPage(database: db),
+        child: ActivityPage(database: db, now: DateTime(2026, 9, 8)),
         goldenName: 'activity_page_dark',
         brightness: Brightness.dark,
       );

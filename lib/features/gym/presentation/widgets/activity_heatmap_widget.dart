@@ -6,20 +6,25 @@ class ActivityHeatmapWidget extends StatelessWidget {
     super.key,
     required this.activityStartTimes,
     this.weeksToShow = 20,
+    this.now,
   });
 
   final Iterable<String> activityStartTimes;
   final int weeksToShow;
+  final DateTime? now;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final now = DateTime.now();
+    final currentTime = this.now ?? DateTime.now();
+    final now = DateTime(currentTime.year, currentTime.month, currentTime.day);
 
     // Map workouts by ISO Date string YYYY-MM-DD
     final workoutCountsByDay = <String, int>{};
     for (final startTime in activityStartTimes) {
-      final dateKey = startTime.split('T').first;
+      final date = DateTime.tryParse(startTime)?.toLocal();
+      if (date == null) continue;
+      final dateKey = DateFormat('yyyy-MM-dd').format(date);
       workoutCountsByDay[dateKey] = (workoutCountsByDay[dateKey] ?? 0) + 1;
     }
 
@@ -57,34 +62,20 @@ class ActivityHeatmapWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.grid_on_outlined,
-                        color: Colors.deepOrangeAccent, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Trainings-Aktivität (Heatmap)',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ],
+                Text(
+                  'Trainingsaktivität',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.deepOrangeAccent.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Streak: $currentStreak Tage',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        color: Colors.deepOrange),
+                const SizedBox(height: 8),
+                Text(
+                  'Serie: $currentStreak Tage',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.deepOrange,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
@@ -173,7 +164,7 @@ class ActivityHeatmapWidget extends StatelessWidget {
     }
 
     return Tooltip(
-      message: isFuture ? '' : count.toString() + ' Aktivität(en)',
+      message: isFuture ? '' : '$key: $count Aktivität(en)',
       child: Container(
         width: 12,
         height: 12,

@@ -22,11 +22,13 @@ class ActivityPage extends StatefulWidget {
     this.database,
     this.controller,
     this.onBackToHome,
+    this.now,
   });
 
   final AppDatabase? database;
   final ActivityController? controller;
   final VoidCallback? onBackToHome;
+  final DateTime? now;
 
   @override
   State<ActivityPage> createState() => _ActivityPageState();
@@ -253,6 +255,7 @@ class _ActivityPageState extends State<ActivityPage> {
             ),
             const SizedBox(height: 16),
             ActivityHeatmapWidget(
+              now: widget.now,
               activityStartTimes: [
                 ..._workouts.map((workout) => workout.startUtc),
                 ..._gymWorkouts.map((workout) => workout.startUtc),

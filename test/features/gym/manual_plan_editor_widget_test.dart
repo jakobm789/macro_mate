@@ -62,7 +62,7 @@ void main() {
     });
 
     testWidgets(
-      'GymPage displays all routines of active plan and Plan erstellen button',
+      'GymPage displays all routines of active plan and Plan bearbeiten button',
       (tester) async {
         // Save an active plan with 3 routines
         await controller.saveManualPlan(
@@ -120,7 +120,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Mein Testplan'), findsOneWidget);
-        expect(find.text('Plan erstellen'), findsOneWidget);
+        expect(find.text('Plan bearbeiten'), findsOneWidget);
         expect(find.text('Einheiten des Plans (3)'), findsOneWidget);
 
         // All 3 routines must be visible, including Legs/Beine!
@@ -128,11 +128,12 @@ void main() {
         expect(find.text('Tag 2: Pull'), findsOneWidget);
         expect(find.text('Tag 3: Legs (Beine)'), findsOneWidget);
 
-        // Tap 'Plan erstellen' opens ManualPlanEditorPage
-        await tester.tap(find.text('Plan erstellen'));
+        // Tap 'Plan bearbeiten' opens ManualPlanEditorPage
+        await tester.tap(find.text('Plan bearbeiten'));
         await tester.pumpAndSettle();
 
         expect(find.byType(ManualPlanEditorPage), findsOneWidget);
+        expect(find.widgetWithText(TextField, 'Mein Testplan'), findsOneWidget);
       },
     );
 

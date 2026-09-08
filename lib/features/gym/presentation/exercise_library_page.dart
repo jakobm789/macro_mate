@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../domain/gym_models.dart';
+import '../data/opengym_license.dart';
 import '../domain/progression_engine.dart';
 import 'gym_controller.dart';
 
@@ -40,6 +41,33 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Übungskatalog'),
+        actions: [
+          IconButton(
+            tooltip: 'Datenquelle & Lizenz',
+            icon: const Icon(Icons.info_outline),
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: const Text('OpenGym-Übungskatalog'),
+                content: const SingleChildScrollView(
+                  child: SelectableText(
+                    '1.324 Übungen aus alexpcosta/opengym, basierend auf '
+                    'hasaneyldrm/exercises-dataset. Namen und Anleitungen '
+                    'sind im englischen Original enthalten. Bilder und GIFs '
+                    'werden wegen separater Nutzungsrechte nicht übernommen.\n\n'
+                    + openGymDataLicense,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Schließen'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
