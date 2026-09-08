@@ -41,9 +41,9 @@ class _CompletedWorkoutEditorPageState
     if (sets == null) return;
     setState(() => _saving = true);
     await context.read<GymController>().updateCompletedWorkout(
-      widget.session,
-      sets,
-    );
+          widget.session,
+          sets,
+        );
     if (!mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -116,12 +116,13 @@ class _CompletedWorkoutEditorPageState
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextFormField(
-                          initialValue:
-                              (isTimed ? set.holdSeconds : set.reps)?.toString() ??
-                                  '',
+                          initialValue: (isTimed ? set.holdSeconds : set.reps)
+                                  ?.toString() ??
+                              '',
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            labelText: isTimed ? 'Zeit (Sek.)' : 'Wiederholungen',
+                            labelText:
+                                isTimed ? 'Zeit (Sek.)' : 'Wiederholungen',
                             border: const OutlineInputBorder(),
                           ),
                           onChanged: (value) {

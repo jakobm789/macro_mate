@@ -28,7 +28,8 @@ class ActivityHeatmapWidget extends StatelessWidget {
       workoutCountsByDay[dateKey] = (workoutCountsByDay[dateKey] ?? 0) + 1;
     }
 
-    final totalWorkouts = workoutCountsByDay.values.fold<int>(0, (sum, value) => sum + value);
+    final totalWorkouts =
+        workoutCountsByDay.values.fold<int>(0, (sum, value) => sum + value);
 
     // Calculate start date aligned to Monday
     final currentWeekday = now.weekday; // 1 (Mon) .. 7 (Sun)

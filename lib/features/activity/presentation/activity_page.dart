@@ -120,10 +120,9 @@ class _ActivityPageState extends State<ActivityPage> {
             ..orderBy([(row) => OrderingTerm.desc(row.startUtc)]))
           .get();
       final gymWorkouts = await (_database!.select(
-            _database!.gymWorkoutSessions,
-          )
-            ..where((row) =>
-                row.startUtc.isBiggerOrEqualValue(from.toIso8601String())))
+        _database!.gymWorkoutSessions,
+      )..where((row) =>
+              row.startUtc.isBiggerOrEqualValue(from.toIso8601String())))
           .get();
       final sleep = await (_database!.select(_database!.sleepSessions)
             ..where((row) =>

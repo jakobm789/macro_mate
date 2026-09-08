@@ -6,7 +6,8 @@ import 'package:macro_mate/features/gym/data/opengym_exercises.dart';
 import 'package:macro_mate/features/gym/domain/gym_models.dart';
 
 void main() {
-  test('OpenGym catalog includes every source ID, instructions and no media', () {
+  test('OpenGym catalog includes every source ID, instructions and no media',
+      () {
     expect(openGymExercises, hasLength(1324));
     expect(openGymExercises.map((e) => e.id).toSet(), hasLength(1324));
     for (final exercise in openGymExercises) {
@@ -15,7 +16,8 @@ void main() {
       expect(exercise.instructions, isNotEmpty);
       expect(exercise.gifUrl, isNull);
       expect(exercise.isCustom, isFalse);
-      expect(exercise.secondaryMuscles, isNot(contains(exercise.primaryMuscle)));
+      expect(
+          exercise.secondaryMuscles, isNot(contains(exercise.primaryMuscle)));
     }
   });
 
@@ -24,12 +26,14 @@ void main() {
     addTearDown(db.close);
     final repo = DriftGymRepository(database: db);
     final exercises = await repo.getAllExercises();
-    expect(exercises.where((e) => e.id.startsWith('opengym_')), hasLength(1324));
+    expect(
+        exercises.where((e) => e.id.startsWith('opengym_')), hasLength(1324));
     expect(exercises.any((e) => e.id == 'ex_bench_press'), isTrue);
     expect(await repo.searchExercises(query: '3/4 sit-up'), isNotEmpty);
   });
 
-  test('Upgrade is idempotent and preserves custom and edited exercises', () async {
+  test('Upgrade is idempotent and preserves custom and edited exercises',
+      () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
     final oldRepo = DriftGymRepository(database: db);
@@ -54,7 +58,8 @@ void main() {
     ));
     final reopened = DriftGymRepository(database: db);
     final exercises = await reopened.getAllExercises();
-    expect(exercises.where((e) => e.id.startsWith('opengym_')), hasLength(1324));
+    expect(
+        exercises.where((e) => e.id.startsWith('opengym_')), hasLength(1324));
     expect((await reopened.getExerciseById('custom_keep'))!.isCustom, isTrue);
     expect((await reopened.getExerciseById(firstId))!.instructions,
         'Unverändert behalten');

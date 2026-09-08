@@ -442,7 +442,8 @@ class GymController extends ChangeNotifier {
       );
       await loadData();
     } catch (error) {
-      _errorMessage = 'Fehler beim Aktualisieren des Workouts: ' + error.toString();
+      _errorMessage =
+          'Fehler beim Aktualisieren des Workouts: ' + error.toString();
     } finally {
       _isLoading = false;
       notifyListeners();

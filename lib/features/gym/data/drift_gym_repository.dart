@@ -55,17 +55,21 @@ class DriftGymRepository {
       await _db.batch((batch) {
         batch.insertAll(
           _db.gymExercises,
-          openGymExercises.map((exercise) => GymExercisesCompanion.insert(
-            id: exercise.id,
-            name: exercise.name,
-            primaryMuscle: exercise.primaryMuscle.name,
-            secondaryMusclesJson: Value(
-              jsonEncode(exercise.secondaryMuscles.map((m) => m.name).toList()),
-            ),
-            equipment: exercise.equipment.name,
-            instructions: Value(exercise.instructions),
-            isTimed: Value(exercise.isTimed),
-          )).toList(),
+          openGymExercises
+              .map((exercise) => GymExercisesCompanion.insert(
+                    id: exercise.id,
+                    name: exercise.name,
+                    primaryMuscle: exercise.primaryMuscle.name,
+                    secondaryMusclesJson: Value(
+                      jsonEncode(exercise.secondaryMuscles
+                          .map((m) => m.name)
+                          .toList()),
+                    ),
+                    equipment: exercise.equipment.name,
+                    instructions: Value(exercise.instructions),
+                    isTimed: Value(exercise.isTimed),
+                  ))
+              .toList(),
           mode: InsertMode.insertOrIgnore,
         );
       });
@@ -570,8 +574,7 @@ class DriftGymRepository {
   }
 
   Future<void> deleteWorkoutPlan(String planId) async {
-    await (_db.delete(_db.gymWorkoutPlans)
-          ..where((t) => t.id.equals(planId)))
+    await (_db.delete(_db.gymWorkoutPlans)..where((t) => t.id.equals(planId)))
         .go();
   }
 

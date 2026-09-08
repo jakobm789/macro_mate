@@ -52,10 +52,10 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
                 content: const SingleChildScrollView(
                   child: SelectableText(
                     '1.324 Übungen aus alexpcosta/opengym, basierend auf '
-                    'hasaneyldrm/exercises-dataset. Namen und Anleitungen '
-                    'sind im englischen Original enthalten. Bilder und GIFs '
-                    'werden wegen separater Nutzungsrechte nicht übernommen.\n\n'
-                    + openGymDataLicense,
+                            'hasaneyldrm/exercises-dataset. Namen und Anleitungen '
+                            'sind im englischen Original enthalten. Bilder und GIFs '
+                            'werden wegen separater Nutzungsrechte nicht übernommen.\n\n' +
+                        openGymDataLicense,
                   ),
                 ),
                 actions: [

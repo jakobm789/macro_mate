@@ -3,7 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:macro_mate/features/gym/presentation/widgets/activity_heatmap_widget.dart';
 
 void main() {
-  testWidgets('Heatmap fits a narrow phone at large text scale', (tester) async {
+  testWidgets('Heatmap fits a narrow phone at large text scale',
+      (tester) async {
     tester.view.physicalSize = const Size(320, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);

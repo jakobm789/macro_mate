@@ -98,8 +98,7 @@ class _ManualPlanEditorPageState extends State<ManualPlanEditorPage> {
           exercise.id: exercise,
       };
       for (final routine in widget.routines) {
-        final plannedExercises =
-            widget.routineExercises[routine.id] ??
+        final plannedExercises = widget.routineExercises[routine.id] ??
             const <GymPlanRoutineExerciseRow>[];
         _routines.add(
           _DraftRoutine(
