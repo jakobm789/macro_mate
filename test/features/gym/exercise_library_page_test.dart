@@ -41,7 +41,7 @@ void main() {
       // Find the starter exercise in the expanded, lazily built catalog.
       await tester.enterText(find.byType(TextField).first, 'Bankdrücken (Langhantel)');
       await tester.pumpAndSettle();
-      expect(find.text('Bankdrücken (Langhantel)'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'Bankdrücken (Langhantel)'), findsOneWidget);
 
       // Filter by search
       await tester.enterText(find.byType(TextField).first, 'Back Squat');

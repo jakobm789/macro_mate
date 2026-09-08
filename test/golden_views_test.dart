@@ -245,7 +245,7 @@ void main() {
     testWidgets('TodayPage renders in Light Mode (412x915)', (tester) async {
       await testScreenGolden(
         tester: tester,
-        child: const TodayPage(),
+        child: TodayPage(now: DateTime(2026, 9, 8, 12)),
         goldenName: 'today_page_light',
         brightness: Brightness.light,
       );
@@ -254,7 +254,7 @@ void main() {
     testWidgets('TodayPage renders in Dark Mode (412x915)', (tester) async {
       await testScreenGolden(
         tester: tester,
-        child: const TodayPage(),
+        child: TodayPage(now: DateTime(2026, 9, 8, 12)),
         goldenName: 'today_page_dark',
         brightness: Brightness.dark,
       );
@@ -263,7 +263,7 @@ void main() {
     testWidgets('TodayPage renders on Small Phone (360x640)', (tester) async {
       await testScreenGolden(
         tester: tester,
-        child: const TodayPage(),
+        child: TodayPage(now: DateTime(2026, 9, 8, 12)),
         goldenName: 'today_page_small_phone',
         size: const Size(360, 640),
         brightness: Brightness.light,
@@ -274,7 +274,7 @@ void main() {
         (tester) async {
       await testScreenGolden(
         tester: tester,
-        child: const TodayPage(),
+        child: TodayPage(now: DateTime(2026, 9, 8, 12)),
         goldenName: 'today_page_large_text',
         brightness: Brightness.light,
         textScale: 1.5,

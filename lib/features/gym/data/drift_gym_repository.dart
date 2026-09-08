@@ -29,15 +29,22 @@ class DriftGymRepository {
   static const _oneRepMaxCalc = OneRepMaxCalculator();
 
   Future<void>? _seeding;
+  bool _seeded = false;
 
   /// Adds bundled exercises on both fresh installs and upgrades.
   /// Stable IDs and insertOrIgnore preserve user edits and historical references.
-  Future<void> ensureSeeded() => _seeding ??= _seedCatalog().catchError(
-        (Object error) {
-          _seeding = null;
-          throw error;
-        },
-      );
+  Future<void> ensureSeeded() async {
+    if (_seeded) return;
+    final pending = _seeding ??= _seedCatalog();
+    try {
+      await pending;
+      _seeded = true;
+    } finally {
+      // Only cache work while it is running, not a completed future from
+      // another async zone (for example widget-test setup).
+      if (identical(_seeding, pending)) _seeding = null;
+    }
+  }
 
   Future<void> _seedCatalog() async {
     await _db.transaction(() async {

@@ -19,12 +19,14 @@ class TodayPage extends StatefulWidget {
     this.onNavigateToTab,
     this.isSelectedTab = true,
     this.enableAutoRefresh = true,
+    this.now,
     this.autoRefreshInterval = const Duration(seconds: 30),
   });
 
   final ValueChanged<int>? onNavigateToTab;
   final bool isSelectedTab;
   final bool enableAutoRefresh;
+  final DateTime? now;
   final Duration autoRefreshInterval;
 
   @override
@@ -150,7 +152,7 @@ class _TodayPageState extends State<TodayPage>
   }
 
   String get _formattedDate {
-    final now = DateTime.now();
+    final now = widget.now ?? DateTime.now();
     const weekdays = [
       'Montag',
       'Dienstag',
@@ -234,7 +236,7 @@ class _TodayPageState extends State<TodayPage>
             ? appState.settingsController.calculateBmr(weightKg: weight)
             : 1750.0);
 
-    final now = DateTime.now();
+    final now = widget.now ?? DateTime.now();
     final dayProgress =
         ((now.hour * 3600 + now.minute * 60 + now.second) / 86400.0)
             .clamp(0.0, 1.0);
