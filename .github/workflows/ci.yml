@@ -52,7 +52,8 @@ jobs:
         run: flutter analyze --fatal-warnings --no-fatal-infos
 
       - name: Run Test Suite
-        run: flutter test --coverage
+        timeout-minutes: 10
+        run: flutter test --coverage --reporter expanded
 
       - name: Upload validation diagnostics
         if: failure()
