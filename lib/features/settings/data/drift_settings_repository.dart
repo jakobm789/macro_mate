@@ -30,6 +30,7 @@ class DriftSettingsRepository implements SettingsRepository {
   static const String _genderKey = 'user_gender';
   static const String _bmrKey = 'bmr_formula';
   static const String _stepGoalKey = 'user_step_goal';
+  static const String _bodyProfileConfiguredKey = 'body_profile_configured';
   static const String _dashboardCardOrderKey = 'dashboard_card_order';
   static const String _dashboardCardVisibilityKey = 'dashboard_card_visibility';
 
@@ -109,16 +110,32 @@ class DriftSettingsRepository implements SettingsRepository {
     final gender = genderStr == 'female' ? Gender.female : Gender.male;
     final bmrFormula =
         bmrStr == 'harris' ? BmrFormula.harris : BmrFormula.mifflin;
+    final storedBodyProfileConfigured =
+        prefs.getBool(_bodyProfileConfiguredKey);
 
     if (rows.isEmpty) {
       return UserGoals(
         gender: gender,
         bmrFormula: bmrFormula,
         stepGoal: stepGoal,
+        bodyProfileConfigured: storedBodyProfileConfigured ?? false,
       );
     }
 
     final row = rows.first;
+    // Preserve profiles entered before the completion marker existed without
+    // accepting the old 30 Jahre / 170 cm database defaults as a profile.
+    final inferredLegacyBodyProfile = storedBodyProfileConfigured == null &&
+        row.userAge >= 13 &&
+        row.userAge <= 120 &&
+        row.userHeight >= 100 &&
+        row.userHeight <= 250 &&
+        (row.userAge != 30 || row.userHeight != 170);
+    if (inferredLegacyBodyProfile) {
+      await prefs.setBool(_bodyProfileConfiguredKey, true);
+    }
+    final bodyProfileConfigured =
+        storedBodyProfileConfigured ?? inferredLegacyBodyProfile;
     return UserGoals(
       dailyCalories: row.dailyCalories,
       carbPercentage: row.carbPercentage,
@@ -143,6 +160,7 @@ class DriftSettingsRepository implements SettingsRepository {
       targetWeeklyChange: row.targetWeeklyChange,
       gender: gender,
       bmrFormula: bmrFormula,
+      bodyProfileConfigured: bodyProfileConfigured,
     );
   }
 
@@ -155,6 +173,10 @@ class DriftSettingsRepository implements SettingsRepository {
     await prefs.setString(
         _bmrKey, goals.bmrFormula == BmrFormula.harris ? 'harris' : 'mifflin');
     await prefs.setInt(_stepGoalKey, goals.stepGoal);
+    await prefs.setBool(
+      _bodyProfileConfiguredKey,
+      goals.bodyProfileConfigured,
+    );
 
     final companion = GoalsCompanion(
       dailyCalories: Value(goals.dailyCalories),

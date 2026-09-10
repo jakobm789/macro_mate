@@ -64,6 +64,26 @@ void main() {
     expect(controller.goals.userHeight, 181.0);
   });
 
+  test('keeps the configured body profile after restarting the app', () async {
+    await controller.updateGoals(
+      controller.goals.copyWith(
+        userAge: 27,
+        userHeight: 183,
+        gender: Gender.male,
+        bodyProfileConfigured: true,
+      ),
+    );
+
+    final restartedController = SettingsController(
+      repository: DriftSettingsRepository(database: db),
+    );
+    await restartedController.initialize();
+
+    expect(restartedController.goals.bodyProfileConfigured, isTrue);
+    expect(restartedController.goals.userAge, 27);
+    expect(restartedController.goals.userHeight, 183.0);
+  });
+
   test('calculates BMR and TDEE correctly for Mifflin and Harris formulas',
       () async {
     // Male, 80kg, 180cm, 30 years old, activity level 1.5
