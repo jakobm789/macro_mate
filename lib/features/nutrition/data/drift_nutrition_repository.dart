@@ -14,6 +14,30 @@ class DriftNutritionRepository implements NutritionRepository {
   final AppDatabase _database;
   static const _uuid = Uuid();
 
+  /// Keeps the database independent from the language used by the UI.
+  ///
+  /// Older app versions saved German labels directly. They remain readable,
+  /// while all new writes use the four stable catalog keys.
+  static String _canonicalMealName(String mealName) {
+    switch (mealName.trim().toLowerCase()) {
+      case 'breakfast':
+      case 'frühstück':
+      case 'fruhstuck':
+        return 'breakfast';
+      case 'lunch':
+      case 'mittagessen':
+        return 'lunch';
+      case 'dinner':
+      case 'abendessen':
+        return 'dinner';
+      case 'snack':
+      case 'snacks':
+        return 'snacks';
+      default:
+        return 'snacks';
+    }
+  }
+
   @override
   Future<Map<String, List<ConsumedFoodItem>>> getDailyFoods(String date) async {
     final query = _database.select(_database.consumedFoods).join([
@@ -46,12 +70,8 @@ class DriftNutritionRepository implements NutritionRepository {
         mealName: consumedRow.mealName,
       );
 
-      final mealKey = consumedRow.mealName.toLowerCase();
-      if (result.containsKey(mealKey)) {
-        result[mealKey]!.add(item);
-      } else {
-        result['snacks']!.add(item);
-      }
+      final mealKey = _canonicalMealName(consumedRow.mealName);
+      result[mealKey]!.add(item);
     }
 
     return result;
@@ -67,7 +87,7 @@ class DriftNutritionRepository implements NutritionRepository {
     return await _database.into(_database.consumedFoods).insert(
           ConsumedFoodsCompanion.insert(
             date: date,
-            mealName: mealName,
+            mealName: _canonicalMealName(mealName),
             foodId: foodId,
             quantity: quantity,
             uuid: Value(_uuid.v4()),
@@ -109,15 +129,17 @@ class DriftNutritionRepository implements NutritionRepository {
     required String toDate,
     required String mealName,
   }) async {
+    final canonicalMealName = _canonicalMealName(mealName);
     final items = await (_database.select(_database.consumedFoods)
-          ..where((tbl) =>
-              tbl.date.equals(fromDate) & tbl.mealName.equals(mealName)))
+          ..where((tbl) => tbl.date.equals(fromDate)))
         .get();
 
-    for (final item in items) {
+    for (final item in items.where(
+      (item) => _canonicalMealName(item.mealName) == canonicalMealName,
+    )) {
       await addConsumedFood(
         date: toDate,
-        mealName: mealName,
+        mealName: canonicalMealName,
         foodId: item.foodId,
         quantity: item.quantity,
       );

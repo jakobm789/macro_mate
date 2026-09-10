@@ -77,6 +77,49 @@ void main() {
     expect(daily['breakfast']!, isEmpty);
   });
 
+  test('uses German meal labels without falling back to snacks', () async {
+    final food = await repo.saveFood(
+      FoodItem(
+        name: 'Proteinmilch',
+        brand: 'Test',
+        caloriesPer100g: 51,
+        fatPer100g: 0.1,
+        carbsPer100g: 5,
+        sugarPer100g: 5,
+        proteinPer100g: 7.5,
+      ),
+    );
+    const date = '2026-09-10';
+
+    // Represents entries already written by the German meal selector.
+    await db.into(db.consumedFoods).insert(
+          ConsumedFoodsCompanion.insert(
+            date: date,
+            mealName: 'Frühstück',
+            foodId: food.id!,
+            quantity: 200,
+          ),
+        );
+    await repo.addConsumedFood(
+      date: date,
+      mealName: 'Mittagessen',
+      foodId: food.id!,
+      quantity: 150,
+    );
+    await repo.addConsumedFood(
+      date: date,
+      mealName: 'Abendessen',
+      foodId: food.id!,
+      quantity: 100,
+    );
+
+    final daily = await repo.getDailyFoods(date);
+    expect(daily['breakfast'], hasLength(1));
+    expect(daily['lunch'], hasLength(1));
+    expect(daily['dinner'], hasLength(1));
+    expect(daily['snacks'], isEmpty);
+  });
+
   test('toggles favorite foods and manages frequent food usage', () async {
     final food = await repo.saveFood(
       FoodItem(
